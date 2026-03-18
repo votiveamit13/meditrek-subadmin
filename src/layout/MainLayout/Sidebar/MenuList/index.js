@@ -31,7 +31,7 @@ const menu = [
   {
     title: "My Patients",
     icon: <GroupIcon />,
-    url: APP_PREFIX_PATH + "/manage-patients"
+    url: APP_PREFIX_PATH + "/patients"
   },
   {
     title: "Analytics",

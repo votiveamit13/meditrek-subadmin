@@ -55,8 +55,12 @@ const MainRoutes = {
       element: <ViewPatient />
     },
 
+    // {
+    //   path: APP_PREFIX_PATH + '/manage-patients',
+    //   element: <ManagePatient />
+    // },
     {
-      path: APP_PREFIX_PATH + '/manage-patients',
+      path: APP_PREFIX_PATH + '/patients',
       element: <ManagePatient />
     },
     {
