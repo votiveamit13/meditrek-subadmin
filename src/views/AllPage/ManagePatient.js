@@ -1,204 +1,1302 @@
-import React, { useEffect, useState } from 'react';
-import { Card, Table } from 'react-bootstrap';
-import { Link } from 'react-router-dom';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import 'bootstrap/dist/js/bootstrap.bundle.min.js';
-import './managecontent.css';
-// import Image from 'assets/images/img.jfif';
+import { Card, Modal, Stack, Table, Button, Form } from 'react-bootstrap';
 import Pagination from '@mui/material/Pagination';
-import Stack from '@mui/material/Stack';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-// import ToggleOffIcon from '@mui/icons-material/ToggleOff';
-// import DeleteIcon from '@mui/icons-material/Delete';
-import Typography from '@mui/material/Typography';
-import { APP_PREFIX_PATH, Base_Url, IMAGE_PATH } from '../../config';
+import 'bootstrap/dist/css/bootstrap.min.css';
+// import Typography from '@mui/material/Typography';
+// import { useNavigate } from 'react-router';
 import axios from 'axios';
+import { Base_Url, IMAGE_PATH } from '../../config';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import React, { useEffect } from 'react';
+import { FadeLoader } from 'react-spinners';
+import AddIcon from '@mui/icons-material/Add';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import Swal from 'sweetalert2';
+import { saveAs } from 'file-saver';
+import * as XLSX from 'xlsx';
+import './managecontent.css';
+import { useState } from 'react';
+import { RiFileExcel2Line } from "react-icons/ri";
+import CustomTable from 'component/common/CustomTable';
 
-function ManagePatient() {
-  // const [selectedActions, setSelectedActions] = useState({});
-  const [currentPage, setCurrentPage] = useState(1);
-  const usersPerPage = 5; // Show 5 rows per page
+function ViewPatient() {
+  const [user_data, setUserDetails] = React.useState([]);
+  const [selectedPatientId, setSelectedPatientId] = useState(null);
+  const [patients, setPatients] = React.useState([]);
+  // const [show, setShow] = React.useState(false);
+  // const [enlargedImage, setEnlargedImage] = React.useState(null);
+  // const [showImagePopup, setShowImagePopup] = React.useState(false);
 
-  const [users, setUsers] = useState([]);
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const [searchQueryGroup, setSearchQuerygroup] = React.useState('');
+  // const [loading, setLoading] = React.useState(true);
+  const [adverse_data, setAdversedata] = React.useState([]);
+  const [report, setReport] = React.useState([]);
+  const [medication, setMedication] = React.useState([]);
+  const [measurement, setMeasurement] = React.useState([]);
+  const [notes, setNotes] = React.useState([]);
+  const [showNoteModal, setShowNoteModal] = React.useState(false);
+  const [noteDescription, setNoteDescription] = React.useState('');
+  const [descriptionError, setDescriptionError] = React.useState('');
+  const [editingNoteId, setEditingNoteId] = React.useState(null);
+  const [editNoteDescription, setEditNoteDescription] = React.useState('');
+  const [editDescriptionError, setEditDescriptionError] = React.useState('');
+  const [complianceData, setComplianceData] = React.useState([]);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [switchLoading, setSwitchLoading] = useState(false);
+  const [patientPage, setPatientPage] = useState(1);
+  const patientsPerPage = 10;
+  const [sortConfig, setSortConfig] = useState({
+    key: null,
+    direction: "asc"
+  });
 
-  const [searchQuery, setSearchQuery] = useState('');
-
-  const handleSearchChange = (event) => {
-    setSearchQuery(event.target.value);
+  const handleSort = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction:
+        prev.key === key && prev.direction === "asc" ? "desc" : "asc"
+    }));
   };
 
-  const filteredUsers = users.filter(
-    (user) =>
-      (user.name && user.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (user.email && user.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (user.mobile && user.mobile.toString().includes(searchQuery)) ||
-      (searchQuery.toLowerCase().includes('active') && user.active_flag === 1) ||
-      (searchQuery.toLowerCase().includes('deactive') && user.active_flag === 0) ||
-      (user.createtime && user.createtime.includes(searchQuery))
-  );
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  // const { user_id } = useParams();
+  // const navigate = useNavigate();
+  const token = sessionStorage.getItem('token');
+  const doctor_id = sessionStorage.getItem('doctor_id');
+  // const doctor_id = sessionStorage.getItem('doctor_id');
+  // console.log("safiu", doctor_id)
+  // useEffect(() => {
+  //   if (selectedPatientId) {
+  //     setLoading(true);
+  //   }
+  // }, [selectedPatientId]);
+  useEffect(() => {
+    if (patients.length > 0 && doctor_id) {
+      setSelectedPatientId((prev) => prev || patients[0].user_id);
+    }
+  }, [patients, doctor_id]);
 
-  const indexOfLastUser = currentPage * usersPerPage;
-  const indexOfFirstUser = indexOfLastUser - usersPerPage;
-  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
-  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+  const contentTypes = {
+    medication: 1,
+    labReports: 2,
+    measurement: 3,
+    adverse: 4,
+    note: 5,
+    compliance: 6
+  };
+  const [content, setContent] = React.useState(contentTypes.medication);
+  // Add this function before your useEffect hooks
+  const fetchNotes = async () => {
+    if (!selectedPatientId) return;
+
+    try {
+      const response = await axios.get(`${Base_Url}get_notes?user_id=${selectedPatientId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      if (response.data.key === 'authenticateFailed') {
+        sessionStorage.clear();
+        // navigate(APP_PREFIX_PATH + '/login'); // Uncomment if you have navigate
+      }
+      if (response.data.success && response.data.list !== "NA") {
+        setNotes(response.data.notes.map((note, index) => ({
+          id: note.note_id,
+          sr_no: index + 1,
+          description: note.description,
+          createtime: note.createtime
+        })));
+      } else {
+        setNotes([]);
+      }
+    } catch (error) {
+      console.error('Error fetching notes:', error);
+      setNotes([]);
+    }
+  };
+
+  // Update your main useEffect to include sr_no for all data types
+  useEffect(() => {
+    if (!selectedPatientId || !doctor_id) return;
+
+    if (initialLoading) {
+      setInitialLoading(true);
+    } else {
+      setSwitchLoading(true);
+    }
+
+    Promise.all([
+      axios.get(`${Base_Url}get_patient_details?user_id=${selectedPatientId}&doctor_id=${doctor_id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      }),
+      axios.get(`${Base_Url}fetchadverseof_patient?user_id=${selectedPatientId}&doctor_id=${doctor_id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      }),
+      axios.get(`${Base_Url}get_patient_reports?user_id=${selectedPatientId}&doctor_id=${doctor_id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      }),
+      axios.get(`${Base_Url}get_patient_medications_list?user_id=${selectedPatientId}&doctor_id=${doctor_id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      }),
+      axios.get(`${Base_Url}get_patient_measurements?user_id=${selectedPatientId}&doctor_id=${doctor_id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      }),
+      axios.get(`${Base_Url}view_compliance?user_id=${selectedPatientId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      }),
+      axios.get(`${Base_Url}get_notes?user_id=${selectedPatientId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+    ])
+      .then(([
+        detailsRes,
+        adverseRes,
+        reportsRes,
+        medsRes,
+        measurementRes,
+        complianceRes,
+        notesRes
+      ]) => {
+        // Handle authentication failure for each response
+        const responses = [detailsRes, adverseRes, reportsRes, medsRes, measurementRes, complianceRes, notesRes];
+        for (const res of responses) {
+          if (res.data.key === 'authenticateFailed') {
+            sessionStorage.clear();
+            // navigate(APP_PREFIX_PATH + '/login'); // Uncomment if you have navigate
+            return;
+          }
+        }
+
+        if (detailsRes.data.success) setUserDetails(detailsRes.data.patienDetails);
+
+        // Add sr_no to adverse data
+        if (adverseRes.data.success && adverseRes.data.adverse_arr) {
+          setAdversedata(adverseRes.data.adverse_arr.map((item, index) => ({
+            ...item,
+            sr_no: index + 1
+          })));
+        } else {
+          setAdversedata([]);
+        }
+
+        // Add sr_no to reports
+        if (reportsRes.data.success && reportsRes.data.list !== 'NA') {
+          setReport(reportsRes.data.list.map((item, index) => ({
+            ...item,
+            sr_no: index + 1
+          })));
+        } else {
+          setReport([]);
+        }
+
+        // Add sr_no to medication
+        if (medsRes.data.success && medsRes.data.list !== 'NA') {
+          setMedication(medsRes.data.list.map((item, index) => ({
+            ...item,
+            sr_no: index + 1
+          })));
+        } else {
+          setMedication([]);
+        }
+
+        // Add sr_no to measurements
+        if (measurementRes.data.success && measurementRes.data.measurements !== 'NA') {
+          setMeasurement(measurementRes.data.measurements.map((item, index) => ({
+            ...item,
+            sr_no: index + 1
+          })));
+        } else {
+          setMeasurement([]);
+        }
+
+        // Add sr_no to compliance data
+        if (complianceRes.data.success && complianceRes.data.list !== 'NA') {
+          setComplianceData(complianceRes.data.list.map((item, index) => ({
+            ...item,
+            sr_no: index + 1
+          })));
+        } else {
+          setComplianceData([]);
+        }
+
+        // Handle notes with sr_no
+        if (notesRes.data.success && notesRes.data.list !== 'NA') {
+          setNotes(notesRes.data.notes.map((note, index) => ({
+            id: note.note_id,
+            sr_no: index + 1,
+            description: note.description,
+            createtime: note.createtime
+          })));
+        } else {
+          setNotes([]);
+        }
+
+        setInitialLoading(false);
+        setSwitchLoading(false);
+      })
+      .catch((err) => {
+        console.error(err);
+        setInitialLoading(false);
+        setSwitchLoading(false);
+      });
+  }, [selectedPatientId, token, doctor_id]); // Add dependencies
+
+  // const handleClose = () => setShow(false);
+  // const handleShow = () => setShow(true);
+
+  // const handleCloseImage = () => {
+  //   setEnlargedImage(null);
+  //   setShowImagePopup(false);
+  // };
+
+  const handleSearchgroup = (event) => {
+    setSearchQuerygroup(event.target.value);
+  };
 
   const handlePageChange = (event, value) => {
     setCurrentPage(value);
   };
 
-  const fetchUserDetails = async () => {
-    try {
-      const token = sessionStorage.getItem('token');
-      let response;
-      response = await axios.get(`${Base_Url}get_all_patient`, {
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        }
-      });
+  const handleAddNote = async () => {
+    if (!noteDescription.trim()) {
+      setDescriptionError('Description is required');
+      return;
+    } else if (noteDescription.length > 500) {
+      setDescriptionError('Description must be less than 500 characters');
+      return;
+    }
 
-      if (response.data.success) {
-        if (response.data.patient != 'NA') {
-          setUsers(response.data.patient);
+    setDescriptionError('');
+
+    try {
+      const response = await axios.post(
+        `${Base_Url}add_note`,
+        {
+          user_id: selectedPatientId,
+          description: noteDescription
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
         }
-      } else {
-        console.log('Profile Details fetch Error');
+      );
+
+      if (!response.data.success) {
+        throw new Error(response.data.msg || 'Failed to add note');
       }
+
+      await fetchNotes();
+      setShowNoteModal(false);
+      setNoteDescription('');
     } catch (error) {
-      console.error('Error updating profile', error);
+      console.error('Error adding note:', error);
     }
   };
 
-  useEffect(() => {
-    fetchUserDetails();
+  const handleEditNote = (note) => {
+    setEditingNoteId(note.id);
+    setEditNoteDescription(note.description);
+  };
+
+  const handleUpdateNote = async () => {
+    if (!editNoteDescription.trim()) {
+      setEditDescriptionError('Please enter Description');
+      return;
+    } else if (editNoteDescription.length > 500) {
+      setEditDescriptionError('Description must be less than 500 characters');
+      return;
+    }
+
+    setEditDescriptionError('');
+
+    try {
+      const response = await axios.post(
+        `${Base_Url}update_note`,
+        {
+          note_id: editingNoteId,
+          description: editNoteDescription
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      if (!response.data.success) {
+        throw new Error(response.data.msg || 'Failed to update note');
+      }
+
+      Swal.fire({
+        title: '',
+        text: 'Note Updated Successfully',
+        icon: 'success',
+        timer: 2000
+      });
+
+      await fetchNotes();
+      setEditingNoteId(null);
+      setEditNoteDescription('');
+    } catch (error) {
+      console.error('Error updating note:', error);
+    }
+  };
+
+  const handleDeleteNote = async (noteId) => {
+    const result = await Swal.fire({
+      title: 'Are you sure',
+      text: 'You want to delete this Note?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#3085d6',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Ok',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const response = await axios.post(
+          `${Base_Url}delete_note`,
+          {
+            note_id: noteId
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        );
+
+        if (!response.data.success) {
+          throw new Error(response.data.msg || 'Failed to delete note');
+        }
+
+        await fetchNotes();
+
+        Swal.fire('Deleted!', 'Your note has been deleted.', 'success');
+      } catch (error) {
+        console.error('Error deleting note:', error);
+        Swal.fire('Error!', 'Failed to delete note.', 'error');
+      }
+    }
+  };
+
+  const filterMedicationData =
+    medication?.filter((item) => {
+      const lowercasedTerm = searchQueryGroup.toLowerCase();
+      return Object.values(item).some((val) => val && String(val).toLowerCase().includes(lowercasedTerm));
+    }) || [];
+
+  const filterAdverseData =
+    adverse_data?.filter((item) => {
+      const lowercasedTerm = searchQueryGroup.toLowerCase();
+      return Object.values(item).some((val) => val && String(val).toLowerCase().includes(lowercasedTerm));
+    }) || [];
+
+  const filterLabReportsData =
+    report?.filter((item) => {
+      const lowercasedTerm = searchQueryGroup.toLowerCase();
+      return Object.values(item).some((val) => val && String(val).toLowerCase().includes(lowercasedTerm));
+    }) || [];
+
+  const filterMeasurementData =
+    measurement?.filter((item) => {
+      const lowercasedTerm = searchQueryGroup.toLowerCase();
+      return Object.values(item).some((val) => val && String(val).toLowerCase().includes(lowercasedTerm));
+    }) || [];
+
+  const filterNotesData =
+    notes?.filter((item) => {
+      const lowercasedTerm = searchQueryGroup.toLowerCase();
+      return Object.values(item).some((val) => val && String(val).toLowerCase().includes(lowercasedTerm));
+    }) || [];
+
+  const filterComplianceData =
+    complianceData?.filter((item) => {
+      const lowercasedTerm = searchQueryGroup.toLowerCase();
+      return Object.values(item).some((val) => val && String(val).toLowerCase().includes(lowercasedTerm));
+    }) || [];
+
+  const indexOfLastItem = currentPage * rowsPerPage;
+  const indexOfFirstItem = indexOfLastItem - rowsPerPage;
+
+  // const sortedMedication = [...filterMedicationData].sort((a, b) => {
+  //   if (!sortConfig.key) return 0;
+
+  //   const aVal = a[sortConfig.key] || "";
+  //   const bVal = b[sortConfig.key] || "";
+
+  //   if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+  //   if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+  //   return 0;
+  // });
+
+  // const currentMedication = sortedMedication.slice(indexOfFirstItem, indexOfLastItem);
+  const currentAdverse = filterAdverseData.slice(indexOfFirstItem, indexOfLastItem);
+  const currentLabReports = filterLabReportsData.slice(indexOfFirstItem, indexOfLastItem);
+  const currentMeasurement = filterMeasurementData.slice(indexOfFirstItem, indexOfLastItem);
+  const currentNotes = filterNotesData.slice(indexOfFirstItem, indexOfLastItem);
+  const currentCompliance = filterComplianceData.slice(indexOfFirstItem, indexOfLastItem);
+
+  // const totalMedicationPages = Math.ceil(filterMedicationData.length / rowsPerPage);
+  const totalAdversePages = Math.ceil(filterAdverseData.length / rowsPerPage);
+  const totalLabReportsPages = Math.ceil(filterLabReportsData.length / rowsPerPage);
+  const totalMeasurementPages = Math.ceil(filterMeasurementData.length / rowsPerPage);
+  const totalNotesPages = Math.ceil(filterNotesData.length / rowsPerPage);
+  const totalCompliancePages = Math.ceil(filterComplianceData.length / rowsPerPage);
+
+  // 16/03
+
+  React.useEffect(() => {
+    axios
+      .get(`${Base_Url}get_all_patient`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      })
+      .then((response) => {
+        if (response.data.success && response.data.patient !== 'NA') {
+          setPatients(response.data.patient);
+        }
+      })
+      .catch((error) => {
+        console.error('Error fetching patient list:', error);
+      });
   }, []);
 
-  return (
-    <>
-      <Typography style={{ marginTop: '0px', marginBottom: '20px', fontSize: '13px', paddingRight:'24px' }} className='d-flex justify-content-end align-items-center' variant="h4" gutterBottom>
-        <span style={{ color: '#1ddec4' }}>Dashboard</span> / Patients List
-      </Typography>
-      <Card className="border-0 shadow-sm rounded-3 table-space">
-        <Card.Header className="bg-white d-flex  align-items-center border-bottom-0 px-4  w-100">
-          <div className="d-flex justify-content-between align-items-center pt-3 w-100 gap-2 flex-wrap">
-            {/* <label htmlFor="search-input"  className="me-2 fw-medium">
-              Search
-            </label> */}
-           <p style={{ marginTop: '0px', marginBottom: '0px', fontSize: '16px' }}>Patients List</p>
-            <input
-              className="search-input form-control"
-              type="text"
-              placeholder="Search..."
-              onChange={handleSearchChange}
-              // style={{ marginTop: '8px', marginBottom: '5px', padding: '5px', width: '200px', border: '1px solid #f2f2f2' }}
-              style={{ width: '220px', fontSize: '13px' }}
-            />
-          </div>
-        </Card.Header>
-        <Card.Body className="px-4 py-3">
-         
-            {filteredUsers.length > 0 ? (
-              <>
-               <div className="table-container">
-                <Table responsive hover className="align-middle text-center table" style={{ borderRadius: '12px !important' }}>
-                  <thead className="py-3 table-head">
+  // ========================
+
+  const exportMedicationToExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(
+      medication.map((item, index) => ({
+        'S. No.': index + 1,
+        'Medicine Name': item.medicine_name,
+        'Medicine Type': item.type,
+        Schedule: item.schedule,
+        Dosage: item.dosage,
+        'Current Quantity': item.current_quantity,
+        'Reminder Time': item.reminder_time,
+        Instruction: item.instruction,
+        Description: item.description,
+        Status: item.taken_status ? 'Taken' : 'Not Taken',
+        Date: item.schedule_date,
+        'Create Date & Time': item.updatetime
+      }))
+    );
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'MedicationReport');
+    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+    saveAs(blob, 'MedicationReport.xlsx');
+  };
+
+  const exportMeasurementToExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(
+      measurement.map((item, index) => ({
+        'S. No.': index + 1,
+        'Systolic BP': item.systolic_bp,
+        'Diastolic BP': item.diastolic_bp,
+        Pulse: item.pulse,
+        'Fasting Glucose': item.fasting_glucose ? `${item.fasting_glucose} mg/dl` : '-',
+        PPBGS: item.ppbgs ? `${item.ppbgs} mg/dl` : '-',
+        'Weight Measurement': item.weight ? `${item.weight} kg` : '-',
+        Temperature: item.temperature ? `${item.temperature} °C` : '-',
+        Symptom: item.symptom,
+        Range: item.symptom_range,
+        Time: item.time,
+        Date: item.date,
+        'Create Date & Time': item.createtime
+      }))
+    );
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'MeasurementReport');
+    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+    saveAs(blob, 'MeasurementReport.xlsx');
+  };
+  const indexOfLastPatient = patientPage * patientsPerPage;
+  const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
+
+  const currentPatients = patients.slice(
+    indexOfFirstPatient,
+    indexOfLastPatient
+  );
+
+  const totalPatientPages = Math.ceil(patients.length / patientsPerPage);
+  const renderTable = (data, columns, currentData, totalPages = false) => {
+    return (
+      <>
+        {data.length > 0 ? (
+          <>
+            <div style={{ maxHeight: '300px' }}>
+              <div className='table-container'>
+                <Table
+                  responsive
+                  hover
+                  className="align-middle"
+                  style={{
+                    borderRadius: "12px",
+                    overflow: "hidden"
+                  }}
+                >
+                  <thead style={{ background: "#f8fafc" }}>
                     <tr>
-                      <th style={{ textAlign: 'center', fontWeight: '500', padding: '14px 8px', whiteSpace: 'nowrap' }}> S. No</th>
-                    
-                      <th style={{ textAlign: 'center', fontWeight: '500', padding: '14px 8px' }}>Image</th>
-                      <th style={{ textAlign: 'center', fontWeight: '500', padding: '14px 8px' }}> User Id</th>
-                      <th style={{ textAlign: 'center', fontWeight: '500', padding: '14px 8px' }}> Name</th>
-                      <th style={{ textAlign: 'center', fontWeight: '500', padding: '14px 8px' }}> Mobile No.</th>
-                      <th style={{ textAlign: 'center', fontWeight: '500', padding: '14px 8px' }}> Email</th>
-                      <th style={{ textAlign: 'center', fontWeight: '500', padding: '14px 8px', whiteSpace: 'nowrap' }}>
-                        Shared Date & Time
-                      </th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', padding: '14px 8px' }}>Action</th>
+                      {columns.map((col, index) => (
+                        <th
+                          key={index}
+                          style={{
+                            fontWeight: 600,
+                            fontSize: "13px",
+                            padding: "12px"
+                          }}
+                        >
+                          {col.header}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
-                  <tbody className="small">
-                    {currentUsers.map((user, index) => (
+                  <tbody>
+                    {currentData.map((item, index) => (
                       <tr key={index}>
-                        <th scope="row" style={{ textAlign: 'center' }}>
-                          {indexOfFirstUser + index + 1}
-                        </th>
-                       
-                        <td style={{ textAlign: 'center' }}>
-                          <img
-                            src={user.image ? `${IMAGE_PATH}${user.image}?${new Date().getTime()}` : `${IMAGE_PATH}placeholder.jpg`}
-                            alt="Logo"
-                            style={{
-                              width: '35px',
-                              height: '35px',
-                              borderRadius: '100%',
-                              objectFit: 'cover'
-                            }}
-                          ></img>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>#{user.user_unique_id || 'NA'}</td>
-                        <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{user.name || 'NA'}</td>
-                        <td style={{ textAlign: 'center' }}>{user.mobile || 'NA'}</td>
-                        <td style={{ textAlign: 'center' }}>{user.email || 'NA'}</td>
-
-                        <td style={{ textAlign: 'center' }}>{user.createtime || 'NA'}</td>
-                         <td>
-                          <div className="dropdown text-center">
-                            <button className="btn btn-sm btn-primary btn-outline-light  action-btn" type="button" aria-expanded="false">
-                              <Link
-                                to={APP_PREFIX_PATH + `/manage-user/userlist/view_user/${user.user_id}`}
-                                className="dropdown-item d-flex align-items-center"
-                              >
-                                <VisibilityIcon style={{fontSize:"16px"}}  />
-                              </Link>
-                            </button>
-                          </div>
-                        </td>
+                        {columns.map((col, colIndex) => (
+                          <td key={colIndex} style={{ textAlign: 'center', whiteSpace: 'wrap' }}>
+                            {col.key === 'taken_status'
+                              ? item.taken_status
+                                ? 'Taken'
+                                : 'Not Taken'
+                              : col.render
+                                ? col.render(item)
+                                : item[col.key] || '-'}
+                          </td>
+                        ))}
                       </tr>
                     ))}
                   </tbody>
                 </Table>
-                 </div>
-                <div className="d-flex justify-content-between align-items-center mt-3 center-flex">
-                  <p style={{ fontWeight: '500',fontSize:'13px' }} className="pagination mb-0 text-muted">
-                    {filteredUsers.length > 0
-                      ? `Showing ${indexOfFirstUser + 1} to ${filteredUsers.length} of ${filteredUsers.length} entries`
-                      : 'No entries to show'}
-                  </p>
-                  <Stack spacing={2} alignItems="right" fontSize="13px">
-                    <Pagination count={totalPages} page={currentPage} onChange={handlePageChange} />
-                  </Stack>
-                </div>
-                
-              </>
-            ) : (
-              <>
-                <Table responsive hover>
-                  <thead>
+              </div>
+            </div>
+            <div className="d-flex justify-content-between">
+              <p style={{ fontWeight: '500' }} className="pagination">
+                {data.length > 0
+                  ? `Showing ${indexOfFirstItem + 1} to ${Math.min(indexOfLastItem, data.length)} of ${data.length} entries`
+                  : 'No entries to show'}
+              </p>
+              <Stack spacing={2} alignItems="right">
+                <Pagination count={totalPages} page={currentPage} onChange={handlePageChange} />
+              </Stack>
+            </div>
+          </>
+        ) : (
+          <Table responsive hover>
+            <thead>
+              <tr>
+                {columns.map((col, index) => (
+                  <th key={index} style={{ textAlign: 'center', fontWeight: '500' }}>
+                    {col.header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colSpan={columns.length}>
+                  <p style={{ marginBottom: '0px', textAlign: 'center' }}>No Data Available</p>
+                </td>
+              </tr>
+            </tbody>
+          </Table>
+        )}
+      </>
+    );
+  };
+
+  const medicationColumns = [
+  {
+    label: "S. No",
+    key: "sr_no",
+    sortable: true,
+    render: (_, index) => index + 1
+  },
+  {
+    label: "Medicine Name",
+    key: "medicine_name",
+    sortable: true
+  },
+  {
+    label: "Schedule",
+    key: "schedule",
+    sortable: true
+  },
+  {
+    label: "Dosage",
+    key: "dosage",
+    sortable: true
+  },
+  {
+    label: "Reminder Time",
+    key: "reminder_time",
+    render: (row) => (
+      <span
+        style={{
+          background: "#ecfeff",
+          color: "#0891b2",
+          padding: "4px 8px",
+          borderRadius: "6px",
+          fontSize: "11px"
+        }}
+      >
+        {row.reminder_time || "-"}
+      </span>
+    )
+  },
+  {
+    label: "Instruction",
+    key: "instruction"
+  },
+  {
+    label: "Date of Registry",
+    key: "updatetime",
+    sortable: true
+  }
+];
+  const renderTabContent = () => {
+    switch (content) {
+      case contentTypes.medication:
+        return (
+          <div
+            style={{
+              background: "#ffffff",
+              borderRadius: "16px",
+              position: "relative"
+            }}
+          >
+
+    <CustomTable
+  columns={medicationColumns}
+  data={filterMedicationData}
+  sortConfig={sortConfig}
+  onSort={handleSort}
+  currentPage={currentPage}
+  rowsPerPage={rowsPerPage}
+  onPageChange={(page) => setCurrentPage(page)}
+  onRowsPerPageChange={(size) => {
+    setRowsPerPage(size);
+    setCurrentPage(1);
+  }}
+/>
+          </div>
+        );
+      case contentTypes.adverse:
+        return renderTable(
+          filterAdverseData,
+          [
+            { header: 'S. No', key: 'sr_no' },
+            { header: 'Medicine', key: 'medicine_name' },
+            { header: 'Dosage', key: 'dosage' },
+            { header: 'Status', key: 'taken_status' },
+            { header: 'Medicine Type', key: 'category_name' },
+            { header: 'Symptom', key: 'symptom_name' },
+            { header: 'Description', key: 'instruction' },
+            { header: 'Medication Start Date', key: 'medication_start_date' },
+            { header: 'Reaction Date', key: 'reaction_date' }
+          ],
+          currentAdverse,
+          totalAdversePages
+        );
+      case contentTypes.labReports:
+        return (
+          <>
+            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+              <Table responsive hover>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: 'center', fontWeight: '500' }}>S. No</th>
+                    <th style={{ textAlign: 'center', fontWeight: '500' }}>Report Type</th>
+                    <th style={{ textAlign: 'center', fontWeight: '500' }}>View</th>
+                    <th style={{ textAlign: 'center', fontWeight: '500' }}>Create Date & Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {currentLabReports.length > 0 ? (
+                    currentLabReports.map((item, index) => (
+                      <tr key={item.medical_report_id}>
+                        <td style={{ textAlign: 'center' }}>{indexOfFirstItem + index + 1}</td>
+                        <td style={{ textAlign: 'center' }}>{item.category_name || '-'}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() =>
+                              window.open(
+                                item.file ? `${IMAGE_PATH}${item.file}?${new Date().getTime()}` : `${IMAGE_PATH}placeholder.jpg`,
+                                '_blank'
+                              )
+                            }
+                          >
+                            <VisibilityIcon style={{ marginRight: '5px', fontSize: '16px' }} />
+                            View
+                          </Button>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>{item.createtime || '-'}</td>
+                      </tr>
+                    ))
+                  ) : (
                     <tr>
-                      <th style={{ textAlign: 'center', fontWeight: '500',whiteSpace:"nowrap" }}> S. No</th>
-                      <th style={{ textAlign: 'center', fontWeight: '500' }}>Action</th>
-                      <th style={{ textAlign: 'center', fontWeight: '500' }}>Image</th>
-                      <th style={{ textAlign: 'center', fontWeight: '500' }}> Name</th>
-                      <th style={{ textAlign: 'center', fontWeight: '500',whiteSpace:"nowrap"  }}> Mobile No.</th>
-                      <th style={{ textAlign: 'center', fontWeight: '500' }}> Email</th>
-                      <th style={{ textAlign: 'center', fontWeight: '500',whiteSpace:"nowrap"  }}>Shared Date & Time</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td colSpan={7} className="text-center py-5 text-muted">
-                        <p style={{ marginBottom: '0px', textAlign: 'center',whiteSpace:"nowrap"  }}> No Data Found</p>
+                      <td colSpan={4} style={{ textAlign: 'center' }}>
+                        No Data Available
                       </td>
                     </tr>
-                  </tbody>
-                </Table>
-              </>
+                  )}
+                </tbody>
+              </Table>
+            </div>
+            {filterLabReportsData.length > 0 && (
+              <div className="d-flex justify-content-between">
+                <p style={{ fontWeight: '500' }} className="pagination">
+                  Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filterLabReportsData.length)} of{' '}
+                  {filterLabReportsData.length} entries
+                </p>
+                <Stack spacing={2} alignItems="right">
+                  <Pagination count={totalLabReportsPages} page={currentPage} onChange={handlePageChange} />
+                </Stack>
+              </div>
             )}
-         
-        </Card.Body>
-      </Card>
+          </>
+        );
+      case contentTypes.measurement:
+        return (
+          <>
+            {measurement.length > 0 && (
+              <div className="mb-3 text-end">
+                <Button variant="success" onClick={exportMeasurementToExcel} style={{ backgroundColor: '#1DDEC4', border: 'none' }}>
+                  Export to Excel
+                </Button>
+              </div>
+            )}
+            {/* <div style={{ width: '100%', overflowX: 'auto' }}>
+            {renderTable(
+              filterMeasurementData,
+              [
+                { header: 'S. No', key: 'sr_no' },
+                { header: 'Systolic BP', key: 'systolic_bp' },
+                { header: 'Diastolic BP', key: 'diastolic_bp' },
+                { header: 'Pulse', key: 'pulse' },
+                { header: 'Fasting Glucose', key: 'fasting_glucose', render: (item) => item.fasting_glucose ? `${item.fasting_glucose} mg/dl` : '-' },
+                { header: 'PPBGS', key: 'ppbgs', render: (item) => item.ppbgs ? `${item.ppbgs} mg/dl` : '-' },
+                { header: 'Weight Measurement', key: 'weight', render: (item) => item.weight ? `${item.weight} kg` : '-' },
+                { header: 'Temperature', key: 'temperature', render: (item) => item.temperature ? `${item.temperature} °C` : '-' },
+                { header: 'Symptom', key: 'symptom' },
+                { header: 'Range', key: 'symptom_range' },
+                { header: 'Time', key: 'time' },
+                { header: 'Date', key: 'date' }
+              ],
+              currentMeasurement,
+              totalMeasurementPages
+            )}
+            </div> */}
+
+            <div style={{ width: '100%', overflowX: 'auto' }}>
+              {renderTable(
+                filterMeasurementData,
+                [
+                  { header: 'S. No', key: 'sr_no' },
+                  { header: 'Systolic BP', key: 'systolic_bp' },
+                  { header: 'Diastolic BP', key: 'diastolic_bp' },
+                  { header: 'Pulse', key: 'pulse' },
+                  {
+                    header: 'Fasting Glucose',
+                    key: 'fasting_glucose',
+                    render: (item) => (item.fasting_glucose ? `${item.fasting_glucose} mg/dl` : '-')
+                  },
+                  { header: 'PPBGS', key: 'ppbgs', render: (item) => (item.ppbgs ? `${item.ppbgs} mg/dl` : '-') },
+                  { header: 'Weight Measurement', key: 'weight', render: (item) => (item.weight ? `${item.weight} kg` : '-') },
+                  { header: 'Temperature', key: 'temperature', render: (item) => (item.temperature ? `${item.temperature} °C` : '-') },
+                  { header: 'Symptom', key: 'symptom' },
+                  { header: 'Range', key: 'symptom_range' },
+                  {
+                    header: 'Time',
+                    key: 'time',
+                    render: (item) => <span style={{ whiteSpace: 'nowrap' }}>{item.time || '-'}</span>
+                  },
+                  {
+                    header: 'Date',
+                    key: 'date',
+                    render: (item) => <span style={{ whiteSpace: 'nowrap' }}>{item.date || '-'}</span>
+                  }
+                ],
+                currentMeasurement,
+                totalMeasurementPages
+              )}
+            </div>
+          </>
+        );
+      case contentTypes.note:
+        return (
+          <>
+            <div className="d-flex justify-content-between mb-3 p-4">
+              <div className="d-flex justify-content-end">
+                {/* <label htmlFor="search-input" style={{ marginRight: '5px' }}>
+                      Search
+                    </label> */}
+                <input
+                  className="search-input form-control"
+                  type="text"
+                  onChange={handleSearchgroup}
+                  placeholder="Search..."
+                  style={{ width: '220px', fontSize: '13px' }}
+                />
+              </div>
+              <Button variant="primary" onClick={() => setShowNoteModal(true)}>
+                <AddIcon /> Add Note
+              </Button>
+            </div>
+            {renderTable(
+              filterNotesData,
+              [
+                { header: 'S. No', key: 'sr_no' },
+                {
+                  header: 'Actions',
+                  key: 'actions',
+                  render: (item) => (
+                    <div className="d-flex justify-content-center">
+                      <Button variant="warning" size="sm" className="me-2" onClick={() => handleEditNote(item)}>
+                        <EditIcon fontSize="small" />
+                      </Button>
+                      <Button variant="danger" size="sm" onClick={() => handleDeleteNote(item.id)}>
+                        <DeleteIcon fontSize="small" />
+                      </Button>
+                    </div>
+                  )
+                },
+                { header: 'Description', key: 'description' },
+                { header: 'Create Date & Time', key: 'createtime' }
+              ],
+              currentNotes,
+              totalNotesPages
+            )}
+          </>
+        );
+      case contentTypes.compliance:
+        return renderTable(
+          filterComplianceData,
+          [
+            { header: 'S. No', key: 'sr_no' },
+            { header: 'Medicine Name', key: 'medicine_name' },
+            { header: 'Schedule', key: 'schedule' },
+            { header: 'Dosage', key: 'dosage' },
+            { header: 'Status', key: 'taken_status' },
+            { header: 'Reminder Time', key: 'time' },
+            { header: 'Instruction', key: 'instruction', width: '150px' },
+            { header: 'Pause Status', key: 'pause_status_label', width: '150px' },
+
+            { header: 'Date', key: 'schedule_date' },
+            { header: 'Medicine Taken Date & Time', key: 'updatetime', width: '170px' }
+          ],
+          currentCompliance,
+          totalCompliancePages
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <>
+      {initialLoading ? (
+        <div style={{ marginLeft: '25rem', marginTop: '10rem' }}>
+          <FadeLoader color="#36d7b7" />
+        </div>
+      ) : (
+        <>
+          {/* <Typography
+            style={{ marginTop: '0px', marginBottom: '20px', fontSize: '13px', paddingRight: '24px' }}
+            className="d-flex justify-content-end align-items-center"
+            variant="h4"
+            gutterBottom
+          >
+            <span style={{ color: '#1ddec4' }}>Dashboard</span> / View Patient
+          </Typography> */}
+          <Card className="border-0 shadow-lg rounded-4 mb-4" style={{ position: "relative" }}>
+            {switchLoading && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: "rgba(255,255,255,0.6)",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  zIndex: 10,
+                  borderRadius: "16px"
+                }}
+              >
+                <FadeLoader color="#1ddec4" height={10} width={3} radius={2} margin={-2} />
+              </div>
+            )}
+            <Card.Body className="p-4">
+              <div className="d-flex align-items-center gap-4">
+
+                {/* Avatar */}
+                <div>
+                  <img
+                    src={user_data?.image ? `${IMAGE_PATH}${user_data.image}` : `${IMAGE_PATH}placeholder.jpg`}
+                    alt="User"
+                    style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                      border: "3px solid #1ddec4"
+                    }}
+                  />
+                </div>
+
+                {/* Info */}
+                <div className="flex-grow-1">
+                  <h5 className="fw-bold mb-1">{user_data.name}</h5>
+                  <small className="text-muted">{user_data.email}</small>
+
+                  <div className="d-flex gap-4 mt-3 flex-wrap">
+                    {[
+                      { label: "Age", value: `${user_data.age} yrs` },
+                      { label: "Height", value: `${user_data.height} cm` },
+                      { label: "Sex", value: `${user_data.sex}` },
+                      { label: "Diseases", value: `${user_data.disease_names}` },
+                      // { label: "Email Id", value: user_data.email },
+                      { label: "Mobile", value: user_data.mobile }
+                    ].map((item, i) => (
+                      <div key={i}>
+                        <small className="text-muted">{item.label}</small>
+                        <div className="fw-semibold">{item.value || "-"}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Status Badge */}
+                <div>
+                  <span
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: "20px",
+                      background: "#e6f9f6",
+                      color: "#1ddec4",
+                      fontWeight: 600
+                    }}
+                  >
+                    Active
+                  </span>
+                </div>
+              </div>
+            </Card.Body>
+          </Card>
+
+          <div className="row g-2 d-flex align-items-stretch" style={{ position: "relative" }}>
+            {switchLoading && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: "rgba(255,255,255,0.6)",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  zIndex: 10,
+                  borderRadius: "16px"
+                }}
+              >
+                <FadeLoader color="#1ddec4" height={10} width={3} radius={2} margin={-2} />
+              </div>
+            )}
+            <div className="col-md-3 d-flex">
+              <div className="bg-white rounded-4 shadow-sm p-3 h-100" style={{ display: "flex", flexDirection: "column", width: "calc(100% - 20px)" }}>
+                <h6 className="fw-bold mb-3">My Patients</h6>
+
+                <div style={{
+                  // height: "calc(100vh - 250px)",
+                  width: "100%",
+                  overflowY: "auto !important"
+                }}>
+                  {currentPatients.map((patient) => {
+                    const isActive = patient.user_id == selectedPatientId;
+
+                    return (
+                      <div
+                        key={patient.user_id}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedPatientId(patient.user_id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            setSelectedPatientId(patient.user_id);
+                          }
+                        }}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          padding: "5px",
+                          // borderRadius: "12px",
+                          marginBottom: "8px",
+                          cursor: "pointer",
+                          background: isActive ? "#1ddec4" : "#f8fafc",
+                          color: isActive ? "#fff" : "#333",
+                          transition: "all 0.25s ease",
+                          transform: isActive ? "scale(1.02)" : "scale(1)"
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isActive) {
+                            e.currentTarget.style.background = "#e6fffb";
+                            e.currentTarget.style.transform = "translateX(4px)";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive) {
+                            e.currentTarget.style.background = "#f8fafc";
+                            e.currentTarget.style.transform = "translateX(0)";
+                          }
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: "50%",
+                            background: "#fff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontWeight: 600,
+                            color: "#1ddec4"
+                          }}
+                        >
+                          {patient.name?.charAt(0)}
+                        </div>
+
+                        <span style={{ fontSize: "13px" }}>
+                          {patient.name}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="d-flex justify-content-center mt-2">
+                  <Pagination
+                    size="sm"
+                    count={totalPatientPages}
+                    page={patientPage}
+                    onChange={(e, value) => setPatientPage(value)}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="col-md-9 d-flex flex-column" >
+
+              {/* Tabs */}
+              <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+  
+  {/* LEFT → Tabs */}
+  <div className="d-flex gap-2 flex-wrap">
+    {[
+      { label: "Medication", value: contentTypes.medication },
+      { label: "Measurement", value: contentTypes.measurement },
+      { label: "Report Health", value: contentTypes.adverse },
+      { label: "Documents", value: contentTypes.labReports },
+    ].map((tab) => {
+      const active = content === tab.value;
+
+      return (
+        <button
+          key={tab.value}
+          onClick={() => setContent(tab.value)}
+           onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          setContent(tab.value);
+                        }
+                      }}
+          style={{
+            borderRadius: "999px",
+            padding: "6px 16px",
+            fontSize: "13px",
+            background: active ? "#1ddec4" : "#eef2f7",
+            color: active ? "#fff" : "#64748b",
+            cursor: "pointer",
+            border: 0
+          }}
+        >
+          {tab.label}
+        </button>
+      );
+    })}
+  </div>
+
+  {/* RIGHT → Export */}
+  {content === contentTypes.medication && medication.length > 0 && (
+    <div className="d-flex align-items-center gap-2">
+      <span style={{ fontSize: "13px", color: "#64748b" }}>
+        Export:
+      </span>
+
+      <button
+        onClick={exportMedicationToExcel}
+         onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          exportMedicationToExcel;
+                        }
+                      }}
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: "8px",
+          background: "#e6f9f6",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          transition: "all 0.2s ease",
+          border: 0
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = "#1ddec4";
+          e.currentTarget.style.color = "#fff";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = "#e6f9f6";
+          e.currentTarget.style.color = "#1ddec4";
+        }}
+      >
+        <RiFileExcel2Line size={18} />
+      </button>
+    </div>
+  )}
+</div>
+
+              {/* ✅ NEW WRAPPED TABLE DESIGN */}
+              <Card className="border-0 shadow-lg rounded-4 flex-grow-1">
+                <Card.Body className="p-0">
+
+                  {/* Header */}
+                  {/* <div
+                    style={{
+                      padding: "14px 20px",
+                      borderBottom: "1px solid #eee",
+                      fontWeight: 600,
+                      fontSize: "14px"
+                    }}
+                  >
+                    {[
+                      // "Notes",
+                      "Medication",
+                      "Measurement",
+                      "Report Health",
+                      "Documents",
+                    ][content - 1]}
+                  </div> */}
+
+                  {/* Content */}
+                  <div>
+                    {renderTabContent()}
+                  </div>
+
+                </Card.Body>
+              </Card>
+
+            </div>
+          </div>
+
+          <Modal
+            show={showNoteModal}
+            onHide={() => {
+              setShowNoteModal(false);
+              setDescriptionError('');
+            }}
+            centered
+          >
+            <Modal.Header closeButton>
+              <Modal.Title>Add New Note</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <Form.Group controlId="noteDescription">
+                <Form.Label>Description</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  value={noteDescription}
+                  onChange={(e) => {
+                    setNoteDescription(e.target.value);
+                    if (descriptionError) setDescriptionError('');
+                  }}
+                  isInvalid={!!descriptionError}
+                />
+                <Form.Control.Feedback type="invalid">{descriptionError}</Form.Control.Feedback>
+              </Form.Group>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowNoteModal(false);
+                  setDescriptionError('');
+                }}
+              >
+                Close
+              </Button>
+              <Button variant="primary" onClick={handleAddNote}>
+                Save Note
+              </Button>
+            </Modal.Footer>
+          </Modal>
+
+          <Modal
+            show={editingNoteId !== null}
+            onHide={() => {
+              setEditingNoteId(null);
+              setEditDescriptionError('');
+            }}
+            centered
+          >
+            <Modal.Header>
+              <Modal.Title>Edit Note</Modal.Title>
+            </Modal.Header>
+            <Modal.Body>
+              <Form.Group controlId="editNoteDescription">
+                <Form.Label>Description</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={3}
+                  value={editNoteDescription}
+                  onChange={(e) => {
+                    setEditNoteDescription(e.target.value);
+                    if (editDescriptionError) setEditDescriptionError('');
+                  }}
+                  isInvalid={!!editDescriptionError}
+                />
+                <Form.Control.Feedback type="invalid">{editDescriptionError}</Form.Control.Feedback>
+              </Form.Group>
+            </Modal.Body>
+            <Modal.Footer>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setEditingNoteId(null);
+                  setEditDescriptionError('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={handleUpdateNote}>
+                Update Note
+              </Button>
+            </Modal.Footer>
+          </Modal>
+        </>
+      )}
     </>
   );
 }
 
-export default ManagePatient;
+export default ViewPatient;
