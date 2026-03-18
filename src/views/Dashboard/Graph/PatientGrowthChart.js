@@ -1,85 +1,36 @@
-// import React from "react";
-// import Chart from "react-apexcharts";
-
-// const PatientGrowthChart = () => {
-
-//   const options = {
-//     chart: {
-//       id: "patients-growth",
-//       toolbar: { show: false }
-//     },
-//     title: {
-//     //   text: "Total Number of Patients Registered",
-//       align: "left",
-//       style: {
-//         fontSize: "14px",
-//         fontWeight: "600",
-//         color: "#333"
-//       }
-//     },
-//     xaxis: {
-//       categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-//       title: {
-//         text: "Months"
-//       }
-//     },
-//     yaxis: {
-//       title: {
-//         text: "Number of Patients"
-//       }
-//     },
-//     stroke: {
-//       curve: "smooth"
-//     },
-//     colors: ["#1DDEC4"]
-//   };
-
-//   const series = [
-//     {
-//       name: "Patients",
-//       data: [5, 12, 18, 25, 30, 45]
-//     }
-//   ];
-
-//   return (
-//     <div>
-//   <h4 style={{ marginBottom: "20px", fontSize: "14px",
-//         fontWeight: "600",
-//         color: "#333",textAlign:'center' }}>
-//      Total Number of Patients Registered
-//   </h4>
-//     <Chart
-//       options={options}
-//       series={series}
-//       type="line"
-//       height={300}
-//     />
-//     </div>
-//   );
-// };
-
-// export default PatientGrowthChart;
-
-
-// ==========================================
-
 import React from "react";
 import Chart from "react-apexcharts";
-import {  Typography } from "@mui/material";
+import { Typography } from "@mui/material";
 
-export default function PatientTrendChart() {
+export default function PatientTrendChart({ data }) {
+
+  const allMonths = [
+    "Jan","Feb","Mar","Apr","May","Jun",
+    "Jul","Aug","Sep","Oct","Nov","Dec"
+  ];
+
+  // convert API array to object
+  const apiMap = {};
+  data?.forEach(item => {
+    apiMap[item.month] = item.total;
+  });
+
+  // ensure all months exist
+  const totals = allMonths.map(month => apiMap[month] || 0);
 
   const series = [
     {
-      name: "Patients",
-      data: [80, 95, 120, 110, 140, 160, 180, 200, 190, 220, 240, 260]
+      name: "Patients Gained",
+      data: totals
     }
   ];
 
   const options = {
     chart: {
       toolbar: { show: false },
-      zoom: { enabled: false }
+      zoom: { enabled: false },
+      redrawOnParentResize: true,
+      redrawOnWindowResize: true
     },
 
     stroke: {
@@ -87,49 +38,60 @@ export default function PatientTrendChart() {
       width: 3
     },
 
-    colors: ["#3b82f6"],
+    colors: ["#1DDEC4"],
 
     grid: {
-      // borderColor: "#e5e7eb",
       strokeDashArray: 4
     },
 
+    markers: {
+      size: 4,
+      colors: ["#1DDEC4"],
+      strokeWidth: 2
+    },
+
     xaxis: {
-      categories: [
-        "Jan","Feb","Mar","Apr","May","Jun",
-        "Jul","Aug","Sep","Oct","Nov","Dec"
-      ]
+      categories: allMonths,
+      title: {
+        text: "Month"
+      }
+    },
+
+    yaxis: {
+      title: {
+        text: "Patients Gained"
+      }
     },
 
     tooltip: {
-      theme: "light"
+      theme: "light",
+      y: {
+        formatter: (val) => `${val} patients`
+      }
     }
   };
 
   return (
-    <div >
-      {/* <CardContent> */}
+    <div>
 
-        <Typography fontWeight={600}>
-          Patient Acquisition Trend
-        </Typography>
+      <Typography fontWeight={600} mb={0.5}>
+        Patient Growth Over Time
+      </Typography>
 
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          mb={2}
-        >
-          New vs Returning Patients - Last 12 Months
-        </Typography>
+      <Typography
+        variant="body2"
+        color="text.secondary"
+      >
+        Number of new patients gained each month
+      </Typography>
 
-        <Chart
-          options={options}
-          series={series}
-          type="line"
-          height={280}
-        />
+      <Chart
+        options={options}
+        series={series}
+        type="line"
+        height={250}
+      />
 
-      {/* </CardContent> */}
     </div>
   );
 }

@@ -1,58 +1,94 @@
 import React from "react";
 import Chart from "react-apexcharts";
+import { Typography } from "@mui/material";
 
-const AgeChart = () => {
+const AgeChart = ({ data }) => {
+
+  const allCategories = [
+    "0-10",
+    "11-20",
+    "21-30",
+    "31-40",
+    "41-50",
+    "51+"
+  ];
+
+  // convert API array to object
+  const apiMap = {};
+  data?.forEach(item => {
+    apiMap[item.age_group] = item.total;
+  });
+
+  // ensure all categories exist
+  const totals = allCategories.map(cat => apiMap[cat] || 0);
+
+  const totalSum = totals.reduce((a, b) => a + b, 0);
+
+  const percentages = totals.map(val =>
+    totalSum ? Math.round((val / totalSum) * 100) : 0
+  );
+
+  const series = [
+    {
+      name: "Patients %",
+      data: percentages
+    }
+  ];
+
   const options = {
     chart: {
       toolbar: { show: false }
     },
-    xaxis: {
-      categories: ["0-10", "11-20", "21-30", "31-40"]
-    },
+
     colors: ["#1DDEC4"],
+
+    xaxis: {
+      categories: allCategories,
+      title: {
+        text: "Age Groups"
+      }
+    },
+
+    yaxis: {
+      title: {
+        text: "Percentage (%)"
+      },
+      labels: {
+        formatter: val => `${val}%`
+      }
+    },
+
     dataLabels: {
       enabled: true,
-      formatter: (val) => `${val}%`,
-      style: {
-        fontSize: "12px",
-        colors: ["#fff"]
-      }
+      formatter: val => `${val}%`
     },
+
     plotOptions: {
       bar: {
-        borderRadius: 4,
-        columnWidth: "60%"
-      }
-    },
-     title: {
-    //   text: "Percentage of Patients by Age",
-      align: "left",
-      style: {
-        fontSize: "14px",
-        fontWeight: "600",
-        color: "#333"
+        borderRadius: 6,
+        columnWidth: "45%"
       }
     },
 
+    grid: {
+      strokeDashArray: 4
+    }
   };
 
-  const series = [
-    {
-      name: "Patients",
-      data: [5, 12, 30, 18]
-    }
-  ];
-
   return (
-   <div>
-  <h4 style={{ marginBottom: "20px", fontSize: "14px",
-        fontWeight: "600",
-        color: "#333",textAlign:'center' }}>
-    Percentage of Patients by Age
-  </h4>
-  <Chart options={options} series={series} type="bar" height={300} />
-  </div>
-  )
+    <div>
+      <Typography fontWeight={600} mb={0.5}>
+        Percentage of Patients by Age
+      </Typography>
+
+      <Chart
+        options={options}
+        series={series}
+        type="bar"
+        height={245}
+      />
+    </div>
+  );
 };
 
 export default AgeChart;

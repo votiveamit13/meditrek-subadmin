@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 
 // material-ui
 import { useTheme } from '@mui/material/styles';
-import { Grid, Typography } from '@mui/material';
+import { Grid } from '@mui/material';
 
 //project import
 import ReportCard from './ReportCard';
@@ -26,6 +26,7 @@ import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import ScienceIcon from '@mui/icons-material/Science';
 import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
 import { Box } from '@mui/material';
+import LazyChartWrapper from 'component/LazyChartWrapper';
 // import { Card, CardContent } from '@mui/material';
 
 // import RestoreFromTrash from '@mui/icons-material/RestoreFromTrash';
@@ -34,11 +35,12 @@ import { Box } from '@mui/material';
 
 const Default = () => {
   const theme = useTheme();
-  const [patient, setPatient] = useState([]);
-  const [medication, setMedication] = useState([]);
-  const [adverse, setAdverse] = useState([]);
-  const [lab, setLab] = useState([]);
-  const [measurement, setMeasurement] = useState([]);
+  const [patient, setPatient] = useState(null);
+const [medication, setMedication] = useState(null);
+const [adverse, setAdverse] = useState(null);
+const [lab, setLab] = useState(null);
+const [measurement, setMeasurement] = useState(null);
+const [graphData, setGraphData] = useState(null);
 
   const fetchUserDetails = async () => {
     try {
@@ -145,58 +147,88 @@ const Default = () => {
     }
   };
 
+  const fetchGraphData = async () => {
+  try {
+    const token = sessionStorage.getItem("token");
+
+    const response = await axios.get(`${Base_Url}dashboard_graphs`, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      }
+    });
+
+    if (response.data.status) {
+      setGraphData(response.data);
+    }
+  } catch (error) {
+    console.error("Graph API error:", error);
+  }
+};
+
   useEffect(() => {
     fetchUserDetails();
     fetchMedicationDetails();
     fetchAdverseDetails();
     fetchLabreportsDetails();
     fetchmeasurementDetails();
+    fetchGraphData();
   }, []);
 
   return (
     <>
-      <Grid container>
-        <Typography style={{ marginBottom: '15px' }} variant="h4" gutterBottom>
+      <Grid container sx={{ width: "100%" }}>
+        {/* <Typography style={{ marginBottom: '15px' }} variant="h4" gutterBottom>
           <span style={{ color: '#1DDEC4' }}>Dashboard</span>
-        </Typography>
+        </Typography> */}
 
-        <Grid container rowSpacing={5} columnSpacing={3} sx={{ mt: 0 }}>
-          <Grid item lg={4} sm={6} xs={12} sx={{ overflow: 'visible' }}>
+        <Grid
+          container
+          spacing={3}
+          sx={{
+            width: "100%",
+            display: "flex",
+            flexWrap: "wrap"
+          }}
+        >
+          <Grid item xs={12} sm={6} md={4} lg={2.4}>
             <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}>
-              <ReportCard primary={patient} secondary="Total Patients" color={theme.palette.success.main} iconPrimary={PeopleAltIcon} />
+              <ReportCard primary={patient} secondary="Total Patients" color={theme.palette.success.main} iconPrimary={PeopleAltIcon} loading={!patient} />
             </Link>
           </Grid>
 
-          <Grid item lg={4} sm={6} xs={12} sx={{ overflow: 'visible' }}>
+          <Grid item xs={12} sm={6} md={4} lg={2.4}>
             <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}>
               <ReportCard
                 primary={medication}
                 secondary="Total Medications"
                 color={theme.palette.primary.main}
                 iconPrimary={MedicationIcon}
+                loading={!patient} 
               />
             </Link>
           </Grid>
 
-          <Grid item lg={4} sm={6} xs={12} sx={{ overflow: 'visible' }}>
+          <Grid item xs={12} sm={6} md={4} lg={2.4}>
             <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}>
-              <ReportCard primary={adverse} secondary="Adverse Reactions" color={theme.palette.error.main} iconPrimary={WarningAmberIcon} />
+              <ReportCard primary={adverse} secondary="Adverse Reactions" color={theme.palette.warning.main} iconPrimary={WarningAmberIcon} loading={!patient} />
             </Link>
           </Grid>
 
-          <Grid item lg={4} sm={6} xs={12} sx={{ overflow: 'visible' }}>
+          <Grid item xs={12} sm={6} md={4} lg={2.4}>
             <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}>
-              <ReportCard primary={lab} secondary="Lab Reports" color={theme.palette.warning.main} iconPrimary={ScienceIcon} />
+              <ReportCard primary={lab} secondary="Lab Reports" color={theme.palette.warning.main} iconPrimary={ScienceIcon} loading={!patient} />
             </Link>
           </Grid>
 
-          <Grid item lg={4} sm={6} xs={12} sx={{ overflow: 'visible' }}>
+          <Grid item xs={12} sm={6} md={4} lg={2.4}>
             <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}>
               <ReportCard
                 primary={measurement}
                 secondary="Total Measurements"
                 color={theme.palette.info.main}
                 iconPrimary={MonitorHeartIcon}
+                loading={!patient} 
               />
             </Link>
           </Grid>
@@ -215,47 +247,60 @@ const Default = () => {
             mt: 4
           }}
         > */}
-        <Grid container spacing={3} mt={1} alignItems="stretch" sx={{background:'transparent',p:'0'}}>
+        <Grid
+          container
+          spacing={3}
+          sx={{
+            mt: 1,
+            width: "100%"
+          }}
+        >
           <Grid item lg={12} md={12} sm={12} xs={12}>
             <Box
               sx={{
-                background: '#fff',
+                background: "#fff",
                 p: 2,
                 borderRadius: 3,
-                boxShadow: '0 2px 10px rgba(0,0,0,0.05)'
+                boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+                width: "100%",
+                minHeight: 320
               }}
             >
-              <PatientGrowthChart />
+              <PatientGrowthChart data={graphData?.monthlyPatients} />
             </Box>
           </Grid>
 
-          <Grid item lg={6} md={6} sm={12} xs={12} sx={{ display: "flex" }}>
+          <Grid item lg={6} md={6} sm={12} xs={12}>
             <Box
               sx={{
-                background: '#fff',
+                background: "#fff",
                 p: 2,
                 borderRadius: 3,
-                boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-                height:'100%',
-                 width: "100%",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+                width: "100%",
+                minHeight: 320
               }}
             >
-              <GenderChart />
+              <LazyChartWrapper>
+                <GenderChart data={graphData?.genderPercentage} />
+              </LazyChartWrapper>
             </Box>
           </Grid>
 
-          <Grid item lg={6} md={6} sm={12} xs={12} sx={{ display: "flex" }}>
+          <Grid item lg={6} md={6} sm={12} xs={12}>
             <Box
               sx={{
-                background: '#fff',
+                background: "#fff",
                 p: 2,
                 borderRadius: 3,
-                boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-                height:'100%',
-                 width: "100%",
+                boxShadow: "0 2px 10px rgba(0,0,0,0.05)",
+                width: "100%",
+                minHeight: 320
               }}
             >
-              <AgeChart />
+              <LazyChartWrapper>
+                <AgeChart data={graphData?.ageGroups} />
+              </LazyChartWrapper>
             </Box>
           </Grid>
         </Grid>

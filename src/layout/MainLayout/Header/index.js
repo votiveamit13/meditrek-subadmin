@@ -1,166 +1,263 @@
-import PropTypes from 'prop-types';
-import React from 'react';
+// import PropTypes from "prop-types";
+// import React from "react";
 
-// material-ui
-import { useTheme } from '@mui/material/styles';
-import { Box, Grid, IconButton, InputBase, Paper } from '@mui/material';
+// import { IconButton, InputBase, Paper } from "@mui/material";
+// import MenuTwoToneIcon from "@mui/icons-material/MenuTwoTone";
+// import SearchIcon from "@mui/icons-material/Search";
 
-// project import
-// import SearchSection from './SearchSection';
-import ProfileSection from './ProfileSection';
-// import NotificationSection from './NotificationSection';
-// import { drawerWidth } from 'config.js';
+// import ProfileSection from "./ProfileSection";
+// import logo from "assets/images/logo1.png";
 
-// assets
-import MenuTwoToneIcon from '@mui/icons-material/MenuTwoTone';
-import logo from 'assets/images/logo1.png';
-// import Typography from '@mui/material/Typography';
+// const Header = ({ drawerToggle }) => {
+//   const today = new Date().toLocaleDateString();
 
-import SearchIcon from '@mui/icons-material/Search';
+//   return (
+//     <div
+//       style={{
+//         width: "100%",
+//         display: "flex",
+//         alignItems: "center",
+//         justifyContent: "space-between",
+//         height: "64px"
+//       }}
+//     >
+//       {/* LEFT */}
+//       <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+//         <img src={logo} alt="logo" style={{ width: 34 }} />
 
-// ==============================|| HEADER ||============================== //
+//         <span
+//           style={{
+//             fontSize: "20px",
+//             fontWeight: 600,
+//             color: "#2d3436"
+//           }}
+//         >
+//           Meditrek
+//         </span>
 
-const Header = ({ drawerToggle }) => {
-  const theme = useTheme();
+//         <IconButton
+//           onClick={drawerToggle}
+//           style={{
+//             background: "#f5f7fa",
+//             marginLeft: "12px"
+//           }}
+//         >
+//           <MenuTwoToneIcon style={{ color: "#1ddec4" }} />
+//         </IconButton>
 
+//         {/* Divider */}
+//         <div
+//           style={{
+//             width: "1px",
+//             height: "28px",
+//             background: "#eaecef",
+//             marginLeft: "8px"
+//           }}
+//         />
+
+//         {/* Breadcrumb */}
+//         <span
+//           style={{
+//             fontSize: "14px",
+//             color: "#6c757d"
+//           }}
+//         >
+//           Dashboard
+//         </span>
+//       </div>
+
+//       {/* SEARCH */}
+//       <Paper
+//         style={{
+//           display: "flex",
+//           alignItems: "center",
+//           padding: "4px 10px",
+//           borderRadius: "8px",
+//           background: "#f6f8fa",
+//           width: "320px",
+//           boxShadow: "none"
+//         }}
+//       >
+//         <SearchIcon style={{ color: "#9aa0a6", fontSize: 20 }} />
+
+//         <InputBase
+//           placeholder="Search patients..."
+//           style={{
+//             marginLeft: "8px",
+//             fontSize: "14px",
+//             width: "100%"
+//           }}
+//         />
+//       </Paper>
+
+//       {/* RIGHT */}
+//       <div
+//         style={{
+//           display: "flex",
+//           alignItems: "center",
+//           gap: "16px"
+//         }}
+//       >
+//         {/* Date (UI only) */}
+//         <span
+//           style={{
+//             fontSize: "13px",
+//             color: "#6c757d"
+//           }}
+//         >
+//           {today}
+//         </span>
+
+//         {/* Existing avatar functionality */}
+//         <ProfileSection />
+//       </div>
+//     </div>
+//   );
+// };
+
+// Header.propTypes = {
+//   drawerToggle: PropTypes.func
+// };
+
+// export default Header;
+
+import React from "react";
+import PropTypes from "prop-types";
+
+import { IconButton, InputBase, Paper } from "@mui/material";
+import FullscreenIcon from "@mui/icons-material/Fullscreen";
+import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
+import MenuTwoToneIcon from "@mui/icons-material/MenuTwoTone";
+import SearchIcon from "@mui/icons-material/Search";
+
+import ProfileSection from "./ProfileSection";
+import logo from "assets/images/logo1.png";
+
+const Header = ({ drawerOpen, drawerToggle }) => {
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+
+const toggleFullscreen = () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+    setIsFullscreen(true);
+  } else {
+    document.exitFullscreen();
+    setIsFullscreen(false);
+  }
+};
   return (
-    <>
-      {/* <Box width={drawerWidth}>
-        <Grid container justifyContent="space-between" alignItems="center">
-          <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-            <Grid item>
-              <Box
-                mt={0.5}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-              >
-                <img src={logo} alt="Logo" style={{ width: '35px' }} />
-                <span style={{ color: '#fff', fontSize: '22px', fontWeight: 600 }}>Meditrek</span>
-               
-              </Box>
-            </Grid>
-          </Box>
-          <Grid item>
-            <IconButton
-              edge="start"
-              sx={{ mr: theme.spacing(1.25) }}
-              color="inherit"
-              aria-label="open drawer"
-              onClick={drawerToggle}
-              size="large"
-            >
-              <MenuTwoToneIcon sx={{ fontSize: '1.5rem', color: '#fff' }} />
-            </IconButton>
-          </Grid>
-        </Grid>
-      </Box>
-      <Box sx={{ flexGrow: 1 }} />
-     
+    <div
+      style={{
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between"
+      }}
+    >
+     <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+  <img src={logo} alt="logo" style={{ width: 32 }} />
 
-      <Grid item xs={4} sx={{ display: 'flex', justifyContent: 'center' }}>
-        <Paper
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            width: '100%',
-            maxWidth: 350,
-            px: 1,
-            borderRadius: '10px'
-          }}
-        >
-          <SearchIcon sx={{ color: 'gray' }} />
-          <InputBase placeholder="Search..." sx={{ ml: 1, flex: 1 }} />
-        </Paper>
-      </Grid>
-    
-      <Grid item sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <IconButton onClick={toggleColorMode} color="inherit">
-          {mode === 'dark' ? <LightModeIcon sx={{ color: '#fff' }} /> : <DarkModeIcon sx={{ color: '#fff' }} />}
-        </IconButton>
+  {drawerOpen && (
+    <span
+      style={{
+        fontSize: "20px",
+        fontWeight: 600
+      }}
+    >
+      Meditrek
+    </span>
+  )}
 
-        <ProfileSection />
-      </Grid> */}
-        <Grid container alignItems="center" justifyContent="space-between" >
+  <IconButton
+    onClick={drawerToggle}
+    style={{ background: "#f5f7fa" }}
+  >
+    <MenuTwoToneIcon style={{ color: "#1ddec4" }} />
+  </IconButton>
 
-      {/* LEFT SIDE */}
-      <Grid item sx={{ display: "flex", alignItems: "center" }}>
-       
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      marginLeft: "8px",
+      gap: "10px"
+    }}
+  >
+    <div
+      style={{
+        width: "1px",
+        height: "28px",
+        background: "#eaecef"
+      }}
+    />
 
-        <Box sx={{ display: "flex", alignItems: "center" }}>
-          <img src={logo} alt="Logo" style={{ width: "35px" }} />
-          <span
-            style={{
-              color: "#fff",
-              fontSize: "22px",
-              fontWeight: 600,
-              marginLeft: "8px"
-            }}
-          >
-            Meditrek
-          </span>
-        </Box>
-        <Grid item>
-            <IconButton
-              edge="start"
-              sx={{ mr: theme.spacing(1.25), marginLeft:"50px"}}
-              color="inherit"
-              aria-label="open drawer"
-              onClick={drawerToggle}
-              size="large"
-            >
-              <MenuTwoToneIcon sx={{ fontSize: '1.5rem', color: '#fff' }} />
-            </IconButton>
-          </Grid>
-      </Grid>
+    <span
+      style={{
+        fontSize: "14px",
+        color: "#6c757d"
+      }}
+    >
+      Dashboard
+    </span>
+  </div>
+</div>
 
+      
 
-      {/* CENTER SEARCH */}
-      <Grid item xs={4} sx={{ display: "flex", justifyContent: "center" }}>
-        <Paper
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            width: "100%",
-            maxWidth: 350,
-            px: 1,
-            borderRadius: "10px"
-          }}
-        >
-          <SearchIcon sx={{ color: "gray", }} />
-          <InputBase
-            placeholder="Search..."
-            sx={{ ml: 1, flex: 1,fontSize:"13px" }}
-          />
-        </Paper>
-      </Grid>
+      {/* SEARCH */ }
+  <Paper
+    sx={{
+      display: "flex",
+      alignItems: "center",
+      px: 1.5,
+      py: 0.5,
+      borderRadius: "8px",
+      width: 320,
+      background: "#f6f8fa",
+      boxShadow: "none"
+    }}
+  >
+    <SearchIcon sx={{ fontSize: 20, color: "#9aa0a6" }} />
 
+    <InputBase
+      placeholder="Search patients..."
+      sx={{
+        ml: 1,
+        fontSize: "14px",
+        flex: 1
+      }}
+    />
+  </Paper>
 
-      {/* RIGHT SIDE */}
-      <Grid item sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+  <div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    gap: "10px"
+  }}
+>
+  {/* Fullscreen Button */}
+  <IconButton
+    onClick={toggleFullscreen}
+    style={{ background: "#f5f7fa" }}
+  >
+    {isFullscreen ? (
+      <FullscreenExitIcon style={{ color: "#6c757d" }} />
+    ) : (
+      <FullscreenIcon style={{ color: "#6c757d" }} />
+    )}
+  </IconButton>
 
-        {/* <IconButton onClick={toggleColorMode} color="inherit">
-          {mode === "dark" ? (
-            <LightModeIcon sx={{ color: "#fff" }} />
-          ) : (
-            <DarkModeIcon sx={{ color: "#fff" }} />
-          )}
-        </IconButton> */}
-
-        <ProfileSection />
-
-      </Grid>
-
-    </Grid>
-    </>
+  {/* Profile */}
+  <ProfileSection />
+</div>
+    </div >
   );
 };
 
 Header.propTypes = {
-  drawerToggle: PropTypes.func,
-  toggleColorMode: PropTypes.func,
-  mode: PropTypes.string
+  drawerOpen: PropTypes.bool,
+  drawerToggle: PropTypes.func
 };
 
 export default Header;

@@ -1,80 +1,71 @@
-import React from 'react';
-import { Outlet } from 'react-router-dom';
+import React from "react";
+import { Outlet } from "react-router-dom";
 
-// material-ui
-import { styled, useTheme } from '@mui/material/styles';
-import { useMediaQuery, AppBar, Box, Toolbar } from '@mui/material';
+import { styled } from "@mui/material/styles";
+import { AppBar, Box, Toolbar, useMediaQuery } from "@mui/material";
+import { useTheme } from '@mui/material/styles';
 
-// project import
-import { drawerWidth } from 'config.js';
-import Header from './Header';
-import Sidebar from './Sidebar';
+import Header from "./Header";
+import Sidebar from "./Sidebar";
 
-// custom style
-const Main = styled((props) => <main {...props} />)(({ theme }) => ({
-  width: '100%',
-  minHeight: '100vh',
+const drawerWidth = 240;
+const collapsedWidth = 72;
+
+const Main = styled("main")(({ theme, open }) => ({
   flexGrow: 1,
-  transition: theme.transitions.create('margin', {
-    easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.leavingScreen
-  }),
+  background: "#f5f7fa",
+  minHeight: "100vh",
+  transition: "margin 0.25s ease",
   [theme.breakpoints.up('md')]: {
-    marginLeft: -drawerWidth,
-    width: `calc(100% - ${drawerWidth}px)`
+    marginLeft: open ? drawerWidth : collapsedWidth
+  },
+  [theme.breakpoints.down('md')]: {
+    marginLeft: 0 // No margin on mobile
   }
 }));
 
-const OutletDiv = styled((props) => <div {...props} />)(({ theme }) => ({
-  [theme.breakpoints.down('md')]: {
-    padding: theme.spacing(3)
-  },
-  padding: theme.spacing(4)
-}));
-
-// ==============================|| MAIN LAYOUT ||============================== //
-
 const MainLayout = () => {
   const theme = useTheme();
-  const matchUpMd = useMediaQuery(theme.breakpoints.up('md'));
-  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [drawerOpen, setDrawerOpen] = React.useState(true);
 
   const handleDrawerToggle = () => {
     setDrawerOpen(!drawerOpen);
   };
 
+  // Close drawer on mobile when navigating (optional but recommended)
   React.useEffect(() => {
-    setDrawerOpen(matchUpMd);
-  }, [matchUpMd]);
+    if (isMobile && drawerOpen) {
+      setDrawerOpen(false);
+    }
+  }, [isMobile]);
 
   return (
-    <Box sx={{ display: 'flex', width: '100%' }}>
-      <AppBar position="fixed" sx={{ zIndex: 1200 }}>
-        <Toolbar sx={{  
-          background: '#1DDEC4', 
-          // background:'#00384f',
-          minHeight:'60px !important'}}>
+    <Box sx={{ display: "flex" }}>
+      {/* HEADER */}
+      <AppBar
+        position="fixed"
+        elevation={0}
+        sx={{
+          background: "#fff",
+          borderBottom: "1px solid #e9ecef",
+          zIndex: 1201
+        }}
+      >
+        <Toolbar sx={{ minHeight: "64px !important", px: 3 }}>
           <Header drawerOpen={drawerOpen} drawerToggle={handleDrawerToggle} />
         </Toolbar>
       </AppBar>
 
+      {/* SIDEBAR */}
       <Sidebar drawerOpen={drawerOpen} drawerToggle={handleDrawerToggle} />
-      <Main
-        style={{
-          ...(drawerOpen && {
-            transition: theme.transitions.create('margin', {
-              easing: theme.transitions.easing.easeOut,
-              duration: theme.transitions.duration.enteringScreen
-            }),
-            marginLeft: 0,
-            marginRight: 'inherit'
-          })
-        }}
-      >
-        <Box sx={theme.mixins.toolbar} />
-        <OutletDiv>
+
+      {/* CONTENT */}
+      <Main open={drawerOpen}>
+        <Toolbar />
+        <Box sx={{ p: 3 }}>
           <Outlet />
-        </OutletDiv>
+        </Box>
       </Main>
     </Box>
   );
