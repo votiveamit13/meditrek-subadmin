@@ -34,7 +34,9 @@ import LabReportTabular from 'views/AllPage/LabReportTabular';
 import SharedTabularData from 'views/AllPage/SharedTabularData';
 import ManageFaq from 'views/AllPage/ManageFaq';
 import ManageContact from 'views/AllPage/ManageContact';
+// import AnalyticsReport from 'views/AllPage/AnalyticsReport';
 import Reply from 'views/AllPage/SendReply';
+import Analytics from 'views/AllPage/Analytics';
 // import { Reply } from '@mui/icons-material';
 
 
@@ -62,6 +64,12 @@ const MainRoutes = {
     {
       path: APP_PREFIX_PATH + '/manage-faq',
       element: <ManageFaq />
+    },
+    // 18/3 
+     {
+      path: APP_PREFIX_PATH + '/analytics',
+      // element: <AnalyticsReport />
+      element:<Analytics />
     },
     {
       path: APP_PREFIX_PATH + '/manage-contact-us',
