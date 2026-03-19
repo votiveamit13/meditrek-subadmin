@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import CancelIcon from '@mui/icons-material/Cancel';
 import {
   Box,
   Card,
@@ -39,16 +40,45 @@ const mockData = {
       conditions: ['Depression'],
       meds: ['Losartan', 'Sertraline']
     }
+  ],
+    Diabetes: [
+    {
+      name: 'John Smith1',
+      age: 65,
+      gender: 'Male',
+      conditions: ['Type 2 Diabetes'],
+      meds: ['Lisinopril', 'Metformin']
+    },
+    {
+      name: 'Michael Brown1',
+      age: 72,
+      gender: 'Male',
+      conditions: ['Coronary Artery Disease', 'Hyperlipidemia'],
+      meds: ['Amlodipine', 'Atorvastatin', 'Metoprolol']
+    },
+    {
+      name: 'Jennifer Martinez1',
+      age: 52,
+      gender: 'Female',
+      conditions: ['Depression'],
+      meds: ['Losartan', 'Sertraline']
+    }
   ]
 };
 
 const DiseasePatients = () => {
-  const [disease, setDisease] = useState('Hypertension');
+  const [diseases, setDiseases] = useState(['Hypertension']);
 
-  const patients = mockData[disease] || [];
+  const patients = diseases.flatMap((d) =>
+    (mockData[d] || []).map((p) => ({
+      ...p,
+      disease: d // attach disease to each row
+    }))
+  );
 
   const totalPatients = patients.length;
-  const percentage = ((patients.length / 15) * 100).toFixed(1); // mock %
+
+  const percentage = totalPatients ? ((totalPatients / 15) * 100).toFixed(1) : 0;
 
   //   useEffect(() => {
   //     fetch(`/api/patients?disease=${disease}`)
@@ -56,6 +86,28 @@ const DiseasePatients = () => {
   //       .then(setPatients);
   //   }, [disease]);
 
+  // const uniquePatients = Object.values(
+  //   patients.reduce((acc, p) => {
+  //     acc[p.name] = acc[p.name]
+  //       ? {
+  //           ...p,
+  //           disease: acc[p.name].disease + ', ' + p.disease
+  //         }
+  //       : p;
+  //     return acc;
+  //   }, {})
+  // );
+
+    const cardStyle = {
+      background: 'rgba(29, 222, 196, 0.15)',
+      p: 2,
+      borderRadius: 3,
+      height: '100%', // 🔥 equal height fix
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'flex-start',
+      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.05)'
+    };
   return (
     <Card
       sx={{
@@ -75,30 +127,20 @@ const DiseasePatients = () => {
           <Grid container spacing={2} mb={3}>
             <Grid item xs={12} sm={6} md={3} lg={3}>
               <Box
-                sx={{
-                  background: 'rgba(29, 222, 196, 0.15)',
-                  p: 2,
-                  borderRadius: 3,
-                  minWidth: 140
-                }}
+                sx={cardStyle }
               >
-                <Typography fontSize={12}>Total Patients</Typography>
+                <Typography fontSize={12} fontWeight={500}>Total Patients</Typography>
                 <Typography fontSize={16} fontWeight="bold">
                   {totalPatients}
                 </Typography>
               </Box>
             </Grid>
-
+            
             <Grid item xs={12} sm={6} md={3} lg={3}>
               <Box
-                sx={{
-                  background: 'rgba(29, 222, 196, 0.15)',
-                  p: 2,
-                  borderRadius: 3,
-                  minWidth: 120
-                }}
+                sx={cardStyle}
               >
-                <Typography fontSize={12}>Percentage</Typography>
+                <Typography fontSize={12} fontWeight={500}>Percentage</Typography>
                 <Typography fontSize={16} fontWeight="bold">
                   {percentage}%
                 </Typography>
@@ -115,18 +157,47 @@ const DiseasePatients = () => {
             </Typography>
 
             <Select
-              value={disease}
-              onChange={(e) => setDisease(e.target.value)}
+              multiple
+              value={diseases}
+              onChange={(e) => setDiseases(e.target.value)}
               size="small"
+              displayEmpty
+              renderValue={(selected) => {
+                if (selected.length === 0) {
+                  return <span style={{ color: '#94a3b8' }}>Select disease</span>;
+                }
+
+                return (
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {selected.map((value) => (
+                      <Chip
+                        key={value}
+                        label={value}
+                        size="small"
+                        deleteIcon={<CancelIcon onMouseDown={(e) => e.stopPropagation()} />}
+                        onDelete={(e) => {
+                          e.stopPropagation();
+                          setDiseases((prev) => prev.filter((item) => item !== value));
+                        }}
+                        sx={{
+                          background: 'rgba(29, 222, 196, 0.15)',
+                          color: '#1ddec4',
+                          fontSize: '12px'
+                        }}
+                      />
+                    ))}
+                  </Box>
+                );
+              }}
               sx={{
-                minWidth: '100%',
+                width: '100%',
                 borderRadius: 2,
                 background: '#F5F7FA',
                 fontSize: '12px'
               }}
             >
               {Object.keys(mockData).map((d) => (
-                <MenuItem key={d} value={d} sx={{ fontSize: '12px' }}>
+                <MenuItem key={d} value={d}>
                   {d}
                 </MenuItem>
               ))}
@@ -142,12 +213,14 @@ const DiseasePatients = () => {
         sx={{
           borderRadius: 3,
           boxShadow: 'none',
-          overflowX: 'auto' // 🔥 enables horizontal scroll
+          overflowX: 'auto', // 🔥 enables horizontal scroll
+          border:"1px solid #d3d5d9"
         }}
       >
-        <Table sx={{ minWidth: 700 }}>
+        <Table sx={{ width: '100%' }}>
           <TableHead sx={{ p: 2, background: '#f0f2f8' }}>
             <TableRow>
+              <TableCell sx={{ p: 1 }}>Disease</TableCell> {/* ✅ NEW */}
               <TableCell sx={{ p: 1 }}>Patient Name</TableCell>
               <TableCell sx={{ p: 1 }}>Age</TableCell>
               <TableCell sx={{ p: 1 }}>Gender</TableCell>
@@ -159,6 +232,9 @@ const DiseasePatients = () => {
           <TableBody>
             {patients.map((p, i) => (
               <TableRow key={i}>
+                <TableCell sx={{ p: 1, fontSize: '12px' }} size="small">
+                  {p.disease}
+                </TableCell>
                 <TableCell sx={{ p: 1, fontSize: '12px' }}>{p.name}</TableCell>
                 <TableCell sx={{ p: 1, fontSize: '12px' }}>{p.age}</TableCell>
                 <TableCell sx={{ p: 1, fontSize: '12px' }}>{p.gender}</TableCell>

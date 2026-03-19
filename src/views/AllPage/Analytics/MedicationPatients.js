@@ -72,6 +72,49 @@ const MedicationPatients = () => {
   const otherPatients = totalPatients - medicationPatients;
   const percentageVsOthers = ((medicationPatients / (medicationPatients + otherPatients)) * 100).toFixed(1);
 
+  // combination data
+  const combinationStats = useMemo(() => {
+    const map = {};
+
+    patientsData.forEach((p) => {
+      const key = [...p.meds].sort().join(' + '); // normalize
+
+      map[key] = (map[key] || 0) + 1;
+    });
+
+    const total = patientsData.length;
+
+    let topCombo = '';
+    let maxCount = 0;
+
+    Object.entries(map).forEach(([combo, count]) => {
+      if (count > maxCount) {
+        maxCount = count;
+        topCombo = combo;
+      }
+    });
+
+    const percentage = total ? ((maxCount / total) * 100).toFixed(1) : 0;
+
+    return {
+      topCombo,
+      maxCount,
+      percentage
+    };
+  }, []);
+
+  const cardStyle = {
+    background: 'rgba(29, 222, 196, 0.15)',
+    // background:"#f0f2f8",
+    p: 2,
+    borderRadius: 3,
+    height: '100%', // 🔥 equal height fix
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.05)'
+  };
+
   return (
     <Card
       sx={{
@@ -86,66 +129,79 @@ const MedicationPatients = () => {
       </Typography>
 
       {/* <Box sx={{display:"flex"}}> */}
-      <Grid container spacing={2} mb={3}>
-        <Grid item xs={12} sm={12} md={9} lg={9}>
-          {/* STATS */}
-          <Grid container spacing={2} mb={3}>
-            {/* TOTAL */}
-            <Grid item xs={12} sm={6} md={3} lg={3}>
-              <Box
-                sx={{
-                  background: 'rgba(29, 222, 196, 0.15)',
-                  p: 2,
-                  borderRadius: 3,
-                  minWidth: 140
-                }}
-              >
-                <Typography fontSize={12}>Patients on Medication</Typography>
+      <Grid container spacing={2} alignItems="stretch" mb={3}>
+        {/* ===== LEFT SIDE (STATS) ===== */}
+        <Grid item xs={12} md={9}>
+          <Grid container spacing={2}>
+            {/* CARD 1 */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={cardStyle}>
+                <Typography fontSize={12} fontWeight={500}>
+                  No of Patients
+                </Typography>
                 <Typography fontSize={16} fontWeight="bold">
                   {medicationPatients}
                 </Typography>
               </Box>
             </Grid>
 
-            {/* % VS TOTAL */}
-            <Grid item xs={12} sm={6} md={3} lg={3}>
-              <Box
-                sx={{
-                  background: 'rgba(29, 222, 196, 0.15)',
-                  p: 2,
-                  borderRadius: 3,
-                  minWidth: 140
-                }}
-              >
-                <Typography fontSize={12}>Total Patients</Typography>
+            {/* CARD 2 */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={cardStyle}>
+                <Typography fontSize={12} fontWeight={500}>
+                  Total Patients
+                </Typography>
                 <Typography fontSize={16} fontWeight="bold">
                   {percentageTotal}%
                 </Typography>
               </Box>
             </Grid>
 
-            {/* % VS OTHERS */}
-            <Grid item xs={12} sm={6} md={3} lg={3}>
-              <Box
-                sx={{
-                  background: 'rgba(29, 222, 196, 0.15)',
-                  p: 2,
-                  borderRadius: 3,
-                  minWidth: 140
-                }}
-              >
-                <Typography fontSize={12}>Other Medications</Typography>
+            {/* CARD 3 */}
+            <Grid item xs={12} sm={6} md={3}>
+              <Box sx={cardStyle}>
+                <Typography fontSize={12} fontWeight={500}>
+                  Other Medications
+                </Typography>
                 <Typography fontSize={16} fontWeight="bold">
                   {percentageVsOthers}%
+                </Typography>
+              </Box>
+            </Grid>
+
+            {/* CARD 4 (WIDER) */}
+            <Grid item xs={12} sm={12} md={3}>
+              <Box sx={cardStyle}>
+                <Typography fontSize={12} fontWeight={500}>
+                  Most Common Combination
+                </Typography>
+
+                <Box mt={1} display="flex" flexWrap="wrap" gap={0.5}>
+                  {combinationStats.topCombo?.split(' + ').map((m, i) => (
+                    <Chip
+                      key={i}
+                      label={m}
+                      size="small"
+                      sx={{
+                        background: 'rgba(29, 222, 196, 0.15)',
+                        color: '#1ddec4',
+                        fontSize: '11px'
+                      }}
+                    />
+                  ))}
+                </Box>
+
+                <Typography fontSize={14} fontWeight="bold" mt={1}>
+                  {combinationStats.percentage}%
                 </Typography>
               </Box>
             </Grid>
           </Grid>
         </Grid>
 
-        <Grid item xs={12} sm={12} md={3} lg={3}>
-          {/* SELECT */}
-          <Box mb={3}>
+        {/* ===== RIGHT SIDE (SELECT) ===== */}
+        <Grid item xs={12} md={3}>
+          <Box>
             <Typography fontSize={13} mb={1}>
               Select Medication
             </Typography>
@@ -154,8 +210,8 @@ const MedicationPatients = () => {
               value={medication}
               onChange={(e) => setMedication(e.target.value)}
               size="small"
+              fullWidth
               sx={{
-                minWidth: '100%',
                 borderRadius: 2,
                 background: '#F5F7FA',
                 fontSize: '12px'
@@ -179,7 +235,8 @@ const MedicationPatients = () => {
         sx={{
           borderRadius: 3,
           boxShadow: 'none',
-          overflowX: 'auto' // 🔥 enables horizontal scroll
+          overflowX: 'auto', // 🔥 enables horizontal scroll
+          border:"1px solid #d3d5d9"
         }}
       >
         <Table>
@@ -189,6 +246,7 @@ const MedicationPatients = () => {
               <TableCell sx={{ p: 1 }}>Age</TableCell>
               <TableCell sx={{ p: 1 }}>Gender</TableCell>
               <TableCell sx={{ p: 1 }}>Medications</TableCell>
+              <TableCell sx={{ p: 1 }}>Other Medications</TableCell>
             </TableRow>
           </TableHead>
 
@@ -198,22 +256,35 @@ const MedicationPatients = () => {
                 <TableCell sx={{ p: 1, fontSize: '12px' }}>{p.name}</TableCell>
                 <TableCell sx={{ p: 1, fontSize: '12px' }}>{p.age}</TableCell>
                 <TableCell sx={{ p: 1, fontSize: '12px' }}>{p.gender}</TableCell>
+                <TableCell sx={{ p: 1 }}>
+                  <Chip
+                    label={medication}
+                    size="small"
+                    sx={{
+                      fontSize: '12px',
+                      background: 'rgba(29, 222, 196, 0.15)',
+                      color: '#1ddec4'
+                    }}
+                  />
+                </TableCell>
 
-                <TableCell sx={{ p: 1, fontSize: '12px' }}>
-                  {p.meds.map((m, idx) => (
-                    <Chip
-                      key={idx}
-                      label={m}
-                      size="small"
-                      sx={{
-                        mr: 1,
-                        mb: 1,
-                        fontSize: '12px',
-                        background: m === medication ? '#E6F7F5' : '#f0f2f8',
-                        color: m === medication ? '#1ddec4' : 'inherit'
-                      }}
-                    />
-                  ))}
+                <TableCell sx={{ p: 1 }}>
+                  {p.meds
+                    .filter((m) => m !== medication) // ✅ remove selected one
+                    .map((m, idx) => (
+                      <Chip
+                        key={idx}
+                        label={m}
+                        size="small"
+                        sx={{
+                          mr: 1,
+                          mb: 1,
+                          fontSize: '12px',
+                          background: '#f0f2f8',
+                          color: 'currentcolor'
+                        }}
+                      />
+                    ))}
                 </TableCell>
               </TableRow>
             ))}

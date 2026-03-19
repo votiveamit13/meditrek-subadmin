@@ -71,26 +71,56 @@ const MedicationCombination = () => {
 
   const percentage = totalPatients ? ((matched / totalPatients) * 100).toFixed(1) : 0;
 
+  const cardStyle = {
+    background: 'rgba(29, 222, 196, 0.15)',
+    p: 2,
+    borderRadius: 3,
+    height: '100%', // 🔥 equal height fix
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.05)'
+  };
+
+  const combinationStats = useMemo(() => {
+  const map = {};
+
+  patientsData.forEach((p) => {
+    const key = [...p.meds].sort().join(" + "); // normalize
+
+    map[key] = (map[key] || 0) + 1;
+  });
+
+  const total = patientsData.length;
+
+  const result = Object.entries(map).map(([combo, count]) => ({
+    combo,
+    count,
+    percentage: total ? ((count / total) * 100).toFixed(1) : 0,
+  }));
+
+  return result.sort((a, b) => b.count - a.count);
+}, []);
+
+const topCombo = combinationStats[0];
+
   return (
     <Card sx={{ p: 3, borderRadius: 4 }}>
       <Typography variant="h6" fontWeight="bold" mb={2}>
         Medication Combination
       </Typography>
       {/* <Box sx={{ display: 'flex' }}> */}
-      <Grid container spacing={2} mb={3}>
+      <Grid container spacing={2} >
         <Grid item xs={12} sm={12} md={9} lg={9}>
           {/* STATS */}
           <Grid container spacing={2} mb={3}>
             <Grid item xs={12} sm={6} md={3} lg={3}>
               <Box
-                sx={{
-                  background: 'rgba(29, 222, 196, 0.15)',
-                  p: 2,
-                  borderRadius: 3,
-                  minWidth: 140
-                }}
+                sx={cardStyle}
               >
-                <Typography fontSize={12}>Matching Patients</Typography>
+                <Typography fontSize={12} fontWeight={500}>
+                  Matching Patients
+                </Typography>
                 <Typography fontSize={16} fontWeight="bold">
                   {matched}
                 </Typography>
@@ -99,19 +129,45 @@ const MedicationCombination = () => {
 
             <Grid item xs={12} sm={6} md={3} lg={3}>
               <Box
-                sx={{
-                  background: 'rgba(29, 222, 196, 0.15)',
-                  p: 2,
-                  borderRadius: 3,
-                  minWidth: 140
-                }}
+                sx={cardStyle}
               >
-                <Typography fontSize={12}>Total</Typography>
+                <Typography fontSize={12} fontWeight={500}>
+                  Total
+                </Typography>
                 <Typography fontSize={16} fontWeight="bold">
                   {percentage}%
                 </Typography>
               </Box>
             </Grid>
+
+            <Grid item xs={12} sm={6} md={3}>
+  <Box sx={cardStyle}>
+    <Typography fontSize={12} fontWeight={500}>
+      Most Common Combination
+    </Typography>
+
+    <Box mt={1} display="flex" flexWrap="wrap" gap={0.5}>
+      {topCombo?.combo
+        ?.split(" + ")
+        .map((m, i) => (
+          <Chip
+            key={i}
+            label={m}
+            size="small"
+            sx={{
+              background: "rgba(29, 222, 196, 0.15)",
+              color: "#1ddec4",
+              fontSize: "11px",
+            }}
+          />
+        ))}
+    </Box>
+
+    <Typography mt={1} fontWeight="bold">
+      {topCombo?.percentage || 0}%
+    </Typography>
+  </Box>
+</Grid>
           </Grid>
         </Grid>
         {/* MULTI SELECT */}
@@ -182,7 +238,8 @@ const MedicationCombination = () => {
         sx={{
           borderRadius: 3,
           boxShadow: 'none',
-          overflowX: 'auto' // 🔥 enables horizontal scroll
+          overflowX: 'auto',
+          border:"1px solid #d3d5d9"
         }}
       >
         <Table>
@@ -225,7 +282,7 @@ const MedicationCombination = () => {
               </TableRow>
             ))}
 
-            {/* EMPTY STATE */}
+          
             {selectedMeds.length > 0 && filteredPatients.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} align="center">
@@ -236,6 +293,47 @@ const MedicationCombination = () => {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* <Typography fontWeight="bold" mb={1}>
+  Top Medication Combinations
+</Typography>
+
+<TableContainer component={Paper} sx={{ mb: 2 }}>
+  <Table>
+    <TableHead sx={{ background: "#f0f2f8" }}>
+      <TableRow>
+        <TableCell>Combination</TableCell>
+        <TableCell>Patients</TableCell>
+        <TableCell>%</TableCell>
+      </TableRow>
+    </TableHead>
+
+    <TableBody>
+      {combinationStats.slice(0, 3).map((item, i) => (
+        <TableRow key={i}>
+          <TableCell>
+            <Box display="flex" gap={0.5} flexWrap="wrap">
+              {item.combo.split(" + ").map((m, idx) => (
+                <Chip
+                  key={idx}
+                  label={m}
+                  size="small"
+                  sx={{
+                    background: "rgba(29, 222, 196, 0.15)",
+                    color: "#1ddec4",
+                  }}
+                />
+              ))}
+            </Box>
+          </TableCell>
+
+          <TableCell>{item.count}</TableCell>
+          <TableCell>{item.percentage}%</TableCell>
+        </TableRow>
+      ))}
+    </TableBody>
+  </Table>
+</TableContainer> */}
     </Card>
   );
 };
