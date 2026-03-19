@@ -10,7 +10,8 @@ const CustomPagination = ({
   page,
   rowsPerPage,
   onPageChange,
-  onRowsPerPageChange
+  onRowsPerPageChange,
+  hideRowsPerPage = false
 }) => {
   const totalPages = Math.ceil(count / rowsPerPage);
 
@@ -34,6 +35,7 @@ const CustomPagination = ({
       }}
     >
       {/* LEFT: Rows per page */}
+      {!hideRowsPerPage && (
       <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
         <span style={{ fontSize: 12, color: "#64748b" }}>
           Rows per page:
@@ -56,6 +58,7 @@ const CustomPagination = ({
           ))}
         </select>
       </Box>
+      )}
 
       {/* CENTER: Range */}
       <span style={{ fontSize: 12, color: "#64748b" }}>

@@ -33,7 +33,10 @@ const Growth = styled(Box)(() => ({
   color: "#6b7280"
 }));
 
-const ReportCard = ({ primary, secondary, iconPrimary: Icon, color, loading }) => {
+const ReportCard = ({ primary, secondary, iconPrimary: Icon, color, loading, growth }) => {
+  const value = parseFloat(growth);
+  const isPositive = value > 0;
+  const isZero = value === 0;
   return (
     <StyledCard>
       <CardContent
@@ -80,8 +83,18 @@ const ReportCard = ({ primary, secondary, iconPrimary: Icon, color, loading }) =
 
         {/* Growth */}
         <Growth>
-          <span style={{ color: "#1DDEC4", fontWeight: 700 }}>
-            +55%
+          <span
+            style={{
+              color: isZero
+                ? "#6b7280"
+                : isPositive
+                  ? "#16a34a"
+                  : "#dc2626",
+              fontWeight: 700
+            }}
+          >
+            {isPositive ? "+" : ""}
+            {isNaN(value) ? 0 : value}%
           </span>{" "}
           from last week
         </Growth>

@@ -11,7 +11,8 @@ const CustomTable = ({
     currentPage,
     rowsPerPage,
     onPageChange,
-    onRowsPerPageChange
+    onRowsPerPageChange,
+    hideRowsPerPage = false
 }) => {
 
     const indexOfLast = currentPage * rowsPerPage;
@@ -112,6 +113,7 @@ const CustomTable = ({
                 rowsPerPage={rowsPerPage}
                 onPageChange={onPageChange}
                 onRowsPerPageChange={onRowsPerPageChange}
+                hideRowsPerPage={hideRowsPerPage}
             />
         </div>
     );
