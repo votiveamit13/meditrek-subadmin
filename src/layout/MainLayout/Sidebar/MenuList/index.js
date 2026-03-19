@@ -52,7 +52,7 @@ const menu = [
   {
     title: "New Insights",
     icon: <SignalCellularAltIcon />,
-    url: APP_PREFIX_PATH + "/analytics"
+    url: APP_PREFIX_PATH + "/analyticss"
   }
 ];
 

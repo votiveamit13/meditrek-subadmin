@@ -41,6 +41,11 @@ const [adverse, setAdverse] = useState(null);
 const [lab, setLab] = useState(null);
 const [measurement, setMeasurement] = useState(null);
 const [graphData, setGraphData] = useState(null);
+const [patientGrowth, setPatientGrowth] = useState(null);
+const [medicationGrowth, setMedicationGrowth] = useState(null);
+const [adverseGrowth, setAdverseGrowth] = useState(null);
+const [labGrowth, setLabGrowth] = useState(null);
+const [measurementGrowth, setMeasurementGrowth] = useState(null);
 
   const fetchUserDetails = async () => {
     try {
@@ -55,6 +60,7 @@ const [graphData, setGraphData] = useState(null);
 
       if (response.data.success) {
         setPatient(response.data.totalPatients);
+        setPatientGrowth(response.data.patientGrowth);
       } else {
         console.log('Profile Details fetch Error');
       }
@@ -76,6 +82,7 @@ const [graphData, setGraphData] = useState(null);
 
       if (response.data.success) {
         setMedication(response.data.totalMedication);
+        setMedicationGrowth(response.data.medicationGrowth);
       } else {
         console.log('Profile Details fetch Error');
       }
@@ -97,6 +104,7 @@ const [graphData, setGraphData] = useState(null);
 
       if (response.data.success) {
         setAdverse(response.data.totalAdverseReaction);
+        setAdverseGrowth(response.data.adverseGrowth);
       } else {
         console.log('Profile Details fetch Error');
       }
@@ -118,6 +126,7 @@ const [graphData, setGraphData] = useState(null);
 
       if (response.data.success) {
         setLab(response.data.totalLabReports);
+        setLabGrowth(response.data.labReportGrowth);
       } else {
         console.log('Profile Details fetch Error');
       }
@@ -139,6 +148,7 @@ const [graphData, setGraphData] = useState(null);
 
       if (response.data.success) {
         setMeasurement(response.data.totalmeasurement);
+        setMeasurementGrowth(response.data.measurementGrowth);
       } else {
         console.log('Profile Details fetch Error');
       }
@@ -193,7 +203,7 @@ const [graphData, setGraphData] = useState(null);
         >
           <Grid item xs={12} sm={6} md={4} lg={2.4}>
             <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}>
-              <ReportCard primary={patient} secondary="Total Patients" color={theme.palette.success.main} iconPrimary={PeopleAltIcon} loading={!patient} />
+              <ReportCard primary={patient} secondary="Total Patients" growth={`${patientGrowth}%`} color={theme.palette.success.main} iconPrimary={PeopleAltIcon} loading={!patient} />
             </Link>
           </Grid>
 
@@ -202,6 +212,7 @@ const [graphData, setGraphData] = useState(null);
               <ReportCard
                 primary={medication}
                 secondary="Total Medications"
+                growth={`${medicationGrowth}%`}
                 color={theme.palette.primary.main}
                 iconPrimary={MedicationIcon}
                 loading={!patient} 
@@ -211,13 +222,13 @@ const [graphData, setGraphData] = useState(null);
 
           <Grid item xs={12} sm={6} md={4} lg={2.4}>
             <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}>
-              <ReportCard primary={adverse} secondary="Adverse Reactions" color={theme.palette.warning.main} iconPrimary={WarningAmberIcon} loading={!patient} />
+              <ReportCard primary={adverse} secondary="Adverse Reactions" growth={`${adverseGrowth}%`} color={theme.palette.warning.main} iconPrimary={WarningAmberIcon} loading={!patient} />
             </Link>
           </Grid>
 
           <Grid item xs={12} sm={6} md={4} lg={2.4}>
             <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}>
-              <ReportCard primary={lab} secondary="Lab Reports" color={theme.palette.warning.main} iconPrimary={ScienceIcon} loading={!patient} />
+              <ReportCard primary={lab} secondary="Lab Reports" growth={`${labGrowth}%`} color={theme.palette.warning.main} iconPrimary={ScienceIcon} loading={!patient} />
             </Link>
           </Grid>
 
@@ -226,6 +237,7 @@ const [graphData, setGraphData] = useState(null);
               <ReportCard
                 primary={measurement}
                 secondary="Total Measurements"
+                growth={`${measurementGrowth}%`}
                 color={theme.palette.info.main}
                 iconPrimary={MonitorHeartIcon}
                 loading={!patient} 

@@ -1,4 +1,4 @@
-import { Card, Modal, Stack, Table, Button, Form } from 'react-bootstrap';
+import { Card, Stack, Table, Button, Form } from 'react-bootstrap';
 import Pagination from '@mui/material/Pagination';
 import 'bootstrap/dist/css/bootstrap.min.css';
 // import Typography from '@mui/material/Typography';
@@ -18,6 +18,8 @@ import './managecontent.css';
 import { useState } from 'react';
 import { RiFileExcel2Line } from "react-icons/ri";
 import CustomTable from 'component/common/CustomTable';
+import CustomModal from 'component/common/CustomModal';
+import MeasurementChart from 'component/my-patient/MeasurementChart';
 
 function ViewPatient() {
   const [user_data, setUserDetails] = React.useState([]);
@@ -46,6 +48,7 @@ function ViewPatient() {
   const [switchLoading, setSwitchLoading] = useState(false);
   const [patientPage, setPatientPage] = useState(1);
   const patientsPerPage = 10;
+  const [measurementType, setMeasurementType] = useState("bp");
   const [sortConfig, setSortConfig] = useState({
     key: null,
     direction: "asc"
@@ -64,6 +67,36 @@ function ViewPatient() {
   // const navigate = useNavigate();
   const token = sessionStorage.getItem('token');
   const doctor_id = sessionStorage.getItem('doctor_id');
+  const [expandedNotes, setExpandedNotes] = useState({});
+
+  const toggleReadMore = (id) => {
+    setExpandedNotes((prev) => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  const getGenderLabel = (gender) => {
+    switch (gender) {
+      case 1:
+        return "Male";
+      case 2:
+        return "Female";
+      case 3:
+        return "Other";
+      default:
+        return "-";
+    }
+  };
+
+  const getDiseaseNames = (diseaseString) => {
+    if (!diseaseString) return "-";
+
+    const matches = diseaseString.match(/name:\s*([^,}]+)/g);
+    if (!matches) return "-";
+
+    return matches.map(m => m.replace("name:", "").trim()).join(", ");
+  };
   // const doctor_id = sessionStorage.getItem('doctor_id');
   // console.log("safiu", doctor_id)
   // useEffect(() => {
@@ -85,7 +118,7 @@ function ViewPatient() {
     note: 5,
     compliance: 6
   };
-  const [content, setContent] = React.useState(contentTypes.medication);
+  const [content, setContent] = React.useState(contentTypes.note);
   // Add this function before your useEffect hooks
   const fetchNotes = async () => {
     if (!selectedPatientId) return;
@@ -385,6 +418,24 @@ function ViewPatient() {
     }
   };
 
+  const getFilteredMeasurement = () => {
+    switch (measurementType) {
+      case "bp":
+        return measurement.filter((m) => m.type === 0);
+      case "fasting":
+        return measurement.filter((m) => m.type === 1);
+      case "ppbgs":
+        return measurement.filter((m) => m.type === 2);
+      case "weight":
+        return measurement.filter((m) => m.type === 3);
+      case "temp":
+        return measurement.filter((m) => m.type === 4);
+      default:
+        return [];
+    }
+  };
+  const filteredMeasurement = getFilteredMeasurement();
+
   const filterMedicationData =
     medication?.filter((item) => {
       const lowercasedTerm = searchQueryGroup.toLowerCase();
@@ -403,11 +454,11 @@ function ViewPatient() {
       return Object.values(item).some((val) => val && String(val).toLowerCase().includes(lowercasedTerm));
     }) || [];
 
-  const filterMeasurementData =
-    measurement?.filter((item) => {
-      const lowercasedTerm = searchQueryGroup.toLowerCase();
-      return Object.values(item).some((val) => val && String(val).toLowerCase().includes(lowercasedTerm));
-    }) || [];
+  // const filterMeasurementData =
+  //   measurement?.filter((item) => {
+  //     const lowercasedTerm = searchQueryGroup.toLowerCase();
+  //     return Object.values(item).some((val) => val && String(val).toLowerCase().includes(lowercasedTerm));
+  //   }) || [];
 
   const filterNotesData =
     notes?.filter((item) => {
@@ -438,15 +489,15 @@ function ViewPatient() {
   // const currentMedication = sortedMedication.slice(indexOfFirstItem, indexOfLastItem);
   const currentAdverse = filterAdverseData.slice(indexOfFirstItem, indexOfLastItem);
   const currentLabReports = filterLabReportsData.slice(indexOfFirstItem, indexOfLastItem);
-  const currentMeasurement = filterMeasurementData.slice(indexOfFirstItem, indexOfLastItem);
-  const currentNotes = filterNotesData.slice(indexOfFirstItem, indexOfLastItem);
+  // const currentMeasurement = filterMeasurementData.slice(indexOfFirstItem, indexOfLastItem);
+  // const currentNotes = filterNotesData.slice(indexOfFirstItem, indexOfLastItem);
   const currentCompliance = filterComplianceData.slice(indexOfFirstItem, indexOfLastItem);
 
   // const totalMedicationPages = Math.ceil(filterMedicationData.length / rowsPerPage);
   const totalAdversePages = Math.ceil(filterAdverseData.length / rowsPerPage);
   const totalLabReportsPages = Math.ceil(filterLabReportsData.length / rowsPerPage);
-  const totalMeasurementPages = Math.ceil(filterMeasurementData.length / rowsPerPage);
-  const totalNotesPages = Math.ceil(filterNotesData.length / rowsPerPage);
+  // const totalMeasurementPages = Math.ceil(filterMeasurementData.length / rowsPerPage);
+  // const totalNotesPages = Math.ceil(filterNotesData.length / rowsPerPage);
   const totalCompliancePages = Math.ceil(filterComplianceData.length / rowsPerPage);
 
   // 16/03
@@ -494,30 +545,30 @@ function ViewPatient() {
     saveAs(blob, 'MedicationReport.xlsx');
   };
 
-  const exportMeasurementToExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(
-      measurement.map((item, index) => ({
-        'S. No.': index + 1,
-        'Systolic BP': item.systolic_bp,
-        'Diastolic BP': item.diastolic_bp,
-        Pulse: item.pulse,
-        'Fasting Glucose': item.fasting_glucose ? `${item.fasting_glucose} mg/dl` : '-',
-        PPBGS: item.ppbgs ? `${item.ppbgs} mg/dl` : '-',
-        'Weight Measurement': item.weight ? `${item.weight} kg` : '-',
-        Temperature: item.temperature ? `${item.temperature} °C` : '-',
-        Symptom: item.symptom,
-        Range: item.symptom_range,
-        Time: item.time,
-        Date: item.date,
-        'Create Date & Time': item.createtime
-      }))
-    );
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'MeasurementReport');
-    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
-    saveAs(blob, 'MeasurementReport.xlsx');
-  };
+  // const exportMeasurementToExcel = () => {
+  //   const ws = XLSX.utils.json_to_sheet(
+  //     measurement.map((item, index) => ({
+  //       'S. No.': index + 1,
+  //       'Systolic BP': item.systolic_bp,
+  //       'Diastolic BP': item.diastolic_bp,
+  //       Pulse: item.pulse,
+  //       'Fasting Glucose': item.fasting_glucose ? `${item.fasting_glucose} mg/dl` : '-',
+  //       PPBGS: item.ppbgs ? `${item.ppbgs} mg/dl` : '-',
+  //       'Weight Measurement': item.weight ? `${item.weight} kg` : '-',
+  //       Temperature: item.temperature ? `${item.temperature} °C` : '-',
+  //       Symptom: item.symptom,
+  //       Range: item.symptom_range,
+  //       Time: item.time,
+  //       Date: item.date,
+  //       'Create Date & Time': item.createtime
+  //     }))
+  //   );
+  //   const wb = XLSX.utils.book_new();
+  //   XLSX.utils.book_append_sheet(wb, ws, 'MeasurementReport');
+  //   const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  //   const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
+  //   saveAs(blob, 'MeasurementReport.xlsx');
+  // };
   const indexOfLastPatient = patientPage * patientsPerPage;
   const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
 
@@ -614,55 +665,98 @@ function ViewPatient() {
     );
   };
 
+  const weekMap = {
+    0: "Sun",
+    1: "Mon",
+    2: "Tue",
+    3: "Wed",
+    4: "Thu",
+    5: "Fri",
+    6: "Sat"
+  };
+
   const medicationColumns = [
-  {
-    label: "S. No",
-    key: "sr_no",
-    sortable: true,
-    render: (_, index) => index + 1
-  },
-  {
-    label: "Medicine Name",
-    key: "medicine_name",
-    sortable: true
-  },
-  {
-    label: "Schedule",
-    key: "schedule",
-    sortable: true
-  },
-  {
-    label: "Dosage",
-    key: "dosage",
-    sortable: true
-  },
-  {
-    label: "Reminder Time",
-    key: "reminder_time",
-    render: (row) => (
-      <span
-        style={{
-          background: "#ecfeff",
-          color: "#0891b2",
-          padding: "4px 8px",
-          borderRadius: "6px",
-          fontSize: "11px"
-        }}
-      >
-        {row.reminder_time || "-"}
-      </span>
-    )
-  },
-  {
-    label: "Instruction",
-    key: "instruction"
-  },
-  {
-    label: "Date of Registry",
-    key: "updatetime",
-    sortable: true
-  }
-];
+    {
+      label: "S. No",
+      key: "sr_no",
+      sortable: true,
+      render: (_, index) => index + 1
+    },
+    {
+      label: "Medicine Name",
+      key: "medicine_name",
+      sortable: true
+    },
+    {
+      label: "Schedule",
+      key: "schedule",
+      sortable: true,
+      render: (row) => {
+        if (row.schedule === "Weekly" && row.weekday) {
+          const days = row.weekday
+            .split(",")
+            .map((d) => weekMap[d])
+            .join(", ");
+
+          return `Weekly (${days})`;
+        }
+
+        if (row.schedule === "Monthly" && row.schedule_date !== "NA") {
+          const day = row.schedule_date.split("-")[0];
+
+          return `Monthly (Day ${day})`;
+        }
+        return row.schedule;
+      }
+    },
+    {
+      label: "Dosage",
+      key: "dosage",
+      sortable: true
+    },
+    {
+      label: "Reminder Time",
+      key: "reminder_time",
+      render: (row) => (
+        <span
+          style={{
+            background: "#ecfeff",
+            color: "#0891b2",
+            padding: "4px 8px",
+            borderRadius: "6px",
+            fontSize: "11px"
+          }}
+        >
+          {row.reminder_time || "-"}
+        </span>
+      )
+    },
+    {
+      label: "Instruction",
+      key: "instruction"
+    },
+    {
+      label: "Date of Registry",
+      key: "updatetime",
+      sortable: true
+    }
+  ];
+  const tableProps = {
+    sortConfig,
+    onSort: handleSort,
+    currentPage,
+    rowsPerPage,
+    onPageChange: (page) => setCurrentPage(page),
+    hideRowsPerPage: true
+  };
+
+  const getCurrentPageMeasurement = () => {
+    const filteredData = getFilteredMeasurement();
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    const endIndex = startIndex + rowsPerPage;
+    return filteredData.slice(startIndex, endIndex);
+  };
+  const currentPageMeasurement = getCurrentPageMeasurement();
   const renderTabContent = () => {
     switch (content) {
       case contentTypes.medication:
@@ -675,19 +769,19 @@ function ViewPatient() {
             }}
           >
 
-    <CustomTable
-  columns={medicationColumns}
-  data={filterMedicationData}
-  sortConfig={sortConfig}
-  onSort={handleSort}
-  currentPage={currentPage}
-  rowsPerPage={rowsPerPage}
-  onPageChange={(page) => setCurrentPage(page)}
-  onRowsPerPageChange={(size) => {
-    setRowsPerPage(size);
-    setCurrentPage(1);
-  }}
-/>
+            <CustomTable
+              columns={medicationColumns}
+              data={filterMedicationData}
+              sortConfig={sortConfig}
+              onSort={handleSort}
+              currentPage={currentPage}
+              rowsPerPage={rowsPerPage}
+              onPageChange={(page) => setCurrentPage(page)}
+              onRowsPerPageChange={(size) => {
+                setRowsPerPage(size);
+                setCurrentPage(1);
+              }}
+            />
           </div>
         );
       case contentTypes.adverse:
@@ -767,117 +861,246 @@ function ViewPatient() {
             )}
           </>
         );
-      case contentTypes.measurement:
-        return (
-          <>
-            {measurement.length > 0 && (
-              <div className="mb-3 text-end">
-                <Button variant="success" onClick={exportMeasurementToExcel} style={{ backgroundColor: '#1DDEC4', border: 'none' }}>
-                  Export to Excel
-                </Button>
-              </div>
-            )}
-            {/* <div style={{ width: '100%', overflowX: 'auto' }}>
-            {renderTable(
-              filterMeasurementData,
-              [
-                { header: 'S. No', key: 'sr_no' },
-                { header: 'Systolic BP', key: 'systolic_bp' },
-                { header: 'Diastolic BP', key: 'diastolic_bp' },
-                { header: 'Pulse', key: 'pulse' },
-                { header: 'Fasting Glucose', key: 'fasting_glucose', render: (item) => item.fasting_glucose ? `${item.fasting_glucose} mg/dl` : '-' },
-                { header: 'PPBGS', key: 'ppbgs', render: (item) => item.ppbgs ? `${item.ppbgs} mg/dl` : '-' },
-                { header: 'Weight Measurement', key: 'weight', render: (item) => item.weight ? `${item.weight} kg` : '-' },
-                { header: 'Temperature', key: 'temperature', render: (item) => item.temperature ? `${item.temperature} °C` : '-' },
-                { header: 'Symptom', key: 'symptom' },
-                { header: 'Range', key: 'symptom_range' },
-                { header: 'Time', key: 'time' },
-                { header: 'Date', key: 'date' }
-              ],
-              currentMeasurement,
-              totalMeasurementPages
-            )}
-            </div> */}
 
-            <div style={{ width: '100%', overflowX: 'auto' }}>
-              {renderTable(
-                filterMeasurementData,
-                [
-                  { header: 'S. No', key: 'sr_no' },
-                  { header: 'Systolic BP', key: 'systolic_bp' },
-                  { header: 'Diastolic BP', key: 'diastolic_bp' },
-                  { header: 'Pulse', key: 'pulse' },
-                  {
-                    header: 'Fasting Glucose',
-                    key: 'fasting_glucose',
-                    render: (item) => (item.fasting_glucose ? `${item.fasting_glucose} mg/dl` : '-')
-                  },
-                  { header: 'PPBGS', key: 'ppbgs', render: (item) => (item.ppbgs ? `${item.ppbgs} mg/dl` : '-') },
-                  { header: 'Weight Measurement', key: 'weight', render: (item) => (item.weight ? `${item.weight} kg` : '-') },
-                  { header: 'Temperature', key: 'temperature', render: (item) => (item.temperature ? `${item.temperature} °C` : '-') },
-                  { header: 'Symptom', key: 'symptom' },
-                  { header: 'Range', key: 'symptom_range' },
-                  {
-                    header: 'Time',
-                    key: 'time',
-                    render: (item) => <span style={{ whiteSpace: 'nowrap' }}>{item.time || '-'}</span>
-                  },
-                  {
-                    header: 'Date',
-                    key: 'date',
-                    render: (item) => <span style={{ whiteSpace: 'nowrap' }}>{item.date || '-'}</span>
-                  }
-                ],
-                currentMeasurement,
-                totalMeasurementPages
-              )}
+      case contentTypes.measurement:
+
+        return (
+          <div className="p-3">
+            <div className="row">
+
+              {/* LEFT MENU */}
+              <div className="col-md-3">
+                <div
+                  style={{
+                    borderRadius: "12px",
+                    overflow: "hidden",
+                    border: "1px solid #e5e7eb",
+                    background: "#fff",
+                  }}
+                >
+                  {[
+                    { label: "Blood Pressure", value: "bp" },
+                    { label: "Fasting Glucose", value: "fasting" },
+                    { label: "PPBGS", value: "ppbgs" },
+                    { label: "Weight", value: "weight" },
+                    { label: "Temp", value: "temp" },
+                    { label: "Symptom", value: "symptom" }
+                  ].map((item) => {
+                    const active = measurementType === item.value;
+
+                    return (
+                      <button
+                        key={item.value}
+                        onClick={() => setMeasurementType(item.value)}
+                        style={{
+                          padding: "10px 14px",
+                          fontSize: "13px",
+                          cursor: "pointer",
+                          background: active ? "#1ddec4" : "transparent",
+                          color: active ? "#fff" : "#374151",
+                          border: "none",
+                          width: "100%",
+                          textAlign: "left",
+                          transition: "all 0.2s ease"
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* RIGHT CONTENT */}
+              <div className="col-md-9">
+                <div
+                  style={{
+                    background: "#fff",
+                    borderRadius: "12px",
+                    // padding: "16px",
+                    boxShadow: "0 4px 8px rgba(0,0,0,0.05)",
+                    marginBottom: "12px"
+                  }}
+                >
+                  <div style={{ width: "100%", height: "230px" }}>
+                    <MeasurementChart
+                      key={`${measurementType}-${currentPage}`}
+                      data={currentPageMeasurement}
+                      type={measurementType}
+                    />
+                  </div>
+                </div>
+
+                {/* TABLE CARD */}
+                <div
+                  style={{
+                    background: "#fff",
+                    borderRadius: "12px",
+                    padding: "10px",
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
+                  }}
+                >
+                  {measurementType === "bp" && (
+                    <CustomTable
+                      columns={[
+                        { label: "Date", key: "date" },
+                        { label: "Time", key: "time" },
+                        { label: "Systolic BP", key: "systolic_bp" },
+                        { label: "Diastolic BP", key: "diastolic_bp" },
+                        { label: "Pulse", key: "pulse" }
+                      ]}
+                      data={filteredMeasurement}
+                      {...tableProps}
+                    />
+                  )}
+
+                  {measurementType === "fasting" && (
+                    <CustomTable
+                      columns={[
+                        { label: "Date", key: "date" },
+                        { label: "Time", key: "time" },
+                        { label: "Fasting Glucose", key: "fasting_glucose" }
+                      ]}
+                      data={filteredMeasurement}
+                      {...tableProps}
+                    />
+                  )}
+
+                  {measurementType === "ppbgs" && (
+                    <CustomTable
+                      columns={[
+                        { label: "Date", key: "date" },
+                        { label: "Time", key: "time" },
+                        { label: "PPBGS", key: "ppbgs" }
+                      ]}
+                      data={filteredMeasurement}
+                      {...tableProps}
+                    />
+                  )}
+
+                  {measurementType === "weight" && (
+                    <CustomTable
+                      columns={[
+                        { label: "Date", key: "date" },
+                        { label: "Time", key: "time" },
+                        { label: "Weight", key: "weight" }
+                      ]}
+                      data={filteredMeasurement}
+                      {...tableProps}
+                    />
+                  )}
+
+                  {measurementType === "temp" && (
+                    <CustomTable
+                      columns={[
+                        { label: "Date", key: "date" },
+                        { label: "Time", key: "time" },
+                        { label: "Temperature", key: "temperature" }
+                      ]}
+                      data={filteredMeasurement}
+                      {...tableProps}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
-          </>
+          </div>
         );
       case contentTypes.note:
+
         return (
           <>
-            <div className="d-flex justify-content-between mb-3 p-4">
-              <div className="d-flex justify-content-end">
-                {/* <label htmlFor="search-input" style={{ marginRight: '5px' }}>
-                      Search
-                    </label> */}
+            <div className="p-3">
+              <div className="d-flex justify-content-between mb-3">
                 <input
-                  className="search-input form-control"
-                  type="text"
+                  className="custom-search form-control"
+                  placeholder="Search notes..."
+                  style={{ width: "250px", fontSize: "13px" }}
                   onChange={handleSearchgroup}
-                  placeholder="Search..."
-                  style={{ width: '220px', fontSize: '13px' }}
                 />
+
+                <Button onClick={() => setShowNoteModal(true)}>
+                  <AddIcon /> Add Note
+                </Button>
               </div>
-              <Button variant="primary" onClick={() => setShowNoteModal(true)}>
-                <AddIcon /> Add Note
-              </Button>
+
+              {filterNotesData.length > 0 ? (
+                <div className="d-flex flex-column gap-3">
+
+                  {filterNotesData.map((note, index) => {
+                    const isExpanded = expandedNotes[note.id];
+                    const isLong = note.description.length > 120;
+
+                    return (
+                      <Card
+                        key={note.id}
+                        className="note-card shadow-sm rounded-3"
+                        style={{
+                          borderLeft: "4px solid #1ddec4",
+                          animationDelay: `${index * 0.05}s`
+                        }}
+                      >
+                        <Card.Body style={{ padding: "14px 16px" }}>
+                          <p
+                            style={{
+                              fontSize: "14px",
+                              marginBottom: "6px",
+                              color: "#374151",
+                              lineHeight: "1.5"
+                            }}
+                          >
+                            {isExpanded
+                              ? note.description
+                              : note.description.slice(0, 220)}
+
+                            {isLong && (
+                              <button
+                                onClick={() => toggleReadMore(note.id)}
+                                className="read-more-btn"
+                                style={{
+                                  color: "#1ddec4",
+                                  fontWeight: 500,
+                                  background: "none",
+                                  border: "none",
+                                  cursor: "pointer"
+                                }}
+                              >
+                                {isExpanded ? "Show Less" : "... Read More"}
+                              </button>
+                            )}
+                          </p>
+
+                          <div className="d-flex justify-content-between align-items-center mt-2">
+                            <small style={{ color: "#9ca3af", fontSize: "12px" }}>
+                              {note.createtime}
+                            </small>
+
+                            <div className="d-flex gap-2">
+                              <button
+                                className="note-icon-btn edit"
+                                onClick={() => handleEditNote(note)}
+                              >
+                                <EditIcon fontSize="small" />
+                              </button>
+
+                              <button
+                                className="note-icon-btn delete"
+                                onClick={() => handleDeleteNote(note.id)}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </button>
+                            </div>
+                          </div>
+                        </Card.Body>
+                      </Card>
+                    );
+                  })}
+
+                </div>
+              ) : (
+                <p className="text-center text-muted">No notes available</p>
+              )}
             </div>
-            {renderTable(
-              filterNotesData,
-              [
-                { header: 'S. No', key: 'sr_no' },
-                {
-                  header: 'Actions',
-                  key: 'actions',
-                  render: (item) => (
-                    <div className="d-flex justify-content-center">
-                      <Button variant="warning" size="sm" className="me-2" onClick={() => handleEditNote(item)}>
-                        <EditIcon fontSize="small" />
-                      </Button>
-                      <Button variant="danger" size="sm" onClick={() => handleDeleteNote(item.id)}>
-                        <DeleteIcon fontSize="small" />
-                      </Button>
-                    </div>
-                  )
-                },
-                { header: 'Description', key: 'description' },
-                { header: 'Create Date & Time', key: 'createtime' }
-              ],
-              currentNotes,
-              totalNotesPages
-            )}
           </>
         );
       case contentTypes.compliance:
@@ -958,16 +1181,30 @@ function ViewPatient() {
                 {/* Info */}
                 <div className="flex-grow-1">
                   <h5 className="fw-bold mb-1">{user_data.name}</h5>
-                  <small className="text-muted">{user_data.email}</small>
+                  <div className="d-flex gap-2">
+                    <small className="text-muted">
+                      Email ID:{" "}
+                      <a
+                        href={`mailto:${user_data.email}`}
+                        style={{ color: "#1ddec4", textDecoration: "underline" }}
+                      >
+                        {user_data.email}
+                      </a>
+                    </small>
+
+                    <small className="text-muted">
+                      Mobile: {user_data.mobile}
+                    </small>
+                  </div>
 
                   <div className="d-flex gap-4 mt-3 flex-wrap">
                     {[
-                      { label: "Age", value: `${user_data.age} yrs` },
-                      { label: "Height", value: `${user_data.height} cm` },
-                      { label: "Sex", value: `${user_data.sex}` },
-                      { label: "Diseases", value: `${user_data.disease_names}` },
-                      // { label: "Email Id", value: user_data.email },
-                      { label: "Mobile", value: user_data.mobile }
+                      { label: "Age", value: user_data.age ? `${user_data.age} yrs` : "-" },
+                      { label: "Height", value: user_data.height ? `${user_data.height} cm` : "-" },
+                      { label: "Weight", value: user_data.weight ? `${user_data.weight} kg` : "-" },
+                      { label: "Sex", value: getGenderLabel(user_data.gender) },
+                      { label: "Diseases", value: getDiseaseNames(user_data.diseaseName) },
+                      // { label: "Mobile", value: user_data.mobile }
                     ].map((item, i) => (
                       <div key={i}>
                         <small className="text-muted">{item.label}</small>
@@ -1062,19 +1299,23 @@ function ViewPatient() {
                         }}
                       >
                         <div
-                          style={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: "50%",
-                            background: "#fff",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontWeight: 600,
-                            color: "#1ddec4"
-                          }}
+
                         >
-                          {patient.name?.charAt(0)}
+                          <img
+                            src={patient?.image ? `${IMAGE_PATH}${patient.image}` : `${IMAGE_PATH}placeholder.jpg`}
+                            alt={patient.name}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: "50%",
+                              background: "#fff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontWeight: 600,
+                              color: "#1ddec4"
+                            }}
+                          />
                         </div>
 
                         <span style={{ fontSize: "13px" }}>
@@ -1098,82 +1339,83 @@ function ViewPatient() {
 
               {/* Tabs */}
               <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap">
-  
-  {/* LEFT → Tabs */}
-  <div className="d-flex gap-2 flex-wrap">
-    {[
-      { label: "Medication", value: contentTypes.medication },
-      { label: "Measurement", value: contentTypes.measurement },
-      { label: "Report Health", value: contentTypes.adverse },
-      { label: "Documents", value: contentTypes.labReports },
-    ].map((tab) => {
-      const active = content === tab.value;
 
-      return (
-        <button
-          key={tab.value}
-          onClick={() => setContent(tab.value)}
-           onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          setContent(tab.value);
-                        }
-                      }}
-          style={{
-            borderRadius: "999px",
-            padding: "6px 16px",
-            fontSize: "13px",
-            background: active ? "#1ddec4" : "#eef2f7",
-            color: active ? "#fff" : "#64748b",
-            cursor: "pointer",
-            border: 0
-          }}
-        >
-          {tab.label}
-        </button>
-      );
-    })}
-  </div>
+                {/* LEFT → Tabs */}
+                <div className="d-flex gap-2 flex-wrap">
+                  {[
+                    { label: "Notes", value: contentTypes.note },
+                    { label: "Medication", value: contentTypes.medication },
+                    { label: "Measurement", value: contentTypes.measurement },
+                    { label: "Report Health", value: contentTypes.adverse },
+                    { label: "Documents", value: contentTypes.labReports },
+                  ].map((tab) => {
+                    const active = content === tab.value;
 
-  {/* RIGHT → Export */}
-  {content === contentTypes.medication && medication.length > 0 && (
-    <div className="d-flex align-items-center gap-2">
-      <span style={{ fontSize: "13px", color: "#64748b" }}>
-        Export:
-      </span>
+                    return (
+                      <button
+                        key={tab.value}
+                        onClick={() => setContent(tab.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            setContent(tab.value);
+                          }
+                        }}
+                        style={{
+                          borderRadius: "999px",
+                          padding: "6px 16px",
+                          fontSize: "13px",
+                          background: active ? "#1ddec4" : "#eef2f7",
+                          color: active ? "#fff" : "#64748b",
+                          cursor: "pointer",
+                          border: 0
+                        }}
+                      >
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
 
-      <button
-        onClick={exportMedicationToExcel}
-         onKeyDown={(e) => {
+                {/* RIGHT → Export */}
+                {content === contentTypes.medication && medication.length > 0 && (
+                  <div className="d-flex align-items-center gap-2">
+                    <span style={{ fontSize: "13px", color: "#64748b" }}>
+                      Export:
+                    </span>
+
+                    <button
+                      onClick={exportMedicationToExcel}
+                      onKeyDown={(e) => {
                         if (e.key === "Enter") {
                           exportMedicationToExcel;
                         }
                       }}
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: "8px",
-          background: "#e6f9f6",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          cursor: "pointer",
-          transition: "all 0.2s ease",
-          border: 0
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = "#1ddec4";
-          e.currentTarget.style.color = "#fff";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = "#e6f9f6";
-          e.currentTarget.style.color = "#1ddec4";
-        }}
-      >
-        <RiFileExcel2Line size={18} />
-      </button>
-    </div>
-  )}
-</div>
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: "8px",
+                        background: "#e6f9f6",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        transition: "all 0.2s ease",
+                        border: 0
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = "#1ddec4";
+                        e.currentTarget.style.color = "#fff";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = "#e6f9f6";
+                        e.currentTarget.style.color = "#1ddec4";
+                      }}
+                    >
+                      <RiFileExcel2Line size={18} />
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* ✅ NEW WRAPPED TABLE DESIGN */}
               <Card className="border-0 shadow-lg rounded-4 flex-grow-1">
@@ -1208,91 +1450,63 @@ function ViewPatient() {
             </div>
           </div>
 
-          <Modal
+          <CustomModal
             show={showNoteModal}
             onHide={() => {
               setShowNoteModal(false);
               setDescriptionError('');
             }}
-            centered
+            title="Add New Note"
+            onSubmit={handleAddNote}
+            submitText="Save Note"
           >
-            <Modal.Header closeButton>
-              <Modal.Title>Add New Note</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-              <Form.Group controlId="noteDescription">
-                <Form.Label>Description</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={3}
-                  value={noteDescription}
-                  onChange={(e) => {
-                    setNoteDescription(e.target.value);
-                    if (descriptionError) setDescriptionError('');
-                  }}
-                  isInvalid={!!descriptionError}
-                />
-                <Form.Control.Feedback type="invalid">{descriptionError}</Form.Control.Feedback>
-              </Form.Group>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setShowNoteModal(false);
-                  setDescriptionError('');
+            <Form.Group>
+              <Form.Label>Description</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={4}
+                className="custom-textarea"
+                value={noteDescription}
+                onChange={(e) => {
+                  setNoteDescription(e.target.value);
+                  if (descriptionError) setDescriptionError('');
                 }}
-              >
-                Close
-              </Button>
-              <Button variant="primary" onClick={handleAddNote}>
-                Save Note
-              </Button>
-            </Modal.Footer>
-          </Modal>
+                isInvalid={!!descriptionError}
+              />
+              <Form.Control.Feedback type="invalid">
+                {descriptionError}
+              </Form.Control.Feedback>
+            </Form.Group>
+          </CustomModal>
 
-          <Modal
+          <CustomModal
             show={editingNoteId !== null}
             onHide={() => {
               setEditingNoteId(null);
               setEditDescriptionError('');
             }}
-            centered
+            title="Edit Note"
+            onSubmit={handleUpdateNote}
+            submitText="Update Note"
           >
-            <Modal.Header>
-              <Modal.Title>Edit Note</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-              <Form.Group controlId="editNoteDescription">
-                <Form.Label>Description</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={3}
-                  value={editNoteDescription}
-                  onChange={(e) => {
-                    setEditNoteDescription(e.target.value);
-                    if (editDescriptionError) setEditDescriptionError('');
-                  }}
-                  isInvalid={!!editDescriptionError}
-                />
-                <Form.Control.Feedback type="invalid">{editDescriptionError}</Form.Control.Feedback>
-              </Form.Group>
-            </Modal.Body>
-            <Modal.Footer>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setEditingNoteId(null);
-                  setEditDescriptionError('');
+            <Form.Group>
+              <Form.Label>Description</Form.Label>
+              <Form.Control
+                as="textarea"
+                rows={4}
+                className="custom-textarea"
+                value={editNoteDescription}
+                onChange={(e) => {
+                  setEditNoteDescription(e.target.value);
+                  if (editDescriptionError) setEditDescriptionError('');
                 }}
-              >
-                Cancel
-              </Button>
-              <Button variant="primary" onClick={handleUpdateNote}>
-                Update Note
-              </Button>
-            </Modal.Footer>
-          </Modal>
+                isInvalid={!!editDescriptionError}
+              />
+              <Form.Control.Feedback type="invalid">
+                {editDescriptionError}
+              </Form.Control.Feedback>
+            </Form.Group>
+          </CustomModal>
         </>
       )}
     </>
