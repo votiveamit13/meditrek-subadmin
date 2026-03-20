@@ -115,7 +115,7 @@ const MenuList = ({ collapsed }) => {
       }}
     >
       {/* TOP MENU */}
-      <List sx={{ pl: 1 }}>
+      <List>
         {menu.map((item) => (
           <React.Fragment key={item.title}>
             <ListItemButton
@@ -130,7 +130,7 @@ const MenuList = ({ collapsed }) => {
                 justifyContent: collapsed ? "center" : "flex-start",
                 "&.Mui-selected": {
                   background: "rgba(29,222,196,0.15)",
-                  borderLeft: "3px solid #1ddec4"
+                  borderLeft: "4px solid #1ddec4"
                 },
 
                 "&.Mui-selected:hover": {

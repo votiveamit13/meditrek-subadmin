@@ -5,8 +5,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 // import { useNavigate } from 'react-router';
 import axios from 'axios';
 import { Base_Url, IMAGE_PATH } from '../../config';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { FadeLoader } from 'react-spinners';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -20,6 +19,9 @@ import { RiFileExcel2Line } from "react-icons/ri";
 import CustomTable from 'component/common/CustomTable';
 import CustomModal from 'component/common/CustomModal';
 import MeasurementChart from 'component/my-patient/MeasurementChart';
+import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
+import AdverseCardView from 'component/my-patient/ReportHealth';
+import DocumentCardView from 'component/my-patient/DocumentCardView';
 
 function ViewPatient() {
   const [user_data, setUserDetails] = React.useState([]);
@@ -49,6 +51,15 @@ function ViewPatient() {
   const [patientPage, setPatientPage] = useState(1);
   const patientsPerPage = 10;
   const [measurementType, setMeasurementType] = useState("bp");
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [notificationTab, setNotificationTab] = useState("all");
+  const [notificationTitle, setNotificationTitle] = useState("");
+  const [notificationMessage, setNotificationMessage] = useState("");
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [patientSearch, setPatientSearch] = useState("");
+  const [filteredPatients, setFilteredPatients] = useState([]);
+  const dropdownRef = useRef(null);
   const [sortConfig, setSortConfig] = useState({
     key: null,
     direction: "asc"
@@ -74,6 +85,81 @@ function ViewPatient() {
       ...prev,
       [id]: !prev[id]
     }));
+  };
+
+  useEffect(() => {
+  const handleClickOutside = (event) => {
+    if (
+      dropdownRef.current &&
+      !dropdownRef.current.contains(event.target)
+    ) {
+      setShowDropdown(false);
+    }
+  };
+
+  document.addEventListener("mousedown", handleClickOutside);
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside);
+  };
+}, []);
+
+  useEffect(() => {
+    const filtered = patients.filter((p) =>
+      p.name.toLowerCase().includes(patientSearch.toLowerCase())
+    );
+    setFilteredPatients(filtered);
+  }, [patientSearch, patients]);
+
+
+  const handleSelectUser = (id) => {
+    setSelectedUsers((prev) =>
+      prev.includes(id)
+        ? prev.filter((i) => i !== id)
+        : [...prev, id]
+    );
+    setShowDropdown(false);
+  };
+
+  const sendToAll = async () => {
+    try {
+      const res = await axios.post(
+        `${Base_Url}send_notification_all`,
+        {
+          title: notificationTitle,
+          message: notificationMessage
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      Swal.fire("Success", res.data.msg, "success");
+      setShowNotificationModal(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const sendToUsers = async () => {
+    try {
+      const res = await axios.post(
+        `${Base_Url}send_notification_users`,
+        {
+          title: notificationTitle,
+          message: notificationMessage,
+          user_ids: selectedUsers
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+
+      Swal.fire("Success", res.data.msg, "success");
+      setShowNotificationModal(false);
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const getGenderLabel = (gender) => {
@@ -487,15 +573,15 @@ function ViewPatient() {
   // });
 
   // const currentMedication = sortedMedication.slice(indexOfFirstItem, indexOfLastItem);
-  const currentAdverse = filterAdverseData.slice(indexOfFirstItem, indexOfLastItem);
-  const currentLabReports = filterLabReportsData.slice(indexOfFirstItem, indexOfLastItem);
+  // const currentAdverse = filterAdverseData.slice(indexOfFirstItem, indexOfLastItem);
+  // const currentLabReports = filterLabReportsData.slice(indexOfFirstItem, indexOfLastItem);
   // const currentMeasurement = filterMeasurementData.slice(indexOfFirstItem, indexOfLastItem);
   // const currentNotes = filterNotesData.slice(indexOfFirstItem, indexOfLastItem);
   const currentCompliance = filterComplianceData.slice(indexOfFirstItem, indexOfLastItem);
 
   // const totalMedicationPages = Math.ceil(filterMedicationData.length / rowsPerPage);
-  const totalAdversePages = Math.ceil(filterAdverseData.length / rowsPerPage);
-  const totalLabReportsPages = Math.ceil(filterLabReportsData.length / rowsPerPage);
+  // const totalAdversePages = Math.ceil(filterAdverseData.length / rowsPerPage);
+  // const totalLabReportsPages = Math.ceil(filterLabReportsData.length / rowsPerPage);
   // const totalMeasurementPages = Math.ceil(filterMeasurementData.length / rowsPerPage);
   // const totalNotesPages = Math.ceil(filterNotesData.length / rowsPerPage);
   const totalCompliancePages = Math.ceil(filterComplianceData.length / rowsPerPage);
@@ -762,6 +848,7 @@ function ViewPatient() {
       case contentTypes.medication:
         return (
           <div
+            className="table-animate"
             style={{
               background: "#ffffff",
               borderRadius: "16px",
@@ -785,82 +872,9 @@ function ViewPatient() {
           </div>
         );
       case contentTypes.adverse:
-        return renderTable(
-          filterAdverseData,
-          [
-            { header: 'S. No', key: 'sr_no' },
-            { header: 'Medicine', key: 'medicine_name' },
-            { header: 'Dosage', key: 'dosage' },
-            { header: 'Status', key: 'taken_status' },
-            { header: 'Medicine Type', key: 'category_name' },
-            { header: 'Symptom', key: 'symptom_name' },
-            { header: 'Description', key: 'instruction' },
-            { header: 'Medication Start Date', key: 'medication_start_date' },
-            { header: 'Reaction Date', key: 'reaction_date' }
-          ],
-          currentAdverse,
-          totalAdversePages
-        );
+        return <AdverseCardView data={filterAdverseData} />;
       case contentTypes.labReports:
-        return (
-          <>
-            <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
-              <Table responsive hover>
-                <thead>
-                  <tr>
-                    <th style={{ textAlign: 'center', fontWeight: '500' }}>S. No</th>
-                    <th style={{ textAlign: 'center', fontWeight: '500' }}>Report Type</th>
-                    <th style={{ textAlign: 'center', fontWeight: '500' }}>View</th>
-                    <th style={{ textAlign: 'center', fontWeight: '500' }}>Create Date & Time</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {currentLabReports.length > 0 ? (
-                    currentLabReports.map((item, index) => (
-                      <tr key={item.medical_report_id}>
-                        <td style={{ textAlign: 'center' }}>{indexOfFirstItem + index + 1}</td>
-                        <td style={{ textAlign: 'center' }}>{item.category_name || '-'}</td>
-                        <td style={{ textAlign: 'center' }}>
-                          <Button
-                            variant="primary"
-                            size="sm"
-                            onClick={() =>
-                              window.open(
-                                item.file ? `${IMAGE_PATH}${item.file}?${new Date().getTime()}` : `${IMAGE_PATH}placeholder.jpg`,
-                                '_blank'
-                              )
-                            }
-                          >
-                            <VisibilityIcon style={{ marginRight: '5px', fontSize: '16px' }} />
-                            View
-                          </Button>
-                        </td>
-                        <td style={{ textAlign: 'center' }}>{item.createtime || '-'}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} style={{ textAlign: 'center' }}>
-                        No Data Available
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </Table>
-            </div>
-            {filterLabReportsData.length > 0 && (
-              <div className="d-flex justify-content-between">
-                <p style={{ fontWeight: '500' }} className="pagination">
-                  Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filterLabReportsData.length)} of{' '}
-                  {filterLabReportsData.length} entries
-                </p>
-                <Stack spacing={2} alignItems="right">
-                  <Pagination count={totalLabReportsPages} page={currentPage} onChange={handlePageChange} />
-                </Stack>
-              </div>
-            )}
-          </>
-        );
+        return <DocumentCardView data={filterLabReportsData} />;
 
       case contentTypes.measurement:
 
@@ -922,7 +936,7 @@ function ViewPatient() {
                     marginBottom: "12px"
                   }}
                 >
-                  <div style={{ width: "100%", height: "230px" }}>
+                  <div className='chart-animate' style={{ width: "100%", height: "240px" }}>
                     <MeasurementChart
                       key={`${measurementType}-${currentPage}`}
                       data={currentPageMeasurement}
@@ -936,7 +950,6 @@ function ViewPatient() {
                   style={{
                     background: "#fff",
                     borderRadius: "12px",
-                    padding: "10px",
                     boxShadow: "0 2px 8px rgba(0,0,0,0.05)"
                   }}
                 >
@@ -1249,12 +1262,23 @@ function ViewPatient() {
                 <FadeLoader color="#1ddec4" height={10} width={3} radius={2} margin={-2} />
               </div>
             )}
-            <div className="col-md-3 d-flex">
+            <div className="col-md-3 d-flex" style={{maxHeight: "620px"}}>
               <div className="bg-white rounded-4 shadow-sm p-3 h-100" style={{ display: "flex", flexDirection: "column", width: "calc(100% - 20px)" }}>
-                <h6 className="fw-bold mb-3">My Patients</h6>
-
+                <div className="d-flex justify-content-between align-items-center mb-3">
+                  <h6 className="fw-bold mb-0">My Patients</h6>
+                  <button
+                    title="Send Notification"
+                    onClick={() => setShowNotificationModal(true)}
+                    style={{
+                      background: 'none',
+                      border: 'none'
+                    }}
+                  >
+                    <NotificationsNoneIcon />
+                  </button>
+                </div>
                 <div style={{
-                  // height: "calc(100vh - 250px)",
+                  height: "calc(100vh - 150px)",
                   width: "100%",
                   overflowY: "auto !important"
                 }}>
@@ -1262,28 +1286,24 @@ function ViewPatient() {
                     const isActive = patient.user_id == selectedPatientId;
 
                     return (
-                      <div
+                      <button
                         key={patient.user_id}
-                        role="button"
-                        tabIndex={0}
+                        type="button"
                         onClick={() => setSelectedPatientId(patient.user_id)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            setSelectedPatientId(patient.user_id);
-                          }
-                        }}
                         style={{
                           display: "flex",
                           alignItems: "center",
                           gap: "10px",
                           padding: "5px",
-                          // borderRadius: "12px",
                           marginBottom: "8px",
                           cursor: "pointer",
                           background: isActive ? "#1ddec4" : "#f8fafc",
                           color: isActive ? "#fff" : "#333",
                           transition: "all 0.25s ease",
-                          transform: isActive ? "scale(1.02)" : "scale(1)"
+                          transform: isActive ? "scale(1.02)" : "scale(1)",
+                          border: "none",
+                          width: "100%",
+                          textAlign: "left"
                         }}
                         onMouseEnter={(e) => {
                           if (!isActive) {
@@ -1321,11 +1341,11 @@ function ViewPatient() {
                         <span style={{ fontSize: "13px" }}>
                           {patient.name}
                         </span>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
-                <div className="d-flex justify-content-center mt-2">
+                <div className="d-flex justify-content-center mt-4">
                   <Pagination
                     size="sm"
                     count={totalPatientPages}
@@ -1337,10 +1357,8 @@ function ViewPatient() {
             </div>
             <div className="col-md-9 d-flex flex-column" >
 
-              {/* Tabs */}
               <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap">
 
-                {/* LEFT → Tabs */}
                 <div className="d-flex gap-2 flex-wrap">
                   {[
                     { label: "Notes", value: contentTypes.note },
@@ -1376,7 +1394,6 @@ function ViewPatient() {
                   })}
                 </div>
 
-                {/* RIGHT → Export */}
                 {content === contentTypes.medication && medication.length > 0 && (
                   <div className="d-flex align-items-center gap-2">
                     <span style={{ fontSize: "13px", color: "#64748b" }}>
@@ -1417,7 +1434,6 @@ function ViewPatient() {
                 )}
               </div>
 
-              {/* ✅ NEW WRAPPED TABLE DESIGN */}
               <Card className="border-0 shadow-lg rounded-4 flex-grow-1">
                 <Card.Body className="p-0">
 
@@ -1505,6 +1521,179 @@ function ViewPatient() {
               <Form.Control.Feedback type="invalid">
                 {editDescriptionError}
               </Form.Control.Feedback>
+            </Form.Group>
+          </CustomModal>
+
+          <CustomModal
+            show={showNotificationModal}
+            onHide={() => setShowNotificationModal(false)}
+            title="Send Notification"
+            onSubmit={notificationTab === "all" ? sendToAll : sendToUsers}
+            submitText="Send"
+          >
+            <div className="d-flex gap-2 mb-3">
+              {["all", "specific"].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setNotificationTab(tab)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "20px",
+                    border: "none",
+                    background: notificationTab === tab ? "#1ddec4" : "#eef2f7",
+                    color: notificationTab === tab ? "#fff" : "#64748b"
+                  }}
+                >
+                  {tab === "all" ? "All Patients" : "Specific Patients"}
+                </button>
+              ))}
+            </div>
+
+            {notificationTab === "specific" && (
+              <div ref={dropdownRef} className="mb-3" style={{ position: "relative" }}>
+
+                <button
+                  type="button"
+                  onClick={() => setShowDropdown(true)}
+                  style={{
+                    border: "1px solid #e5e7eb",
+                    borderRadius: "10px",
+                    padding: "6px",
+                    minHeight: "42px",
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    gap: "6px",
+                    cursor: "text",
+                    background: "#fff",
+                    width: "100%",
+                    textAlign: "left"
+                  }}
+                >
+
+                  {selectedUsers.map((id) => {
+                    const user = patients.find((p) => p.user_id === id);
+                    return (
+                      <div
+                        key={id}
+                        style={{
+                          background: "#1ddec4",
+                          color: "#fff",
+                          padding: "4px 10px",
+                          borderRadius: "20px",
+                          fontSize: "12px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "6px"
+                        }}
+                      >
+                        {user?.name}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSelectUser(id);
+                          }}
+                          style={{ border: 'none', background: 'none', color: 'white', cursor: "pointer", fontWeight: "bold" }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
+
+                  <input
+                    type="text"
+                    placeholder="Search patient..."
+                    value={patientSearch}
+                    onChange={(e) => setPatientSearch(e.target.value)}
+                    style={{
+                      border: "none",
+                      outline: "none",
+                      flex: 1,
+                      fontSize: "13px",
+                      minWidth: "120px"
+                    }}
+                  />
+                </button>
+
+                {showDropdown && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "105%",
+                      left: 0,
+                      right: 0,
+                      background: "#fff",
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "10px",
+                      marginTop: "4px",
+                      maxHeight: "200px",
+                      overflowY: "auto",
+                      zIndex: 1000,
+                      boxShadow: "0 6px 16px rgba(0,0,0,0.08)"
+                    }}
+                  >
+                    {filteredPatients.length > 0 ? (
+                      filteredPatients.map((p) => {
+
+                        return (
+                          <button
+                            key={p.user_id}
+                            onClick={() => handleSelectUser(p.user_id)}
+                            style={{
+                              width: "100%",
+                              padding: "8px 12px",
+                              fontSize: "13px",
+                              cursor: "pointer",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              background: selectedUsers.includes(p.user_id)
+                                ? "#e6f9f6"
+                                : "#fff",
+                              border: "none",
+                              borderBottom: "1px solid #f1f5f9",
+                              textAlign: "left"
+                            }}
+                          >
+                            <span>{p.name}</span>
+
+                            {selectedUsers.includes(p.user_id) && (
+                              <span style={{ color: "#1ddec4", fontSize: "12px" }}>
+                                ✓
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <p style={{ fontSize: "12px", padding: "10px", color: "#9ca3af" }}>
+                        No patients found
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Form.Group className="mb-2">
+              <Form.Label>Title</Form.Label>
+              <Form.Control
+                className='custom-search'
+                value={notificationTitle}
+                onChange={(e) => setNotificationTitle(e.target.value)}
+              />
+            </Form.Group>
+
+            <Form.Group>
+              <Form.Label>Message</Form.Label>
+              <Form.Control
+              className='custom-search'
+                as="textarea"
+                rows={3}
+                value={notificationMessage}
+                onChange={(e) => setNotificationMessage(e.target.value)}
+              />
             </Form.Group>
           </CustomModal>
         </>

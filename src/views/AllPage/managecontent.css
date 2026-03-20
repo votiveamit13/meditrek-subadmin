@@ -415,6 +415,12 @@
   animation: fadeSlideUp 0.4s ease forwards;
 }
 
+.animation-card {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: fadeSlideUp 0.4s ease forwards;
+}
+
 @keyframes fadeSlideUp {
   to {
     opacity: 1;
@@ -467,4 +473,32 @@
 .custom-search:focus {
   border-color: #1ddec4;
   box-shadow: 0 0 0 2px rgba(29, 222, 196, 0.15);
+}
+
+.table-animate {
+  opacity: 0;
+  transform: translateY(8px);
+  filter: blur(4px);
+  animation: tableFade 0.5s ease forwards;
+}
+
+@keyframes tableFade {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.chart-animate {
+  opacity: 0;
+  transform: scale(0.95);
+  animation: chartPop 0.4s ease forwards;
+}
+
+@keyframes chartPop {
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
