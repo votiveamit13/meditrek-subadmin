@@ -2,17 +2,57 @@ import React from "react";
 import Chart from "react-apexcharts";
 
 const MeasurementChart = ({ data, type }) => {
-    const chartTypeMap = {
-        bp: "bar", 
-        fasting: "line",
-        ppbgs: "bar",
-        weight: "area",
-        temp: "line",     
-        symptom: "line"  
+    // Filter data based on chart type
+    const getFilteredData = () => {
+        if (!data) return [];
+
+        switch (type) {
+            case "bp":
+                // Only include entries that have at least one BP value
+                return data.filter(item =>
+                    item.systolic_bp != null ||
+                    item.diastolic_bp != null ||
+                    item.pulse != null
+                );
+            case "fasting":
+                // Only include entries with fasting glucose values
+                return data.filter(item => item.fasting_glucose != null);
+            case "ppbgs":
+                // Only include entries with PPBGS values
+                return data.filter(item => item.ppbgs != null);
+            case "weight":
+                // Only include entries with weight values
+                return data.filter(item => item.weight != null);
+            case "temp":
+                // Only include entries with temperature values
+                return data.filter(item => item.temperature != null);
+            default:
+                return data;
+        }
     };
- 
+
+    const filteredData = getFilteredData();
+
+    const parseDateTime = (date, time) => {
+        if (!date || !time) return null;
+
+        const [day, month, year] = date.split("-");
+        const formatted = `${year}-${month}-${day} ${time}`;
+
+        return new Date(formatted).getTime();
+    };
+
+    const chartTypeMap = {
+        bp: "line",
+        fasting: "line",
+        ppbgs: "line",
+        weight: "area",
+        temp: "line",
+        symptom: "line"
+    };
+
     const getChartType = () => {
-        return chartTypeMap[type] || "line"; 
+        return chartTypeMap[type] || "line";
     };
 
     const getSeries = () => {
@@ -21,15 +61,24 @@ const MeasurementChart = ({ data, type }) => {
                 return [
                     {
                         name: "Systolic BP",
-                        data: data.map(i => i.systolic_bp || 0)
+                        data: filteredData.map(i => ({
+                            x: parseDateTime(i.date, i.time),
+                            y: i.systolic_bp || 0
+                        }))
                     },
                     {
                         name: "Diastolic BP",
-                        data: data.map(i => i.diastolic_bp || 0)
+                        data: filteredData.map(i => ({
+                            x: parseDateTime(i.date, i.time),
+                            y: i.diastolic_bp || 0
+                        }))
                     },
                     {
                         name: "Pulse",
-                        data: data.map(i => i.pulse || 0)
+                        data: filteredData.map(i => ({
+                            x: parseDateTime(i.date, i.time),
+                            y: i.pulse || 0
+                        }))
                     }
                 ];
 
@@ -37,7 +86,10 @@ const MeasurementChart = ({ data, type }) => {
                 return [
                     {
                         name: "Fasting Glucose",
-                        data: data.map(i => i.fasting_glucose || 0)
+                        data: filteredData.map(i => ({
+                            x: parseDateTime(i.date, i.time),
+                            y: i.fasting_glucose || 0
+                        }))
                     }
                 ];
 
@@ -45,7 +97,10 @@ const MeasurementChart = ({ data, type }) => {
                 return [
                     {
                         name: "PPBGS",
-                        data: data.map(i => i.ppbgs || 0)
+                        data: filteredData.map(i => ({
+                            x: parseDateTime(i.date, i.time),
+                            y: i.ppbgs || 0
+                        }))
                     }
                 ];
 
@@ -53,7 +108,10 @@ const MeasurementChart = ({ data, type }) => {
                 return [
                     {
                         name: "Weight",
-                        data: data.map(i => i.weight || 0)
+                        data: filteredData.map(i => ({
+                            x: parseDateTime(i.date, i.time),
+                            y: i.weight || 0
+                        }))
                     }
                 ];
 
@@ -61,7 +119,10 @@ const MeasurementChart = ({ data, type }) => {
                 return [
                     {
                         name: "Temperature",
-                        data: data.map(i => i.temperature || 0)
+                        data: filteredData.map(i => ({
+                            x: parseDateTime(i.date, i.time),
+                            y: i.temperature || 0
+                        }))
                     }
                 ];
 
@@ -75,29 +136,63 @@ const MeasurementChart = ({ data, type }) => {
             case "bp":
                 return ["#1ddec4", "#f59e0b", "#6366f1"];
             case "fasting":
-                return ["#8b5cf6"]; // Purple for fasting glucose
+                return ["#8b5cf6"];
             case "ppbgs":
-                return ["#f59e0b"]; 
+                return ["#f59e0b"];
             case "weight":
-                return ["#6366f1"]; 
+                return ["#6366f1"];
             case "temp":
-                return ["#ef4444"]; 
+                return ["#ef4444"];
             default:
                 return ["#1ddec4"];
         }
     };
 
-    // Get the minimum and maximum values for better y-axis scaling
+    // Get unique timestamps for x-axis
+    const getUniqueTimestamps = () => {
+        const timestamps = filteredData
+            .map(i => parseDateTime(i.date, i.time))
+            .filter(t => t !== null);
+
+        // Remove duplicates by converting to Set and back to array
+        return [...new Set(timestamps)].sort((a, b) => a - b);
+    };
+    const allValues = [
+        ...filteredData.map(i => i.systolic_bp),
+        ...filteredData.map(i => i.diastolic_bp),
+        ...filteredData.map(i => i.pulse)
+    ].filter(v => v != null);
     const getMinMaxValues = () => {
-        if (!data || data.length === 0) return { min: 0, max: 100 };
-        
-        const values = data.map(i => i.fasting_glucose || 0).filter(v => v > 0);
+        if (!filteredData || filteredData.length === 0) return { min: 0, max: 100 };
+
+        let values = [];
+
+        switch (type) {
+            case "fasting":
+                values = filteredData.map(i => i.fasting_glucose).filter(v => v != null);
+                break;
+            case "ppbgs":
+                values = filteredData.map(i => i.ppbgs).filter(v => v != null);
+                break;
+            case "weight":
+                values = filteredData.map(i => i.weight).filter(v => v != null);
+                break;
+            case "temp":
+                values = filteredData.map(i => i.temperature).filter(v => v != null);
+                break;
+            case "bp":
+
+                values = allValues;
+                break;
+            default:
+                values = [];
+        }
+
         if (values.length === 0) return { min: 0, max: 100 };
-        
+
         const min = Math.min(...values);
         const max = Math.max(...values);
-        
-        // Add some padding
+
         return {
             min: Math.max(0, Math.floor(min * 0.9)),
             max: Math.ceil(max * 1.1)
@@ -106,7 +201,9 @@ const MeasurementChart = ({ data, type }) => {
 
     const getChartOptions = () => {
         const { min, max } = getMinMaxValues();
-        
+        const uniqueTimestamps = getUniqueTimestamps();
+        const timestampSet = new Set(uniqueTimestamps);
+
         const baseOptions = {
             chart: {
                 toolbar: { show: false },
@@ -124,7 +221,6 @@ const MeasurementChart = ({ data, type }) => {
                     }
                 },
                 background: 'transparent',
-                // Removed dropShadow property that was causing the error
             },
             plotOptions: {
                 bar: {
@@ -136,10 +232,9 @@ const MeasurementChart = ({ data, type }) => {
             },
             stroke: {
                 show: true,
-                width: type === "line" ? 3 : 2,
-                curve: type === "area" ? 'smooth' : type === 'fasting' ? 'smooth' : 'straight',
+                width: ["bp", "ppbgs", "temp"].includes(type) ? 0 : 3,
+                curve: type === "area" ? 'smooth' : 'smooth',
                 lineCap: 'round',
-                colors: type === "area" ? ["#1ddec4"] : undefined,
             },
             fill: {
                 type: type === "area" ? "gradient" : "solid",
@@ -152,10 +247,10 @@ const MeasurementChart = ({ data, type }) => {
             },
             colors: getColors(),
             dataLabels: {
-                enabled: false, // Disabled to avoid clutter, you can enable if you want
+                enabled: false,
             },
             markers: {
-                size: type === 'fasting' ? 5 : 3,
+                size: 5,
                 colors: ['#ffffff'],
                 strokeColors: getColors(),
                 strokeWidth: 2,
@@ -164,17 +259,32 @@ const MeasurementChart = ({ data, type }) => {
                 }
             },
             xaxis: {
-                categories: data.map(i => i.date),
+                type: "datetime",
+                categories: uniqueTimestamps,
+                tickAmount: uniqueTimestamps.length,
+                tickPlacement: 'on',
                 labels: {
-                    rotate: -45,  
-                    rotateAlways: true,  
-                    offsetY: 10,        
+                    formatter: function (value, timestamp) {
+                        if (timestampSet.has(timestamp)) {
+                            const date = new Date(timestamp);
+                            return date.toLocaleDateString("en-GB", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric"
+                            });
+                        }
+                        return '';
+                    },
+                    rotate: -55,
+                    rotateAlways: true,
+                    offsetY: 10,
                     trim: false,
                     style: {
                         fontSize: '10px',
                         fontWeight: 400,
                         colors: '#64748b'
-                    }
+                    },
+                    showDuplicates: false,
                 },
                 axisBorder: {
                     show: true,
@@ -186,20 +296,22 @@ const MeasurementChart = ({ data, type }) => {
                 },
             },
             yaxis: {
-                min: type === 'fasting' ? Math.max(0, min - 10) : undefined,
-                max: type === 'fasting' ? max + 10 : undefined,
+                min: min,
+                max: max,
                 labels: {
                     style: {
                         fontSize: '10px',
                         fontWeight: 400,
                         colors: '#64748b'
                     },
-                    formatter: function(val) {
+                    formatter: function (val) {
                         return Math.round(val);
                     }
                 },
                 title: {
-                    text: type === 'fasting' ? 'mg/dL' : '',
+                    text: type === 'fasting' ? 'mg/dL' :
+                        type === 'weight' ? 'kg' :
+                            type === 'temp' ? '°C' : '',
                     style: {
                         fontSize: '10px',
                         fontWeight: 500,
@@ -232,8 +344,11 @@ const MeasurementChart = ({ data, type }) => {
                 shared: type === "bp",
                 intersect: false,
                 theme: 'light',
+                x: {
+                    format: 'dd MMM yyyy HH:mm'
+                },
                 y: {
-                    formatter: function(val) {
+                    formatter: function (val) {
                         if (type === 'fasting') return val + ' mg/dL';
                         if (type === 'weight') return val + ' kg';
                         if (type === 'temp') return val + '°C';
@@ -253,8 +368,8 @@ const MeasurementChart = ({ data, type }) => {
             }
         };
 
-        // Add reference ranges for fasting glucose using annotations (if available)
-        if (type === 'fasting' && data.length > 0) {
+        // Add reference ranges for fasting glucose
+        if (type === 'fasting' && filteredData.length > 0) {
             baseOptions.annotations = {
                 yaxis: [
                     {
@@ -288,23 +403,6 @@ const MeasurementChart = ({ data, type }) => {
                         borderColor: '#eab308',
                         fillColor: '#eab30820',
                         opacity: 0.2,
-                        // label: {
-                        //     text: 'Pre-diabetes',
-                        //     style: {
-                        //         color: '#854d0e',
-                        //         background: '#ffffff',
-                        //         fontSize: '9px',
-                        //         fontWeight: 500,
-                        //         padding: {
-                        //             left: 4,
-                        //             right: 4,
-                        //             top: 2,
-                        //             bottom: 2
-                        //         }
-                        //     },
-                        //     position: 'left',
-                        //     offsetX: 10
-                        // }
                     },
                     {
                         y: 126,
@@ -312,23 +410,6 @@ const MeasurementChart = ({ data, type }) => {
                         borderColor: '#ef4444',
                         fillColor: '#ef444410',
                         opacity: 0.1,
-                        // label: {
-                        //     text: 'Diabetes',
-                        //     style: {
-                        //         color: '#b91c1c',
-                        //         background: '#ffffff',
-                        //         fontSize: '9px',
-                        //         fontWeight: 500,
-                        //         padding: {
-                        //             left: 4,
-                        //             right: 4,
-                        //             top: 2,
-                        //             bottom: 2
-                        //         }
-                        //     },
-                        //     position: 'left',
-                        //     offsetX: 10
-                        // }
                     }
                 ]
             };
@@ -337,23 +418,7 @@ const MeasurementChart = ({ data, type }) => {
         return baseOptions;
     };
 
-    const hasValidData = data && data.length > 0 && 
-        data.some(item => {
-            switch (type) {
-                case "bp":
-                    return item.systolic_bp || item.diastolic_bp || item.pulse;
-                case "fasting":
-                    return item.fasting_glucose;
-                case "ppbgs":
-                    return item.ppbgs;
-                case "weight":
-                    return item.weight;
-                case "temp":
-                    return item.temperature;
-                default:
-                    return false;
-            }
-        });
+    const hasValidData = filteredData && filteredData.length > 0;
 
     if (!hasValidData) {
         return (
@@ -370,24 +435,23 @@ const MeasurementChart = ({ data, type }) => {
                     margin: "4px 0"
                 }}
             >
-                No {type === "bp" ? "blood pressure" : 
-                     type === "fasting" ? "fasting glucose" :
-                     type === "ppbgs" ? "PPBGS" :
-                     type === "weight" ? "weight" :
-                     type === "temp" ? "temperature" : ""} data available
+                No {type === "bp" ? "blood pressure" :
+                    type === "fasting" ? "fasting glucose" :
+                        type === "ppbgs" ? "PPBGS" :
+                            type === "weight" ? "weight" :
+                                type === "temp" ? "temperature" : ""} data available
             </div>
         );
     }
 
     return (
-            <Chart
-                options={getChartOptions()}
-                series={getSeries()}
-                type={getChartType()}
-                height="240"
-                width="100%"
-            />
-        
+        <Chart
+            options={getChartOptions()}
+            series={getSeries()}
+            type={getChartType()}
+            height="240"
+            width="100%"
+        />
     );
 };
 
