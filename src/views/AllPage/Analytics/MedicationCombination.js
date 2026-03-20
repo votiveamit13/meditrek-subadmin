@@ -83,26 +83,26 @@ const MedicationCombination = () => {
   };
 
   const combinationStats = useMemo(() => {
-  const map = {};
+    const map = {};
 
-  patientsData.forEach((p) => {
-    const key = [...p.meds].sort().join(" + "); // normalize
+    patientsData.forEach((p) => {
+      const key = [...p.meds].sort().join(' + '); // normalize
 
-    map[key] = (map[key] || 0) + 1;
-  });
+      map[key] = (map[key] || 0) + 1;
+    });
 
-  const total = patientsData.length;
+    const total = patientsData.length;
 
-  const result = Object.entries(map).map(([combo, count]) => ({
-    combo,
-    count,
-    percentage: total ? ((count / total) * 100).toFixed(1) : 0,
-  }));
+    const result = Object.entries(map).map(([combo, count]) => ({
+      combo,
+      count,
+      percentage: total ? ((count / total) * 100).toFixed(1) : 0
+    }));
 
-  return result.sort((a, b) => b.count - a.count);
-}, []);
+    return result.sort((a, b) => b.count - a.count);
+  }, []);
 
-const topCombo = combinationStats[0];
+  const topCombo = combinationStats[0];
 
   return (
     <Card sx={{ p: 3, borderRadius: 4 }}>
@@ -110,14 +110,12 @@ const topCombo = combinationStats[0];
         Medication Combination
       </Typography>
       {/* <Box sx={{ display: 'flex' }}> */}
-      <Grid container spacing={2} >
+      <Grid container spacing={2}>
         <Grid item xs={12} sm={12} md={9} lg={9}>
           {/* STATS */}
           <Grid container spacing={2} mb={3}>
             <Grid item xs={12} sm={6} md={3} lg={3}>
-              <Box
-                sx={cardStyle}
-              >
+              <Box sx={cardStyle}>
                 <Typography fontSize={12} fontWeight={500}>
                   Matching Patients
                 </Typography>
@@ -128,9 +126,7 @@ const topCombo = combinationStats[0];
             </Grid>
 
             <Grid item xs={12} sm={6} md={3} lg={3}>
-              <Box
-                sx={cardStyle}
-              >
+              <Box sx={cardStyle}>
                 <Typography fontSize={12} fontWeight={500}>
                   Total
                 </Typography>
@@ -141,33 +137,31 @@ const topCombo = combinationStats[0];
             </Grid>
 
             <Grid item xs={12} sm={6} md={3}>
-  <Box sx={cardStyle}>
-    <Typography fontSize={12} fontWeight={500}>
-      Most Common Combination
-    </Typography>
+              <Box sx={cardStyle}>
+                <Typography fontSize={12} fontWeight={500}>
+                  Most Common Combination
+                </Typography>
 
-    <Box mt={1} display="flex" flexWrap="wrap" gap={0.5}>
-      {topCombo?.combo
-        ?.split(" + ")
-        .map((m, i) => (
-          <Chip
-            key={i}
-            label={m}
-            size="small"
-            sx={{
-              background: "rgba(29, 222, 196, 0.15)",
-              color: "#1ddec4",
-              fontSize: "11px",
-            }}
-          />
-        ))}
-    </Box>
+                <Box mt={1} display="flex" flexWrap="wrap" gap={0.5} >
+                  {topCombo?.combo?.split(' + ').map((m, i) => (
+                    <Chip
+                      key={i}
+                      label={m}
+                      size="small"
+                      sx={{
+                        background: 'rgba(29, 222, 196, 0.15)',
+                        color: '#1ddec4',
+                        fontSize: '11px'
+                      }}
+                    />
+                  ))}
+                </Box>
 
-    <Typography mt={1} fontWeight="bold">
-      {topCombo?.percentage || 0}%
-    </Typography>
-  </Box>
-</Grid>
+                <Typography mt={1} fontWeight="bold">
+                  {topCombo?.percentage || 0}%
+                </Typography>
+              </Box>
+            </Grid>
           </Grid>
         </Grid>
         {/* MULTI SELECT */}
@@ -239,16 +233,18 @@ const topCombo = combinationStats[0];
           borderRadius: 3,
           boxShadow: 'none',
           overflowX: 'auto',
-          border:"1px solid #d3d5d9"
+          border: '1px solid #d3d5d9'
         }}
       >
-        <Table>
+        <Table stickyHeader>
           <TableHead sx={{ p: 2, background: '#f0f2f8' }}>
             <TableRow>
               <TableCell sx={{ p: 1 }}>Patient Name</TableCell>
               <TableCell sx={{ p: 1 }}>Age</TableCell>
               <TableCell sx={{ p: 1 }}>Gender</TableCell>
+              {/* <TableCell sx={{ p: 1 }}>Medications</TableCell> */}
               <TableCell sx={{ p: 1 }}>Medications</TableCell>
+              <TableCell sx={{ p: 1 }}>Other Medications</TableCell>
             </TableRow>
           </TableHead>
 
@@ -259,7 +255,7 @@ const topCombo = combinationStats[0];
                 <TableCell sx={{ p: 1, fontSize: '12px' }}>{p.age}</TableCell>
                 <TableCell sx={{ p: 1, fontSize: '12px' }}>{p.gender}</TableCell>
 
-                <TableCell sx={{ p: 1, fontSize: '12px' }}>
+                {/* <TableCell sx={{ p: 1, fontSize: '12px' }}>
                   {p.meds.map((m, idx) => {
                     const isSelected = selectedMeds.includes(m);
 
@@ -278,11 +274,47 @@ const topCombo = combinationStats[0];
                       />
                     );
                   })}
+                </TableCell> */}
+                <TableCell sx={{ p: 1, fontSize: '12px' }}>
+                  {p.meds
+                    .filter((m) => selectedMeds.includes(m))
+                    .map((m, idx) => (
+                      <Chip
+                        key={idx}
+                        label={m}
+                        size="small"
+                        sx={{
+                          mr: 1,
+                          mb: 1,
+                          background: 'rgba(29, 222, 196, 0.15)',
+                          color: '#1ddec4',
+                          fontSize: '12px'
+                        }}
+                      />
+                    ))}
+                </TableCell>
+
+                <TableCell sx={{ p: 1, fontSize: '12px' }}>
+                  {p.meds
+                    .filter((m) => !selectedMeds.includes(m))
+                    .map((m, idx) => (
+                      <Chip
+                        key={idx}
+                        label={m}
+                        size="small"
+                        sx={{
+                          mr: 1,
+                          mb: 1,
+                          background: '#F1F5F9',
+                          fontSize: '12px',
+                          color:'currentcolor'
+                        }}
+                      />
+                    ))}
                 </TableCell>
               </TableRow>
             ))}
 
-          
             {selectedMeds.length > 0 && filteredPatients.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} align="center">

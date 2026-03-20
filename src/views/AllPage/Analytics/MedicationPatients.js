@@ -239,7 +239,7 @@ const MedicationPatients = () => {
           border:"1px solid #d3d5d9"
         }}
       >
-        <Table>
+        <Table stickyHeader>
           <TableHead sx={{ p: 2, background: '#f0f2f8' }}>
             <TableRow>
               <TableCell sx={{ p: 1 }}>Patient Name</TableCell>

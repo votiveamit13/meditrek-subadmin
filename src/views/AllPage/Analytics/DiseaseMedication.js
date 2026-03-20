@@ -285,7 +285,7 @@ const DiseaseMedicationAnalytics = () => {
                 overflow: 'auto'
               }}
             >
-              <Table>
+              <Table stickyHeader>
                 <TableHead sx={{ p: 2, background: '#f0f2f8' }}>
                   <TableRow>
                     <TableCell sx={{ p: 1 }}>Name</TableCell>
