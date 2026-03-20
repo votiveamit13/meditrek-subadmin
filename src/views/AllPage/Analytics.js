@@ -7,6 +7,8 @@ import MedicationCombination from './Analytics/MedicationCombination';
 import DiseaseMedication from './Analytics/DiseaseMedication';
 import CombinedDiseases from './Analytics/CombinedDiseases';
 import AgeVsDiseaseChart from './Analytics/AgeVsDiseaseChart';
+import AgeVsMedication from './Analytics/AgeVsMedication';
+import AgeVsSex from './Analytics/AgeVsGender';
 
 const Analytics = () => {
   const [content, setContent] = useState('disease');
@@ -79,8 +81,8 @@ const Analytics = () => {
       {content === 'combineddiseases' && <CombinedDiseases />}
       {/* {content === 'combinationofdrugs' && <DiseaseMedication />} */}
       {content === 'agevsdisease' && <AgeVsDiseaseChart />}
-      {content === 'agevsmedication' && <DiseaseMedication />}
-      {content === 'agevssex' && <DiseaseMedication />}
+      {content === 'agevsmedication' && <AgeVsMedication />}
+      {content === 'agevssex' && <AgeVsSex />}
     </Box>
   );
 };

@@ -41,7 +41,7 @@ const mockData = {
       meds: ['Losartan', 'Sertraline']
     }
   ],
-    Diabetes: [
+  Diabetes: [
     {
       name: 'John Smith1',
       age: 65,
@@ -98,16 +98,16 @@ const DiseasePatients = () => {
   //   }, {})
   // );
 
-    const cardStyle = {
-      background: 'rgba(29, 222, 196, 0.15)',
-      p: 2,
-      borderRadius: 3,
-      height: '100%', // 🔥 equal height fix
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'flex-start',
-      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.05)'
-    };
+  const cardStyle = {
+    background: 'rgba(29, 222, 196, 0.15)',
+    p: 2,
+    borderRadius: 3,
+    height: '100%', // 🔥 equal height fix
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
+    boxShadow: '0 2px 10px rgba(0, 0, 0, 0.05)'
+  };
   return (
     <Card
       sx={{
@@ -126,21 +126,21 @@ const DiseasePatients = () => {
           {/* STATS */}
           <Grid container spacing={2} mb={3}>
             <Grid item xs={12} sm={6} md={3} lg={3}>
-              <Box
-                sx={cardStyle }
-              >
-                <Typography fontSize={12} fontWeight={500}>Total Patients</Typography>
+              <Box sx={cardStyle}>
+                <Typography fontSize={12} fontWeight={500}>
+                  Total Patients
+                </Typography>
                 <Typography fontSize={16} fontWeight="bold">
                   {totalPatients}
                 </Typography>
               </Box>
             </Grid>
-            
+
             <Grid item xs={12} sm={6} md={3} lg={3}>
-              <Box
-                sx={cardStyle}
-              >
-                <Typography fontSize={12} fontWeight={500}>Percentage</Typography>
+              <Box sx={cardStyle}>
+                <Typography fontSize={12} fontWeight={500}>
+                  Percentage
+                </Typography>
                 <Typography fontSize={16} fontWeight="bold">
                   {percentage}%
                 </Typography>
@@ -214,16 +214,16 @@ const DiseasePatients = () => {
           borderRadius: 3,
           boxShadow: 'none',
           overflowX: 'auto', // 🔥 enables horizontal scroll
-          border:"1px solid #d3d5d9"
+          border: '1px solid #d3d5d9'
         }}
       >
-        <Table sx={{ width: '100%' }}>
+        <Table stickyHeader sx={{ width: '100%' }}>
           <TableHead sx={{ p: 2, background: '#f0f2f8' }}>
             <TableRow>
-              <TableCell sx={{ p: 1 }}>Disease</TableCell> {/* ✅ NEW */}
               <TableCell sx={{ p: 1 }}>Patient Name</TableCell>
               <TableCell sx={{ p: 1 }}>Age</TableCell>
               <TableCell sx={{ p: 1 }}>Gender</TableCell>
+              <TableCell sx={{ p: 1,pl:1.5 }}>Disease</TableCell> {/* ✅ NEW */}
               <TableCell sx={{ p: 1 }}>Other Conditions</TableCell>
               <TableCell sx={{ p: 1 }}>Medications</TableCell>
             </TableRow>
@@ -232,12 +232,36 @@ const DiseasePatients = () => {
           <TableBody>
             {patients.map((p, i) => (
               <TableRow key={i}>
-                <TableCell sx={{ p: 1, fontSize: '12px' }} size="small">
-                  {p.disease}
-                </TableCell>
                 <TableCell sx={{ p: 1, fontSize: '12px' }}>{p.name}</TableCell>
                 <TableCell sx={{ p: 1, fontSize: '12px' }}>{p.age}</TableCell>
                 <TableCell sx={{ p: 1, fontSize: '12px' }}>{p.gender}</TableCell>
+                {/* <TableCell sx={{ p: 1, fontSize: '12px' }} size="small">
+                    <Chip
+                      size="small"
+                      sx={{
+                        mr: 1,
+                        mb: 1,
+                        background: 'rgba(29, 222, 196, 0.15)',
+                        color: '#1ddec4',
+                        fontSize: '12px'
+                      }}
+                    >
+                  {p.disease}
+                  </Chip>
+                </TableCell> */}
+                <TableCell sx={{ p: 1, }}>
+                  <Chip
+                    label={p.disease}
+                    size="small"
+                    sx={{
+                      mr: 1,
+                      mb: 1,
+                      background: 'rgba(29, 222, 196, 0.15)',
+                      color: '#1ddec4',
+                      fontSize: '12px'
+                    }}
+                  />
+                </TableCell>
 
                 {/* CONDITIONS */}
                 <TableCell sx={{ p: 1, fontSize: '12px' }}>
