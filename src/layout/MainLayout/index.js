@@ -8,7 +8,7 @@ import { useTheme } from '@mui/material/styles';
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 
-const drawerWidth = 240;
+const drawerWidth = 232;
 const collapsedWidth = 72;
 
 const Main = styled("main")(({ theme, open }) => ({

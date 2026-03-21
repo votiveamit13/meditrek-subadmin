@@ -52,7 +52,7 @@ const menu = [
   {
     title: "New Insights",
     icon: <SignalCellularAltIcon />,
-    url: APP_PREFIX_PATH + "/analyticss"
+    url: APP_PREFIX_PATH + "/new-insights"
   }
 ];
 
@@ -212,8 +212,10 @@ const MenuList = ({ collapsed }) => {
       </List>
 
       {/* BOTTOM MENU */}
-      <Box sx={{ px: 1, pb: 2 }}>
-        <Divider sx={{ mb: 1 }} />
+      <Box  style={{  width: "100%",
+    position: "absolute",
+    bottom: "60px"}}>
+        <Divider className="border-2" />
 
         <List>
           {bottomMenu.map((item) => (
@@ -222,9 +224,22 @@ const MenuList = ({ collapsed }) => {
               component={Link}
               to={item.url}
               sx={{
-                borderRadius: 2,
                 mb: 0.5,
-                justifyContent: collapsed ? "center" : "flex-start"
+                px: collapsed ? 1 : 1.5,
+                py: 0.8,
+                justifyContent: collapsed ? "center" : "flex-start",
+                "&.Mui-selected": {
+                  background: "rgba(29,222,196,0.15)",
+                  borderLeft: "4px solid #1ddec4"
+                },
+
+                "&.Mui-selected:hover": {
+                  background: "rgba(29,222,196,0.20)"
+                },
+
+                "&:hover": {
+                  background: "rgba(29,222,196,0.08)"
+                }
               }}
             >
               <ListItemIcon
