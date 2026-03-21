@@ -1,454 +1,337 @@
 import React from "react";
 import Chart from "react-apexcharts";
 
-const MeasurementChart = ({ data, type }) => {
-    // Filter data based on chart type
-    const getFilteredData = () => {
-        if (!data) return [];
+const TOTAL_SLOTS = 10;
 
+// Types that should show ONLY scatter dots (no connecting line)
+const SCATTER_ONLY_TYPES = ["bp", "ppbgs", "temp"];
+
+const MeasurementChart = ({ data, type }) => {
+
+    const getFilteredData = () => {
+        if (!data || data.length === 0) return [];
         switch (type) {
-            case "bp":
-                // Only include entries that have at least one BP value
-                return data.filter(item =>
-                    item.systolic_bp != null ||
-                    item.diastolic_bp != null ||
-                    item.pulse != null
-                );
-            case "fasting":
-                // Only include entries with fasting glucose values
-                return data.filter(item => item.fasting_glucose != null);
-            case "ppbgs":
-                // Only include entries with PPBGS values
-                return data.filter(item => item.ppbgs != null);
-            case "weight":
-                // Only include entries with weight values
-                return data.filter(item => item.weight != null);
-            case "temp":
-                // Only include entries with temperature values
-                return data.filter(item => item.temperature != null);
-            default:
-                return data;
+            case "bp": return data.filter(i => i.systolic_bp != null || i.diastolic_bp != null || i.pulse != null);
+            case "fasting": return data.filter(i => i.fasting_glucose != null);
+            case "ppbgs": return data.filter(i => i.ppbgs != null);
+            case "weight": return data.filter(i => i.weight != null);
+            case "temp": return data.filter(i => i.temperature != null);
+            default: return data;
         }
     };
 
     const filteredData = getFilteredData();
+    const count = filteredData.length;
+    const isScatterOnly = SCATTER_ONLY_TYPES.includes(type);
 
-    const parseDateTime = (date, time) => {
-        if (!date || !time) return null;
-
-        const [day, month, year] = date.split("-");
-        const formatted = `${year}-${month}-${day} ${time}`;
-
-        return new Date(formatted).getTime();
+    const formatDate = (dateStr) => {
+        if (!dateStr) return "";
+        const [day, month, year] = dateStr.split("-");
+        return new Date(`${year}-${month}-${day}`)
+            .toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" });
     };
 
-    const chartTypeMap = {
-        bp: "line",
-        fasting: "line",
-        ppbgs: "line",
-        weight: "area",
-        temp: "line",
-        symptom: "line"
+    const uniqueDates = (() => {
+        const seen = new Set();
+        filteredData.forEach(r => {
+            const l = formatDate(r.date);
+            if (!seen.has(l)) seen.add(l);
+        });
+        return [...seen];
+    })();
+
+    const dateToIndex = {};
+    uniqueDates.forEach((d, i) => { dateToIndex[d] = i; });
+
+    const slotLabels = Array.from({ length: TOTAL_SLOTS }, (_, i) =>
+        uniqueDates[i] ?? ""
+    );
+
+    const groupBySlot = (accessor) => {
+        const map = new Map();
+        filteredData.forEach(row => {
+            const idx = dateToIndex[formatDate(row.date)];
+            const val = accessor(row);
+            if (val == null) return;
+            if (!map.has(idx)) map.set(idx, []);
+            map.get(idx).push(val);
+        });
+        return map;
     };
 
-    const getChartType = () => {
-        return chartTypeMap[type] || "line";
+    // Line series: average per slot (used only for weight/fasting)
+    const buildLineSeries = (name, accessor) => {
+        const grouped = groupBySlot(accessor);
+        return {
+            name,
+            type: "line",
+            data: Array.from({ length: TOTAL_SLOTS }, (_, idx) => {
+                const vals = grouped.get(idx) ?? [];
+                const avg = vals.length
+                    ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
+                    : null;
+                return { x: idx, y: avg };
+            })
+        };
     };
+
+    // Scatter series: every individual reading as a dot
+    const buildScatterSeries = (name, accessor) => ({
+        name: `${name}_scatter`,
+        type: "scatter",
+        data: filteredData.map(r => ({
+            x: dateToIndex[formatDate(r.date)],
+            y: accessor(r) ?? null
+        }))
+    });
+
+    // Pure scatter series (no companion line) — for bp/ppbgs/temp
+    const buildPureScatterSeries = (name, accessor) => ({
+        name,
+        type: "scatter",
+        data: filteredData.map(r => ({
+            x: dateToIndex[formatDate(r.date)],
+            y: accessor(r) ?? null
+        }))
+    });
 
     const getSeries = () => {
-        switch (type) {
-            case "bp":
-                return [
-                    {
-                        name: "Systolic BP",
-                        data: filteredData.map(i => ({
-                            x: parseDateTime(i.date, i.time),
-                            y: i.systolic_bp || 0
-                        }))
-                    },
-                    {
-                        name: "Diastolic BP",
-                        data: filteredData.map(i => ({
-                            x: parseDateTime(i.date, i.time),
-                            y: i.diastolic_bp || 0
-                        }))
-                    },
-                    {
-                        name: "Pulse",
-                        data: filteredData.map(i => ({
-                            x: parseDateTime(i.date, i.time),
-                            y: i.pulse || 0
-                        }))
-                    }
-                ];
+        if (isScatterOnly) {
+            // No line at all — just dots
+            switch (type) {
+                case "bp":
+                    return [
+                        buildPureScatterSeries("Systolic BP", r => r.systolic_bp),
+                        buildPureScatterSeries("Diastolic BP", r => r.diastolic_bp),
+                        buildPureScatterSeries("Pulse", r => r.pulse),
+                    ];
+                case "ppbgs":
+                    return [buildPureScatterSeries("PPBGS", r => r.ppbgs)];
+                case "temp":
+                    return [buildPureScatterSeries("Temperature", r => r.temperature)];
+                default:
+                    return [];
+            }
+        }
 
+        // Line + scatter for weight and fasting
+        switch (type) {
             case "fasting":
                 return [
-                    {
-                        name: "Fasting Glucose",
-                        data: filteredData.map(i => ({
-                            x: parseDateTime(i.date, i.time),
-                            y: i.fasting_glucose || 0
-                        }))
-                    }
+                    buildLineSeries("Fasting Glucose", r => r.fasting_glucose),
+                    buildScatterSeries("Fasting Glucose", r => r.fasting_glucose),
                 ];
-
-            case "ppbgs":
-                return [
-                    {
-                        name: "PPBGS",
-                        data: filteredData.map(i => ({
-                            x: parseDateTime(i.date, i.time),
-                            y: i.ppbgs || 0
-                        }))
-                    }
-                ];
-
             case "weight":
                 return [
-                    {
-                        name: "Weight",
-                        data: filteredData.map(i => ({
-                            x: parseDateTime(i.date, i.time),
-                            y: i.weight || 0
-                        }))
-                    }
+                    buildLineSeries("Weight", r => r.weight),
+                    buildScatterSeries("Weight", r => r.weight),
                 ];
-
-            case "temp":
-                return [
-                    {
-                        name: "Temperature",
-                        data: filteredData.map(i => ({
-                            x: parseDateTime(i.date, i.time),
-                            y: i.temperature || 0
-                        }))
-                    }
-                ];
-
             default:
                 return [];
         }
     };
 
-    const getColors = () => {
+    const baseColors = (() => {
         switch (type) {
-            case "bp":
-                return ["#1ddec4", "#f59e0b", "#6366f1"];
-            case "fasting":
-                return ["#8b5cf6"];
-            case "ppbgs":
-                return ["#f59e0b"];
-            case "weight":
-                return ["#6366f1"];
-            case "temp":
-                return ["#ef4444"];
-            default:
-                return ["#1ddec4"];
+            case "bp": return ["#1ddec4", "#f59e0b", "#6366f1"];
+            case "fasting": return ["#8b5cf6"];
+            case "ppbgs": return ["#f59e0b"];
+            case "weight": return ["#6366f1"];
+            case "temp": return ["#ef4444"];
+            default: return ["#1ddec4"];
         }
-    };
+    })();
 
-    // Get unique timestamps for x-axis
-    const getUniqueTimestamps = () => {
-        const timestamps = filteredData
-            .map(i => parseDateTime(i.date, i.time))
-            .filter(t => t !== null);
+    // For scatter-only: colors = baseColors directly (no companion line series)
+    // For line+scatter: line colors first, then semi-transparent scatter colors
+    const colors = isScatterOnly
+        ? baseColors
+        : [...baseColors, ...baseColors.map(c => c + "99")];
 
-        // Remove duplicates by converting to Set and back to array
-        return [...new Set(timestamps)].sort((a, b) => a - b);
-    };
-    const allValues = [
-        ...filteredData.map(i => i.systolic_bp),
-        ...filteredData.map(i => i.diastolic_bp),
-        ...filteredData.map(i => i.pulse)
-    ].filter(v => v != null);
-    const getMinMaxValues = () => {
-        if (!filteredData || filteredData.length === 0) return { min: 0, max: 100 };
+    const numLineSeries = isScatterOnly ? 0 : baseColors.length;
 
+    const getMinMax = () => {
         let values = [];
-
         switch (type) {
-            case "fasting":
-                values = filteredData.map(i => i.fasting_glucose).filter(v => v != null);
-                break;
-            case "ppbgs":
-                values = filteredData.map(i => i.ppbgs).filter(v => v != null);
-                break;
-            case "weight":
-                values = filteredData.map(i => i.weight).filter(v => v != null);
-                break;
-            case "temp":
-                values = filteredData.map(i => i.temperature).filter(v => v != null);
-                break;
-            case "bp":
-
-                values = allValues;
-                break;
-            default:
-                values = [];
+            case "bp": values = filteredData.flatMap(r => [r.systolic_bp, r.diastolic_bp, r.pulse].filter(v => v != null)); break;
+            case "fasting": values = filteredData.map(r => r.fasting_glucose).filter(v => v != null); break;
+            case "ppbgs": values = filteredData.map(r => r.ppbgs).filter(v => v != null); break;
+            case "weight": values = filteredData.map(r => r.weight).filter(v => v != null); break;
+            case "temp": values = filteredData.map(r => r.temperature).filter(v => v != null); break;
+            default: break;
         }
-
-        if (values.length === 0) return { min: 0, max: 100 };
-
-        const min = Math.min(...values);
-        const max = Math.max(...values);
-
+        if (!values.length) return { min: 0, max: 100 };
         return {
-            min: Math.max(0, Math.floor(min * 0.9)),
-            max: Math.ceil(max * 1.1)
+            min: Math.max(0, Math.floor(Math.min(...values) * 0.9)),
+            max: Math.ceil(Math.max(...values) * 1.1)
         };
     };
+    const { min, max } = getMinMax();
 
-    const getChartOptions = () => {
-        const { min, max } = getMinMaxValues();
-        const uniqueTimestamps = getUniqueTimestamps();
-        const timestampSet = new Set(uniqueTimestamps);
+    const options = {
+        chart: {
+            type: "line",
+            toolbar: { show: false },
+            animations: { enabled: true, easing: "easeinout", speed: 600 },
+            background: "transparent",
+            zoom: { enabled: false },
+        },
 
-        const baseOptions = {
-            chart: {
-                toolbar: { show: false },
-                animations: {
-                    enabled: true,
-                    easing: 'easeinout',
-                    speed: 800,
-                    animateGradually: {
-                        enabled: true,
-                        delay: 150
-                    },
-                    dynamicAnimation: {
-                        enabled: true,
-                        speed: 350
-                    }
+        xaxis: {
+            type: "numeric",
+            min: 0,
+            max: TOTAL_SLOTS - 1,
+            tickAmount: TOTAL_SLOTS,
+            labels: {
+                rotate: -35,
+                rotateAlways: true,
+                hideOverlappingLabels: false,
+                formatter: (val) => {
+                    const i = Math.round(val);
+                    return slotLabels[i] ?? "";
                 },
-                background: 'transparent',
+                style: { fontSize: "10px", fontWeight: 400, colors: "#64748b" },
             },
-            plotOptions: {
-                bar: {
-                    horizontal: false,
-                    columnWidth: "15%",
-                    borderRadius: 4,
-                    borderRadiusApplication: 'end',
-                }
+            axisBorder: { show: true, color: "#e2e8f0" },
+            axisTicks: { show: true, color: "#e2e8f0" },
+            tooltip: { enabled: false },
+        },
+
+        yaxis: {
+            min,
+            max,
+            labels: {
+                style: { fontSize: "10px", fontWeight: 400, colors: "#64748b" },
+                formatter: val => Math.round(val),
             },
-            stroke: {
-                show: true,
-                width: ["bp", "ppbgs", "temp"].includes(type) ? 0 : 3,
-                curve: type === "area" ? 'smooth' : 'smooth',
-                lineCap: 'round',
+            title: {
+                text: ["fasting", "ppbgs"].includes(type) ? "mg/dL"
+                    : type === "weight" ? "kg"
+                        : type === "temp" ? "°C"
+                            : "",
+                style: { fontSize: "10px", fontWeight: 500, color: "#64748b" },
             },
-            fill: {
-                type: type === "area" ? "gradient" : "solid",
-                gradient: {
-                    shadeIntensity: 1,
-                    opacityFrom: 0.5,
-                    opacityTo: 0.1,
-                    stops: [0, 90, 100]
-                }
+        },
+
+        stroke: isScatterOnly
+            ? { width: 0 }  // no lines at all for scatter-only types
+            : {
+                width: colors.map((_, i) => i < numLineSeries ? 2.5 : 0),
+                curve: "smooth",
             },
-            colors: getColors(),
-            dataLabels: {
-                enabled: false,
-            },
-            markers: {
-                size: 5,
-                colors: ['#ffffff'],
-                strokeColors: getColors(),
+
+        markers: isScatterOnly
+            ? {
+                size: 6,
+                colors: baseColors.map(() => "#ffffff"),
+                strokeColors: baseColors,
                 strokeWidth: 2,
-                hover: {
-                    size: 7
-                }
-            },
-            xaxis: {
-                type: "datetime",
-                categories: uniqueTimestamps,
-                tickAmount: uniqueTimestamps.length,
-                tickPlacement: 'on',
-                labels: {
-                    formatter: function (value, timestamp) {
-                        if (timestampSet.has(timestamp)) {
-                            const date = new Date(timestamp);
-                            return date.toLocaleDateString("en-GB", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric"
-                            });
-                        }
-                        return '';
-                    },
-                    rotate: -55,
-                    rotateAlways: true,
-                    offsetY: 10,
-                    trim: false,
-                    style: {
-                        fontSize: '10px',
-                        fontWeight: 400,
-                        colors: '#64748b'
-                    },
-                    showDuplicates: false,
-                },
-                axisBorder: {
-                    show: true,
-                    color: '#e2e8f0',
-                },
-                axisTicks: {
-                    show: true,
-                    color: '#e2e8f0',
-                },
-            },
-            yaxis: {
-                min: min,
-                max: max,
-                labels: {
-                    style: {
-                        fontSize: '10px',
-                        fontWeight: 400,
-                        colors: '#64748b'
-                    },
-                    formatter: function (val) {
-                        return Math.round(val);
-                    }
-                },
-                title: {
-                    text: type === 'fasting' ? 'mg/dL' :
-                        type === 'weight' ? 'kg' :
-                            type === 'temp' ? '°C' : '',
-                    style: {
-                        fontSize: '10px',
-                        fontWeight: 500,
-                        color: '#64748b'
-                    }
-                },
-            },
-            grid: {
-                borderColor: "#e2e8f0",
-                strokeDashArray: 4,
-                padding: {
-                    left: 10,
-                    right: 10,
-                    top: 10,
-                    bottom: 10
-                },
-                xaxis: {
-                    lines: {
-                        show: false
-                    }
-                },
-                yaxis: {
-                    lines: {
-                        show: true
-                    }
-                }
-            },
-            tooltip: {
-                enabled: true,
-                shared: type === "bp",
-                intersect: false,
-                theme: 'light',
-                x: {
-                    format: 'dd MMM yyyy HH:mm'
-                },
-                y: {
-                    formatter: function (val) {
-                        if (type === 'fasting') return val + ' mg/dL';
-                        if (type === 'weight') return val + ' kg';
-                        if (type === 'temp') return val + '°C';
-                        return val;
-                    }
-                }
-            },
-            legend: {
-                show: type === "bp",
-                position: 'top',
-                fontSize: '12px',
-                markers: {
-                    width: 12,
-                    height: 12,
-                    radius: 6
-                }
+                hover: { size: 8 },
             }
-        };
+            : {
+                size: colors.map((_, i) => i < numLineSeries ? 4 : 5),
+                colors: colors.map((_, i) => i < numLineSeries ? "#ffffff" : baseColors[i - numLineSeries] + "cc"),
+                strokeColors: colors.map((_, i) => i < numLineSeries ? baseColors[i] : baseColors[i - numLineSeries]),
+                strokeWidth: colors.map((_, i) => i < numLineSeries ? 2 : 1),
+                hover: { size: 7 },
+            },
 
-        // Add reference ranges for fasting glucose
-        if (type === 'fasting' && filteredData.length > 0) {
-            baseOptions.annotations = {
+        colors,
+        dataLabels: { enabled: false },
+
+        fill: isScatterOnly
+            ? { type: "solid", opacity: 1 }
+            : {
+                type: colors.map((_, i) => (type === "weight" && i === 0) ? "gradient" : "solid"),
+                gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.03, stops: [0, 90, 100] },
+                opacity: colors.map((_, i) => i < numLineSeries ? 1 : 0.7),
+            },
+
+        grid: {
+            borderColor: "#e2e8f0",
+            strokeDashArray: 4,
+            padding: { left: 10, right: 10, top: 10, bottom: 10 },
+            xaxis: { lines: { show: false } },
+            yaxis: { lines: { show: true } },
+        },
+
+        legend: {
+            show: type === "bp",
+            position: "top",
+            fontSize: "12px",
+            markers: { width: 12, height: 12, radius: 6 },
+            showForSingleSeries: false,
+            customLegendItems: type === "bp" ? ["Systolic BP", "Diastolic BP", "Pulse"] : [],
+        },
+
+        tooltip: {
+            enabled: true,
+            shared: false,
+            intersect: true,
+            theme: "light",
+            custom: ({ series, seriesIndex, dataPointIndex }) => {
+                const isScatterSeries = isScatterOnly || seriesIndex >= numLineSeries;
+                const unit = ["fasting", "ppbgs"].includes(type) ? " mg/dL"
+                    : type === "weight" ? " kg"
+                        : type === "temp" ? " °C"
+                            : "";
+
+                if (isScatterSeries) {
+                    const row = filteredData[dataPointIndex] ?? {};
+                    const val = series[seriesIndex][dataPointIndex];
+                    return `<div style="padding:8px 12px;font-size:12px;line-height:1.7;font-family:inherit">
+                        <div style="color:#64748b">${row.date ?? ""} &nbsp;${row.time ?? ""}</div>
+                        <div style="font-weight:700;color:#1e293b">${val ?? "-"}${unit}</div>
+                    </div>`;
+                }
+
+                const val = series[seriesIndex][dataPointIndex];
+                return `<div style="padding:8px 12px;font-size:12px;line-height:1.7;font-family:inherit">
+                    <div style="color:#64748b">Avg · ${uniqueDates[dataPointIndex] ?? ""}</div>
+                    <div style="font-weight:700;color:#1e293b">${val ?? "-"}${unit}</div>
+                </div>`;
+            },
+        },
+
+        ...(type === "fasting" && count > 0 ? {
+            annotations: {
                 yaxis: [
                     {
-                        y: 70,
-                        y2: 99,
-                        borderColor: '#22c55e',
-                        fillColor: '#22c55e20',
-                        opacity: 0.3,
+                        y: 70, y2: 99, fillColor: "#22c55e", opacity: 0.08,
                         label: {
-                            text: 'Normal',
+                            text: "Normal",
                             style: {
-                                color: '#166534',
-                                background: '#ffffff',
-                                fontSize: '9px',
-                                fontWeight: 500,
-                                padding: {
-                                    left: 4,
-                                    right: 4,
-                                    top: 2,
-                                    bottom: 2
-                                }
+                                color: "#166534", background: "#fff", fontSize: "9px", fontWeight: 500,
+                                padding: { left: 4, right: 4, top: 2, bottom: 2 }
                             },
-                            position: 'left',
-                            offsetX: 10,
-                            offsetY: -5
-                        }
+                            position: "left", offsetX: 10, offsetY: -5,
+                        },
                     },
-                    {
-                        y: 100,
-                        y2: 125,
-                        borderColor: '#eab308',
-                        fillColor: '#eab30820',
-                        opacity: 0.2,
-                    },
-                    {
-                        y: 126,
-                        y2: max + 10,
-                        borderColor: '#ef4444',
-                        fillColor: '#ef444410',
-                        opacity: 0.1,
-                    }
-                ]
-            };
-        }
-
-        return baseOptions;
+                    { y: 100, y2: 125, fillColor: "#eab308", opacity: 0.08 },
+                    { y: 126, y2: max + 10, fillColor: "#ef4444", opacity: 0.05 },
+                ],
+            },
+        } : {}),
     };
 
-    const hasValidData = filteredData && filteredData.length > 0;
-
-    if (!hasValidData) {
+    if (!count) {
+        const names = { bp: "blood pressure", fasting: "fasting glucose", ppbgs: "PPBGS", weight: "weight", temp: "temperature" };
         return (
-            <div
-                style={{
-                    height: "240px",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "#9ca3af",
-                    fontSize: "13px",
-                    backgroundColor: "#f8fafc",
-                    borderRadius: "8px",
-                    margin: "4px 0"
-                }}
-            >
-                No {type === "bp" ? "blood pressure" :
-                    type === "fasting" ? "fasting glucose" :
-                        type === "ppbgs" ? "PPBGS" :
-                            type === "weight" ? "weight" :
-                                type === "temp" ? "temperature" : ""} data available
+            <div style={{
+                height: "240px", display: "flex", alignItems: "center", justifyContent: "center",
+                color: "#9ca3af", fontSize: "13px", backgroundColor: "#f8fafc",
+                borderRadius: "8px", margin: "4px 0"
+            }}>
+                No {names[type] ?? ""} data available
             </div>
         );
     }
 
     return (
         <Chart
-            options={getChartOptions()}
+            options={options}
             series={getSeries()}
-            type={getChartType()}
+            type="line"
             height="240"
             width="100%"
         />

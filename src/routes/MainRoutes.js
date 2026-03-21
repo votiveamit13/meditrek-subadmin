@@ -37,6 +37,7 @@ import ManageContact from 'views/AllPage/ManageContact';
 // import AnalyticsReport from 'views/AllPage/AnalyticsReport';
 import Reply from 'views/AllPage/SendReply';
 import Analytics from 'views/AllPage/Analytics';
+import NewInsights from 'views/AllPage/NewInsights';
 // import { Reply } from '@mui/icons-material';
 
 
@@ -107,6 +108,10 @@ const MainRoutes = {
       path: APP_PREFIX_PATH + '/profile',
       element: <Profile />
     },
+    {
+      path: APP_PREFIX_PATH + '/new-insights',
+      element: <NewInsights />
+    }
 
 
   ]

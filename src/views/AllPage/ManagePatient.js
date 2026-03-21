@@ -88,21 +88,21 @@ function ViewPatient() {
   };
 
   useEffect(() => {
-  const handleClickOutside = (event) => {
-    if (
-      dropdownRef.current &&
-      !dropdownRef.current.contains(event.target)
-    ) {
-      setShowDropdown(false);
-    }
-  };
+    const handleClickOutside = (event) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target)
+      ) {
+        setShowDropdown(false);
+      }
+    };
 
-  document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
 
-  return () => {
-    document.removeEventListener("mousedown", handleClickOutside);
-  };
-}, []);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     const filtered = patients.filter((p) =>
@@ -504,23 +504,23 @@ function ViewPatient() {
     }
   };
 
-  const getFilteredMeasurement = () => {
-    switch (measurementType) {
-      case "bp":
-        return measurement.filter((m) => m.type === 0);
-      case "fasting":
-        return measurement.filter((m) => m.type === 1);
-      case "ppbgs":
-        return measurement.filter((m) => m.type === 2);
-      case "weight":
-        return measurement.filter((m) => m.type === 3);
-      case "temp":
-        return measurement.filter((m) => m.type === 4);
-      default:
-        return [];
-    }
-  };
-  const filteredMeasurement = getFilteredMeasurement();
+  // const getFilteredMeasurement = () => {
+  //   switch (measurementType) {
+  //     case "bp":
+  //       return measurement.filter((m) => m.type === 0);
+  //     case "fasting":
+  //       return measurement.filter((m) => m.type === 1);
+  //     case "ppbgs":
+  //       return measurement.filter((m) => m.type === 2);
+  //     case "weight":
+  //       return measurement.filter((m) => m.type === 3);
+  //     case "temp":
+  //       return measurement.filter((m) => m.type === 4);
+  //     default:
+  //       return [];
+  //   }
+  // };
+  // const filteredMeasurement = getFilteredMeasurement();
 
   const filterMedicationData =
     medication?.filter((item) => {
@@ -836,13 +836,33 @@ function ViewPatient() {
     hideRowsPerPage: true
   };
 
-  const getCurrentPageMeasurement = () => {
-    const filteredData = getFilteredMeasurement();
-    const startIndex = (currentPage - 1) * rowsPerPage;
-    const endIndex = startIndex + rowsPerPage;
-    return filteredData.slice(startIndex, endIndex);
+  const parseMeasurementDateTime = (dateStr, timeStr) => {
+    if (!dateStr || !timeStr) return 0;
+    const [day, month, year] = dateStr.split("-");
+    return new Date(`${year}-${month}-${day} ${timeStr}`).getTime();
   };
-  const currentPageMeasurement = getCurrentPageMeasurement();
+
+  const getFilteredMeasurement = () => {
+    let result = [];
+    switch (measurementType) {
+      case "bp": result = measurement.filter((m) => m.type === 0); break;
+      case "fasting": result = measurement.filter((m) => m.type === 1); break;
+      case "ppbgs": result = measurement.filter((m) => m.type === 2); break;
+      case "weight": result = measurement.filter((m) => m.type === 3); break;
+      case "temp": result = measurement.filter((m) => m.type === 4); break;
+      default: result = [];
+    }
+    return [...result].sort(
+      (a, b) => parseMeasurementDateTime(a.date, a.time) - parseMeasurementDateTime(b.date, b.time)
+    );
+  };
+
+  const filteredMeasurement = getFilteredMeasurement();
+
+  const chartPageData = filteredMeasurement.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
   const renderTabContent = () => {
     switch (content) {
       case contentTypes.medication:
@@ -905,7 +925,7 @@ function ViewPatient() {
                     return (
                       <button
                         key={item.value}
-                        onClick={() => setMeasurementType(item.value)}
+                        onClick={() => { setMeasurementType(item.value); setCurrentPage(1); }}
                         style={{
                           padding: "10px 14px",
                           fontSize: "13px",
@@ -939,7 +959,7 @@ function ViewPatient() {
                   <div className='chart-animate' style={{ width: "100%", height: "240px" }}>
                     <MeasurementChart
                       key={`${measurementType}-${currentPage}`}
-                      data={currentPageMeasurement}
+                      data={chartPageData}
                       type={measurementType}
                     />
                   </div>
@@ -962,7 +982,7 @@ function ViewPatient() {
                         { label: "Diastolic BP", key: "diastolic_bp" },
                         { label: "Pulse", key: "pulse" }
                       ]}
-                      data={filteredMeasurement}
+                      data={filteredMeasurement}   // full sorted list → CustomTable handles its own pagination
                       {...tableProps}
                     />
                   )}
@@ -1262,7 +1282,7 @@ function ViewPatient() {
                 <FadeLoader color="#1ddec4" height={10} width={3} radius={2} margin={-2} />
               </div>
             )}
-            <div className="col-md-3 d-flex" style={{maxHeight: "620px"}}>
+            <div className="col-md-3 d-flex" style={{ maxHeight: "620px" }}>
               <div className="bg-white rounded-4 shadow-sm p-3 h-100" style={{ display: "flex", flexDirection: "column", width: "calc(100% - 20px)" }}>
                 <div className="d-flex justify-content-between align-items-center mb-3">
                   <h6 className="fw-bold mb-0">My Patients</h6>
@@ -1688,7 +1708,7 @@ function ViewPatient() {
             <Form.Group>
               <Form.Label>Message</Form.Label>
               <Form.Control
-              className='custom-search'
+                className='custom-search'
                 as="textarea"
                 rows={3}
                 value={notificationMessage}
