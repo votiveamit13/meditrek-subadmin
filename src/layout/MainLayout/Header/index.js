@@ -123,7 +123,8 @@
 
 import React from "react";
 import PropTypes from "prop-types";
-
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import { IconButton, InputBase, Paper } from "@mui/material";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
@@ -132,19 +133,63 @@ import SearchIcon from "@mui/icons-material/Search";
 
 import ProfileSection from "./ProfileSection";
 import logo from "assets/images/logo1.png";
+import { APP_PREFIX_PATH, Base_Url } from "../../../config";
 
 const Header = ({ drawerOpen, drawerToggle }) => {
   const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+  const [patients, setPatients] = React.useState([]);
+  const [filtered, setFiltered] = React.useState([]);
+  const [showDropdown, setShowDropdown] = React.useState(false);
 
-const toggleFullscreen = () => {
-  if (!document.fullscreenElement) {
-    document.documentElement.requestFullscreen();
-    setIsFullscreen(true);
-  } else {
-    document.exitFullscreen();
-    setIsFullscreen(false);
-  }
-};
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    const token = sessionStorage.getItem("token");
+
+    axios.get(`${Base_Url}get_all_patient`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => {
+        if (res.data.success && res.data.patient !== "NA") {
+          setPatients(res.data.patient);
+        }
+      });
+  }, []);
+
+  React.useEffect(() => {
+    if (!search) {
+      setFiltered([]);
+      return;
+    }
+
+    const result = patients.filter(p =>
+      p.name.toLowerCase().includes(search.toLowerCase())
+    );
+
+    setFiltered(result);
+  }, [search, patients]);
+
+  const handleSelectPatient = (patient) => {
+    setSearch("");
+    setShowDropdown(false);
+
+    sessionStorage.setItem("selectedPatientId", patient.user_id);
+
+    window.dispatchEvent(new Event("patientChanged"));
+
+    navigate(`${APP_PREFIX_PATH}/patients`);
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
   return (
     <div
       style={{
@@ -154,103 +199,139 @@ const toggleFullscreen = () => {
         justifyContent: "space-between"
       }}
     >
-     <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
-  <img src={logo} alt="logo" style={{ width: 32 }} />
+      <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+        <img src={logo} alt="logo" style={{ width: 32 }} />
 
-  {drawerOpen && (
-    <span
-      style={{
-        fontSize: "20px",
-        fontWeight: 600
-      }}
-    >
-      Meditrek
-    </span>
-  )}
+        {drawerOpen && (
+          <span
+            style={{
+              fontSize: "20px",
+              fontWeight: 600
+            }}
+          >
+            Meditrek
+          </span>
+        )}
 
-  <IconButton
-    onClick={drawerToggle}
-    style={{ background: "#f5f7fa" }}
-  >
-    <MenuTwoToneIcon style={{ color: "#1ddec4" }} />
-  </IconButton>
+        <IconButton
+          onClick={drawerToggle}
+          style={{ background: "#f5f7fa" }}
+        >
+          <MenuTwoToneIcon style={{ color: "#1ddec4" }} />
+        </IconButton>
 
-  <div
-    style={{
-      display: "flex",
-      alignItems: "center",
-      marginLeft: "8px",
-      gap: "10px"
-    }}
-  >
-    <div
-      style={{
-        width: "1px",
-        height: "28px",
-        background: "#eaecef"
-      }}
-    />
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            marginLeft: "8px",
+            gap: "10px"
+          }}
+        >
+          <div
+            style={{
+              width: "1px",
+              height: "28px",
+              background: "#eaecef"
+            }}
+          />
 
-    <span
-      style={{
-        fontSize: "14px",
-        color: "#6c757d"
-      }}
-    >
-      Dashboard
-    </span>
-  </div>
-</div>
+          <span
+            style={{
+              fontSize: "14px",
+              color: "#6c757d"
+            }}
+          >
+            Dashboard
+          </span>
+        </div>
+      </div>
 
-      
 
-      {/* SEARCH */ }
-  <Paper
-    sx={{
-      display: "flex",
-      alignItems: "center",
-      px: 1.5,
-      py: 0.5,
-      borderRadius: "8px",
-      width: 320,
-      background: "#f6f8fa",
-      boxShadow: "none"
-    }}
-  >
-    <SearchIcon sx={{ fontSize: 20, color: "#9aa0a6" }} />
 
-    <InputBase
-      placeholder="Search patients..."
-      sx={{
-        ml: 1,
-        fontSize: "14px",
-        flex: 1
-      }}
-    />
-  </Paper>
+      <div style={{ position: "relative" }}>
+        <Paper
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            px: 1.5,
+            py: 0.5,
+            borderRadius: "8px",
+            width: 320,
+            background: "#f6f8fa",
+            boxShadow: "none"
+          }}
+        >
+          <SearchIcon sx={{ fontSize: 20, color: "#9aa0a6" }} />
 
-  <div
-  style={{
-    display: "flex",
-    alignItems: "center",
-    gap: "10px"
-  }}
->
-  {/* Fullscreen Button */}
-  <IconButton
-    onClick={toggleFullscreen}
-    style={{ background: "#f5f7fa" }}
-  >
-    {isFullscreen ? (
-      <FullscreenExitIcon style={{ color: "#6c757d" }} />
-    ) : (
-      <FullscreenIcon style={{ color: "#6c757d" }} />
-    )}
-  </IconButton>
+          <InputBase
+            placeholder="Search patients..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setShowDropdown(true);
+            }}
+            sx={{ ml: 1, fontSize: "14px", flex: 1 }}
+          />
+        </Paper>
 
-  {/* Profile */}
-  <ProfileSection />
-</div>
+        {showDropdown && filtered.length > 0 && (
+          <div
+            style={{
+              position: "absolute",
+              top: "105%",
+              left: 0,
+              right: 0,
+              background: "#fff",
+              border: "1px solid #e5e7eb",
+              borderRadius: "10px",
+              maxHeight: "250px",
+              overflowY: "auto",
+              zIndex: 1000,
+              boxShadow: "0 6px 16px rgba(0,0,0,0.08)"
+            }}
+          >
+            {filtered.map((p) => (
+              <button
+                key={p.user_id}
+                onClick={() => handleSelectPatient(p)}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  cursor: "pointer",
+                  border: "none",
+                  background: "#fff",
+                  textAlign: "left",
+                  borderBottom: "1px solid #f1f5f9"
+                }}
+              >
+                {p.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "10px"
+        }}
+      >
+        <IconButton
+          onClick={toggleFullscreen}
+          style={{ background: "#f5f7fa" }}
+        >
+          {isFullscreen ? (
+            <FullscreenExitIcon style={{ color: "#6c757d" }} />
+          ) : (
+            <FullscreenIcon style={{ color: "#6c757d" }} />
+          )}
+        </IconButton>
+
+        <ProfileSection />
+      </div>
     </div >
   );
 };
