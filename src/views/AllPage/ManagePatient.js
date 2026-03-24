@@ -60,18 +60,30 @@ function ViewPatient() {
   const [patientSearch, setPatientSearch] = useState("");
   const [filteredPatients, setFilteredPatients] = useState([]);
   const dropdownRef = useRef(null);
-  const [sortConfig, setSortConfig] = useState({
-    key: null,
-    direction: "asc"
-  });
+  const [sortConfig, setSortConfig] = useState(null);
 
   const handleSort = (key) => {
-    setSortConfig((prev) => ({
-      key,
-      direction:
-        prev.key === key && prev.direction === "asc" ? "desc" : "asc"
-    }));
-  };
+  setSortConfig((prev) => ({
+    key,
+    direction:
+      prev.key === key && prev.direction === "asc" ? "desc" : "asc"
+  }));
+};
+
+
+const parseDateTime = (str) => {
+  if (!str) return 0;
+
+  const [date, time, modifier] = str.split(" ");
+  const [day, month, year] = date.split("-");
+
+  let [hours, minutes] = time.split(":").map(Number);
+
+  if (modifier === "PM" && hours !== 12) hours += 12;
+  if (modifier === "AM" && hours === 12) hours = 0;
+
+  return new Date(year, month - 1, day, hours, minutes).getTime();
+};
 
   const [rowsPerPage, setRowsPerPage] = useState(10);
   // const { user_id } = useParams();
@@ -86,6 +98,32 @@ function ViewPatient() {
       [id]: !prev[id]
     }));
   };
+
+  useEffect(() => {
+    const selectedId = sessionStorage.getItem("selectedPatientId");
+
+    if (selectedId) {
+      setSelectedPatientId(selectedId);
+
+      sessionStorage.removeItem("selectedPatientId");
+    }
+  }, []);
+
+  useEffect(() => {
+    const handlePatientChange = () => {
+      const selectedId = sessionStorage.getItem("selectedPatientId");
+
+      if (selectedId) {
+        setSelectedPatientId(selectedId);
+      }
+    };
+
+    window.addEventListener("patientChanged", handlePatientChange);
+
+    return () => {
+      window.removeEventListener("patientChanged", handlePatientChange);
+    };
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -522,11 +560,34 @@ function ViewPatient() {
   // };
   // const filteredMeasurement = getFilteredMeasurement();
 
+  const groupedMedication = Object.values(
+    medication.reduce((acc, item) => {
+      const key = item.medicine_id;
+
+      if (!acc[key]) {
+        acc[key] = {
+          ...item,
+          reminder_time: [item.reminder_time]
+        };
+      } else {
+        acc[key].reminder_time.push(item.reminder_time);
+      }
+
+      return acc;
+    }, {})
+  );
+
   const filterMedicationData =
-    medication?.filter((item) => {
+    groupedMedication?.filter((item) => {
       const lowercasedTerm = searchQueryGroup.toLowerCase();
-      return Object.values(item).some((val) => val && String(val).toLowerCase().includes(lowercasedTerm));
+      return Object.values(item).some(
+        (val) => val && String(val).toLowerCase().includes(lowercasedTerm)
+      );
     }) || [];
+
+    const sortedMedication = [...filterMedicationData].sort(
+  (a, b) => parseDateTime(b.updatetime) - parseDateTime(a.updatetime)
+);
 
   const filterAdverseData =
     adverse_data?.filter((item) => {
@@ -631,30 +692,104 @@ function ViewPatient() {
     saveAs(blob, 'MedicationReport.xlsx');
   };
 
-  // const exportMeasurementToExcel = () => {
-  //   const ws = XLSX.utils.json_to_sheet(
-  //     measurement.map((item, index) => ({
-  //       'S. No.': index + 1,
-  //       'Systolic BP': item.systolic_bp,
-  //       'Diastolic BP': item.diastolic_bp,
-  //       Pulse: item.pulse,
-  //       'Fasting Glucose': item.fasting_glucose ? `${item.fasting_glucose} mg/dl` : '-',
-  //       PPBGS: item.ppbgs ? `${item.ppbgs} mg/dl` : '-',
-  //       'Weight Measurement': item.weight ? `${item.weight} kg` : '-',
-  //       Temperature: item.temperature ? `${item.temperature} °C` : '-',
-  //       Symptom: item.symptom,
-  //       Range: item.symptom_range,
-  //       Time: item.time,
-  //       Date: item.date,
-  //       'Create Date & Time': item.createtime
-  //     }))
-  //   );
-  //   const wb = XLSX.utils.book_new();
-  //   XLSX.utils.book_append_sheet(wb, ws, 'MeasurementReport');
-  //   const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-  //   const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
-  //   saveAs(blob, 'MeasurementReport.xlsx');
-  // };
+  const exportMeasurementToExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(
+      measurement.map((item, index) => ({
+        'S. No.': index + 1,
+        Date: item.date,
+        Time: item.time,
+        'Systolic BP': item.systolic_bp,
+        'Diastolic BP': item.diastolic_bp,
+        Pulse: item.pulse,
+        'Fasting Glucose': item.fasting_glucose,
+        PPBGS: item.ppbgs,
+        Weight: item.weight,
+        Temperature: item.temperature
+      }))
+    );
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Measurement');
+    const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    saveAs(new Blob([buffer]), 'Measurement.xlsx');
+  };
+
+  const exportNotesToExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(
+      notes.map((item, index) => ({
+        'S. No.': index + 1,
+        Description: item.description,
+        Date: item.createtime
+      }))
+    );
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Notes');
+    const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    saveAs(new Blob([buffer]), 'Notes.xlsx');
+  };
+
+const exportReportsToExcel = () => {
+  const data = filterLabReportsData.map((item, index) => ({
+    'S. No.': index + 1,
+    Name: item.category_name || "-",
+    Date: item.createtime || "-",
+    Link: item.file
+      ? {
+          t: "s",
+          v: "View File",
+          l: { Target: `${IMAGE_PATH}${item.file}` }
+        }
+      : "-"
+  }));
+
+  const ws = XLSX.utils.json_to_sheet(data);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Reports');
+
+  const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  saveAs(new Blob([buffer]), 'Reports.xlsx');
+};
+
+  const exportAdverseToExcel = () => {
+    const ws = XLSX.utils.json_to_sheet(
+      adverse_data.map((item, index) => ({
+        'S. No.': index + 1,
+        Title: item.title,
+        Description: item.description,
+        Date: item.date
+      }))
+    );
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Adverse');
+    const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    saveAs(new Blob([buffer]), 'Adverse.xlsx');
+  };
+
+  const handleExport = () => {
+    switch (content) {
+      case contentTypes.medication:
+        exportMedicationToExcel();
+        break;
+      case contentTypes.measurement:
+        exportMeasurementToExcel();
+        break;
+      case contentTypes.note:
+        exportNotesToExcel();
+        break;
+      case contentTypes.labReports:
+        exportReportsToExcel();
+        break;
+      case contentTypes.adverse:
+        exportAdverseToExcel();
+        break;
+      default:
+        break;
+    }
+  };
+
   const indexOfLastPatient = patientPage * patientsPerPage;
   const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
 
@@ -803,17 +938,62 @@ function ViewPatient() {
     {
       label: "Reminder Time",
       key: "reminder_time",
+      render: (row) => {
+        const times = Array.isArray(row.reminder_time)
+          ? row.reminder_time
+          : [row.reminder_time];
+
+        // 🔥 sort ascending (AM → PM)
+        const sortedTimes = times.sort((a, b) => {
+          const toMinutes = (time) => {
+            const [t, period] = time.split(" ");
+            let [hours, minutes] = t.split(":").map(Number);
+
+            if (period === "PM" && hours !== 12) hours += 12;
+            if (period === "AM" && hours === 12) hours = 0;
+
+            return hours * 60 + minutes;
+          };
+
+          return toMinutes(a) - toMinutes(b);
+        });
+
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            {sortedTimes.map((time, index) => (
+              <span
+                key={index}
+                style={{
+                  background: "#ecfeff",
+                  color: "#0891b2",
+                  padding: "2px 8px",
+                  borderRadius: "6px",
+                  fontSize: "11px",
+                  width: "fit-content"
+                }}
+              >
+                {time}
+              </span>
+            ))}
+          </div>
+        );
+      }
+    },
+    {
+      label: "Pause Status",
+      key: "pause_status",
       render: (row) => (
         <span
           style={{
-            background: "#ecfeff",
-            color: "#0891b2",
             padding: "4px 8px",
             borderRadius: "6px",
-            fontSize: "11px"
+            fontSize: "11px",
+            background: row.pause_status === 1 ? "#fee2e2" : "#dcfce7",
+            color: row.pause_status === 1 ? "#dc2626" : "#16a34a",
+            fontWeight: 600
           }}
         >
-          {row.reminder_time || "-"}
+          {row.pause_status === 1 ? "Paused" : "Active"}
         </span>
       )
     },
@@ -842,27 +1022,30 @@ function ViewPatient() {
     return new Date(`${year}-${month}-${day} ${timeStr}`).getTime();
   };
 
-  const getFilteredMeasurement = () => {
-    let result = [];
+const baseMeasurement = [...measurement]
+  .filter((m) => {
     switch (measurementType) {
-      case "bp": result = measurement.filter((m) => m.type === 0); break;
-      case "fasting": result = measurement.filter((m) => m.type === 1); break;
-      case "ppbgs": result = measurement.filter((m) => m.type === 2); break;
-      case "weight": result = measurement.filter((m) => m.type === 3); break;
-      case "temp": result = measurement.filter((m) => m.type === 4); break;
-      default: result = [];
+      case "bp": return m.type === 0;
+      case "fasting": return m.type === 1;
+      case "ppbgs": return m.type === 2;
+      case "weight": return m.type === 3;
+      case "temp": return m.type === 4;
+      default: return false;
     }
-    return [...result].sort(
-      (a, b) => parseMeasurementDateTime(a.date, a.time) - parseMeasurementDateTime(b.date, b.time)
-    );
-  };
-
-  const filteredMeasurement = getFilteredMeasurement();
-
-  const chartPageData = filteredMeasurement.slice(
-    (currentPage - 1) * rowsPerPage,
-    currentPage * rowsPerPage
+  })
+  .sort(
+    (a, b) =>
+      parseMeasurementDateTime(b.date, b.time) -
+      parseMeasurementDateTime(a.date, a.time)
   );
+
+const paginatedData = baseMeasurement.slice(
+  (currentPage - 1) * rowsPerPage,
+  currentPage * rowsPerPage
+);
+
+const chartPageData = [...paginatedData].reverse();
+
   const renderTabContent = () => {
     switch (content) {
       case contentTypes.medication:
@@ -878,7 +1061,7 @@ function ViewPatient() {
 
             <CustomTable
               columns={medicationColumns}
-              data={filterMedicationData}
+              data={sortedMedication}
               sortConfig={sortConfig}
               onSort={handleSort}
               currentPage={currentPage}
@@ -982,7 +1165,7 @@ function ViewPatient() {
                         { label: "Diastolic BP", key: "diastolic_bp" },
                         { label: "Pulse", key: "pulse" }
                       ]}
-                      data={filteredMeasurement}   // full sorted list → CustomTable handles its own pagination
+                      data={baseMeasurement} 
                       {...tableProps}
                     />
                   )}
@@ -994,7 +1177,7 @@ function ViewPatient() {
                         { label: "Time", key: "time" },
                         { label: "Fasting Glucose", key: "fasting_glucose" }
                       ]}
-                      data={filteredMeasurement}
+                     data={baseMeasurement} 
                       {...tableProps}
                     />
                   )}
@@ -1006,7 +1189,7 @@ function ViewPatient() {
                         { label: "Time", key: "time" },
                         { label: "PPBGS", key: "ppbgs" }
                       ]}
-                      data={filteredMeasurement}
+                      data={baseMeasurement} 
                       {...tableProps}
                     />
                   )}
@@ -1018,7 +1201,7 @@ function ViewPatient() {
                         { label: "Time", key: "time" },
                         { label: "Weight", key: "weight" }
                       ]}
-                      data={filteredMeasurement}
+                      data={baseMeasurement} 
                       {...tableProps}
                     />
                   )}
@@ -1030,7 +1213,7 @@ function ViewPatient() {
                         { label: "Time", key: "time" },
                         { label: "Temperature", key: "temperature" }
                       ]}
-                      data={filteredMeasurement}
+                      data={baseMeasurement} 
                       {...tableProps}
                     />
                   )}
@@ -1414,44 +1597,45 @@ function ViewPatient() {
                   })}
                 </div>
 
-                {content === contentTypes.medication && medication.length > 0 && (
-                  <div className="d-flex align-items-center gap-2">
-                    <span style={{ fontSize: "13px", color: "#64748b" }}>
-                      Export:
-                    </span>
+                {(
+                  (content === contentTypes.medication && medication.length > 0) ||
+                  (content === contentTypes.measurement && measurement.length > 0) ||
+                  (content === contentTypes.note && notes.length > 0) ||
+                  (content === contentTypes.labReports && report.length > 0) ||
+                  (content === contentTypes.adverse && adverse_data.length > 0)
+                ) && (
+                    <div className="d-flex align-items-center gap-2">
+                      <span style={{ fontSize: "13px", color: "#64748b" }}>
+                        Export:
+                      </span>
 
-                    <button
-                      onClick={exportMedicationToExcel}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          exportMedicationToExcel;
-                        }
-                      }}
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: "8px",
-                        background: "#e6f9f6",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        transition: "all 0.2s ease",
-                        border: 0
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.background = "#1ddec4";
-                        e.currentTarget.style.color = "#fff";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = "#e6f9f6";
-                        e.currentTarget.style.color = "#1ddec4";
-                      }}
-                    >
-                      <RiFileExcel2Line size={18} />
-                    </button>
-                  </div>
-                )}
+                      <button
+                        onClick={handleExport}
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: "8px",
+                          background: "#e6f9f6",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease",
+                          border: 0
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = "#1ddec4";
+                          e.currentTarget.style.color = "#fff";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = "#e6f9f6";
+                          e.currentTarget.style.color = "#1ddec4";
+                        }}
+                      >
+                        <RiFileExcel2Line size={18} />
+                      </button>
+                    </div>
+                  )}
               </div>
 
               <Card className="border-0 shadow-lg rounded-4 flex-grow-1">

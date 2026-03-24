@@ -1,974 +1,762 @@
-import React, { useState, useEffect } from 'react';
-import { Row, Col, Card, Form, Button, Table, Modal, } from 'react-bootstrap';
-import Typography from '@mui/material/Typography';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { Base_Url, IMAGE_PATH } from '../../config';
-import Pagination from '@mui/material/Pagination';
-import Stack from '@mui/material/Stack';
+import { Base_Url } from '../../config';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
-import VisibilityIcon from '@mui/icons-material/Visibility';
+import CustomTable from 'component/common/CustomTable';
 
-function SharedTabularData() {
-  // State for form inputs
-  const [from_date, setFromDate] = useState('');
-  const [to_date, setToDate] = useState('');
-  // const [doctor_id, setDoctorId] = useState('');
+// ─── Inline styles as a style tag injected once ───────────────────────────────
+const STYLES = `
+  .std-root {
+    min-height: 100vh;
+    background: #f5f6fa;
+    color: #1a1d23;
+  }
 
-  // State for validation errors
-  const [from_date_error, setFromDateError] = useState('');
-  const [to_date_error, setToDateError] = useState('');
-  // const [doctor_error, setDoctorError] = useState('');
+  /* ── Header ── */
+  .std-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .std-title {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+    color: #111827;
+    margin: 0;
+  }
+  .std-subtitle {
+    font-size: 13px;
+    color: #6b7280;
+    margin: 4px 0 0;
+    font-weight: 400;
+  }
 
-  // State for data
-  const [doctors, setDoctors] = useState([]);
-  console.log(doctors);
-  const [medicationData, setMedicationData] = useState([]);
-  const [adverseReactionData, setAdverseReactionData] = useState([]);
-  const [labReportData, setLabReportData] = useState([]);
-  const [measurementData, setMeasurementData] = useState([]);
-  const [complianceData, setComplianceData] = useState([]);
-  const [dataLoaded, setDataLoaded] = useState(false);
-  const [activeTab, setActiveTab] = useState('medication');
+  /* ── Filter Panel ── */
+  .std-filter-card {
+    background: #ffffff;
+    border-radius: 16px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+  }
+  .std-filter-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1.8fr auto;
+    gap: 16px;
+    align-items: end;
+  }
+  @media (max-width: 900px) {
+    .std-filter-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .std-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 7px;
+  }
+  .std-input, .std-select-single {
+    width: 100%;
+    height: 42px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 0 12px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    color: #111827;
+    background: #fafafa;
+    outline: none;
+    transition: border-color 0.18s, box-shadow 0.18s;
+    box-sizing: border-box;
+    appearance: auto;
+  }
+  .std-input:focus, .std-select-single:focus {
+    border-color: #14b8a6;
+    box-shadow: 0 0 0 3px rgba(20,184,166,0.12);
+    background: #fff;
+  }
+  .std-apply-btn {
+    height: 42px;
+    padding: 0 24px;
+    background: #14b8a6;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: background 0.18s, transform 0.12s, box-shadow 0.18s;
+    white-space: nowrap;
+  }
+  .std-apply-btn:hover { background: #0d9488; box-shadow: 0 4px 12px rgba(20,184,166,0.3); }
+  .std-apply-btn:active { transform: scale(0.97); }
+  .std-apply-btn:disabled { background: #a7f3d0; cursor: not-allowed; }
 
-  let doctorId = localStorage.getItem('doctor_id');
+  /* ── Patient Picker ── */
+  .std-patient-picker {
+    position: relative;
+  }
+  .std-picker-trigger {
+    width: 100%;
+    height: 42px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 0 38px 0 12px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    color: #111827;
+    background: #fafafa;
+    outline: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: border-color 0.18s, box-shadow 0.18s;
+    box-sizing: border-box;
+    user-select: none;
+  }
+  .std-picker-trigger:hover, .std-picker-trigger.open {
+    border-color: #14b8a6;
+    box-shadow: 0 0 0 3px rgba(20,184,166,0.12);
+    background: #fff;
+  }
+  .std-picker-trigger-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    font-size: 14px;
+    color: #374151;
+  }
+  .std-picker-trigger-text.placeholder { 
+      color: #9ca3af; 
+      background: none;
+  }
+  .std-picker-caret {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #9ca3af;
+    pointer-events: none;
+    transition: transform 0.18s;
+  }
+  .std-picker-caret.open { transform: translateY(-50%) rotate(180deg); }
 
-  const calculateAge = (dob) => {
-    if (!dob) return 'NA';
+  .std-picker-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
+    z-index: 200;
+    overflow: hidden;
+    animation: dropIn 0.16s ease;
+  }
+  @keyframes dropIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .std-picker-search {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .std-picker-search input {
+    width: 100%;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 13px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    background: #f9fafb;
+    box-sizing: border-box;
+  }
+  .std-picker-search input:focus { border-color: #14b8a6; background: #fff; }
+  .std-picker-actions {
+    padding: 7px 12px;
+    border-bottom: 1px solid #f3f4f6;
+    display: flex;
+    gap: 10px;
+  }
+  .std-picker-action-btn {
+    font-size: 12px;
+    font-weight: 600;
+    color: #14b8a6;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .std-picker-action-btn:hover { text-decoration: underline; }
+  .std-picker-list {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 6px 0;
+  }
+  .std-picker-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #374151;
+    transition: background 0.1s;
+  }
+  .std-picker-item:hover { background: #f0fdfb; }
+  .std-picker-item.selected { background: #f0fdfb; }
+  .std-picker-checkbox {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    border: 2px solid #d1d5db;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .std-picker-item.selected .std-picker-checkbox {
+    background: #14b8a6;
+    border-color: #14b8a6;
+  }
+  .std-picker-empty { padding: 16px; text-align: center; color: #9ca3af; font-size: 13px; }
 
-    const birthDate = new Date(dob);
-    const today = new Date();
+  /* ── Chips ── */
+  .std-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 14px;
+  }
+  .std-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #f0fdfb;
+    border: 1px solid #99f6e4;
+    color: #0f766e;
+    border-radius: 6px;
+    padding: 3px 8px 3px 10px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .std-chip-remove {
+    background: none;
+    border: none;
+    color: #0f766e;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    font-size: 14px;
+    opacity: 0.7;
+  }
+  .std-chip-remove:hover { opacity: 1; }
 
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const monthDiff = today.getMonth() - birthDate.getMonth();
+  /* ── Options row ── */
+  .std-options-row {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .std-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #4b5563;
+    cursor: pointer;
+    user-select: none;
+  }
+  .std-checkbox-label input[type=checkbox] { accent-color: #14b8a6; width: 15px; height: 15px; cursor: pointer; }
 
-    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
+  /* ── Stats bar ── */
+  .std-stats-bar {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .std-stat {
+    background: #fff;
+    border-radius: 12px;
+    padding: 14px 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .std-stat-val {
+    font-size: 26px;
+    font-weight: 700;
+    color: #111827;
+    font-family: 'DM Mono', monospace;
+    letter-spacing: -1px;
+    line-height: 1;
+  }
+  .std-stat-lbl {
+    font-size: 12px;
+    color: #9ca3af;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .std-stat.accent .std-stat-val { color: #14b8a6; }
 
-    return age;
-  };
+  /* ── Table Card ── */
+  .std-table-card {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 24px rgba(0,0,0,0.05);
+    overflow: hidden;
+    position: relative;
+  }
+  .std-table-header {
+    padding: 18px 24px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .std-table-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #111827;
+    margin: 0;
+  }
+  .std-table-meta {
+    font-size: 12px;
+    color: #9ca3af;
+    margin-top: 2px;
+  }
+  .std-export-btn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    height: 36px;
+    padding: 0 16px;
+    background: #f0fdfb;
+    color: #0f766e;
+    border: 1.5px solid #99f6e4;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .std-export-btn:hover { background: #ccfbf1; box-shadow: 0 2px 8px rgba(20,184,166,0.18); }
+  .std-table-body { padding: 16px 24px 20px; }
 
-  // State for pagination
-  const [currentPage, setCurrentPage] = useState({
-    medication: 1,
-    adverseReaction: 1,
-    labReport: 1,
-    measurement: 1,
-    compliance: 1
-  });
+  /* ── Loader overlay ── */
+  .std-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+    border-radius: 16px;
+    backdrop-filter: blur(2px);
+  }
+  .std-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid #e5e7eb;
+    border-top-color: #14b8a6;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
-  // State for search
-  const [searchQuery, setSearchQuery] = useState({
-    medication: '',
-    adverseReaction: '',
-    labReport: '',
-    measurement: '',
-    compliance: ''
-  });
+  /* ── Empty state ── */
+  .std-empty {
+    text-align: center;
+    padding: 56px 24px;
+    color: #9ca3af;
+  }
+  .std-empty-icon {
+    font-size: 40px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+  }
+  .std-empty p { font-size: 14px; margin: 0; }
+`;
 
-  // State for PDF modal
-  const [showPdfModal, setShowPdfModal] = useState(false);
-  const [currentPdf, setCurrentPdf] = useState('');
+// ─── Patient Multi-Select Dropdown ────────────────────────────────────────────
+function PatientPicker({ patients, selected, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef(null);
 
-  const itemsPerPage = 10;
-
-  // Fetch doctors on component mount
   useEffect(() => {
-    fetchDoctors();
+    function handleClick(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
-  const fetchDoctors = () => {
-    axios
-      .get(`${Base_Url}get_all_doctor`)
-      .then((response) => {
-        if (response.data.success && Array.isArray(response.data.data)) {
-          setDoctors(response.data.data);
-        }
-      })
-      .catch((error) => {
-        console.error('Error fetching doctors:', error);
-      });
+  const filtered = patients.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const toggle = (id) => {
+    const sid = String(id);
+    onChange(
+      selected.includes(sid)
+        ? selected.filter(x => x !== sid)
+        : [...selected, sid]
+    );
   };
 
-  // Handle search for each tab
-  const handleSearch = (tab, value) => {
-    setSearchQuery({
-      ...searchQuery,
-      [tab]: value
+  const selectAll = () => onChange(patients.map(p => String(p.user_id)));
+  const clearAll  = () => onChange([]);
+
+  const label = selected.length === 0
+    ? null
+    : selected.length === patients.length
+    ? 'All patients'
+    : `${selected.length} patient${selected.length > 1 ? 's' : ''} selected`;
+
+  return (
+    <div className="std-patient-picker" ref={ref}>
+      <div
+        className={`std-picker-trigger${open ? ' open' : ''}`}
+        onClick={() => setOpen(v => !v)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => e.key === 'Enter' && setOpen(v => !v)}
+      >
+        <span className={`std-picker-trigger-text${!label ? ' placeholder' : ''}`}>
+          {label || 'All patients (no filter)'}
+        </span>
+        <svg className={`std-picker-caret${open ? ' open' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </div>
+
+      {open && (
+        <div className="std-picker-dropdown">
+          <div className="std-picker-search">
+            <input
+              autoFocus
+              placeholder="Search patients…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <div className="std-picker-actions">
+            <button className="std-picker-action-btn" onClick={selectAll}>Select all</button>
+            <span style={{color:'#e5e7eb'}}>|</span>
+            <button className="std-picker-action-btn" onClick={clearAll}>Clear</button>
+          </div>
+          <div className="std-picker-list">
+            {filtered.length === 0
+              ? <div className="std-picker-empty">No patients found</div>
+              : filtered.map(p => {
+                  const sid = String(p.user_id);
+                  const isSel = selected.includes(sid);
+                  return (
+                    <div
+                      key={p.user_id}
+                      className={`std-picker-item${isSel ? ' selected' : ''}`}
+                      onClick={() => toggle(p.user_id)}
+                      role="option"
+                      aria-selected={isSel}
+                      tabIndex={0}
+                      onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && toggle(p.user_id)}
+                    >
+                      <div className="std-picker-checkbox">
+                        {isSel && (
+                          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                            <polyline points="2,6 5,9 10,3" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                      </div>
+                      {p.name}
+                    </div>
+                  );
+                })
+            }
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+function SharedTabularData() {
+  const [from_date, setFromDate] = useState('');
+  const [to_date, setToDate]     = useState('');
+  const [patients, setPatients]  = useState([]);
+
+  // Selected patients for FILTERING the displayed table
+  const [filterPatients, setFilterPatients]   = useState([]);
+  // Whether to scope export to filterPatients
+  const [exportSelectedOnly, setExportSelectedOnly] = useState(false);
+  // Show only selected-patient rows in the table too
+  const [tableFilterActive, setTableFilterActive]   = useState(false);
+
+  const [medicationData, setMedicationData] = useState([]);
+  const [dataLoaded, setDataLoaded]         = useState(false);
+  const [loading, setLoading]               = useState(false);
+
+  const [currentPage, setCurrentPage]       = useState(1);
+  const [rowsPerPage, setRowsPerPage]       = useState(10);
+
+  const doctorId = sessionStorage.getItem('doctor_id');
+
+  // Fetch patients
+  useEffect(() => {
+    axios.get(`${Base_Url}get_all_patient`, {
+      headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
+    }).then(res => {
+      if (res.data.success) setPatients(res.data.patient || []);
     });
-  };
+  }, []);
 
-   console.log(handleSearch);
-
-  // Filter data based on search query
-  const filterData = (data, tab) => {
-    const query = searchQuery[tab].toLowerCase();
-    if (!query) return data;
-
-    return data.filter((item) => {
-      return item.patient_name?.toLowerCase().includes(query);
-    });
-  };
-
-  // Handle page change for each tab
-  const handlePageChange = (tab, value) => {
-    setCurrentPage({
-      ...currentPage,
-      [tab]: value
-    });
-  };
-
-  // Pagination logic for each tab
-  const getPaginatedData = (data, tab) => {
-    const filteredData = filterData(data, tab);
-    const currentPageValue = currentPage[tab];
-    const indexOfLastItem = currentPageValue * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-
-    return {
-      currentItems: filteredData.slice(indexOfFirstItem, indexOfLastItem),
-      totalPages: Math.ceil(filteredData.length / itemsPerPage),
-      totalItems: filteredData.length,
-      indexOfFirstItem,
-      indexOfLastItem: Math.min(indexOfLastItem, filteredData.length)
-    };
-  };
-
-  // Form submission handler
   const handleSubmit = (e) => {
     e.preventDefault();
-    let hasError = false;
-
-    if (!from_date) {
-      setFromDateError('Please Enter From Date.');
-      hasError = true;
-    } else {
-      setFromDateError('');
-    }
-
-    if (!to_date) {
-      setToDateError('Please Enter To Date');
-      hasError = true;
-    } else if (to_date < from_date) {
-      setToDateError('To Date Must Be Greater Than From Date');
-      hasError = true;
-    } else {
-      setToDateError('');
-    }
-
-    // if (!doctor_id) {
-    //     setDoctorError('Please Select a Doctor');
-    //     hasError = true;
-    // } else {
-    //     setDoctorError('');
-    // }
-
-    if (hasError) return;
-
-    // Fetch data from API
-    axios
-      .get(`${Base_Url}get_shared_tabular?from_date=${from_date}&to_date=${to_date}&doctor_id=${doctorId}`)
-      .then((response) => {
-        if (response.data.success) {
-          setMedicationData(response.data.medication || []);
-          setAdverseReactionData(response.data.adverseReaction || []);
-          setLabReportData(response.data.labReport || []);
-          setMeasurementData(response.data.measurement || []);
-          setComplianceData(response.data.compliance || []);
-          setDataLoaded(true);
-        } else {
-          setMedicationData([]);
-          setAdverseReactionData([]);
-          setLabReportData([]);
-          setMeasurementData([]);
-          setComplianceData([]);
-          setDataLoaded(true);
-        }
-      })
-      .catch((error) => {
-        console.error('Error fetching shared tabular data:', error);
-        setMedicationData([]);
-        setAdverseReactionData([]);
-        setLabReportData([]);
-        setMeasurementData([]);
-        setComplianceData([]);
-        setDataLoaded(true);
-      });
+    setLoading(true);
+    axios.get(
+      `${Base_Url}get_shared_tabular?from_date=${from_date}&to_date=${to_date}&doctor_id=${doctorId}`
+    ).then(res => {
+      if (res.data.success) setMedicationData(res.data.medication || []);
+      else setMedicationData([]);
+      setDataLoaded(true);
+      setCurrentPage(1);
+    }).finally(() => setLoading(false));
   };
 
-  // Export to Excel functions for each tab
-  const exportToExcel = (data, filename) => {
-    let exportData = [];
+  // Derived: which rows to show in table
+  const displayData = (tableFilterActive && filterPatients.length > 0)
+    ? medicationData.filter(item => filterPatients.includes(String(item.user_id)))
+    : medicationData;
 
-    switch (filename) {
-      case 'Medication':
-        exportData = data.map((item, index) => ({
-          'S. No.': index + 1,
-          // 'Patient Name': item.patient_name || '-',
-          Age: calculateAge(item.dob) + ' years' || '-',
-          Medicine: item.medicine_name || '-',
-          Dosage: item.dosage || '-',
-          Schedule: item.schedule == 0 ? 'Daily' : 'Weekly',
-          'Remaining Quantity': item.remaing_quantity || '1',
-          'Remind me when': item.remind_quantity || '1',
-          'Reminder Time': item.reminder_time || '-',
-          Instruction: item.instruction || '-',
-          'Created Date': new Date(item.createtime).toLocaleDateString()
-        }));
-        break;
-      case 'AdverseReaction':
-        exportData = data.map((item, index) => ({
-          'S. No.': index + 1,
-          // 'Patient Name': item.patient_name || '-',
-          Medicine: item.medicine_name || '-',
-          Symptom: item.symptom_name || '-',
-          Dosage: item.dosage || '-',
-          'Medicine Type': item.category_name || '-',
-          Description: item.instruction || '-',
-          'Medication Start Date': new Date(item.medication_start_date).toLocaleDateString(),
-          'Reaction Date': new Date(item.reaction_date).toLocaleDateString(),
+  // Stats
+  const uniquePatients = new Set(medicationData.map(d => d.user_id)).size;
 
-          'Created Date': new Date(item.createtime).toLocaleDateString()
-        }));
-        break;
-      case 'LabReports':
-        exportData = data.map((item, index) => ({
-          'S. No.': index + 1,
-          // 'Patient Name': item.patient_name || '-',
-          Category: item.category_name || '-',
-          'Created Date': new Date(item.createtime).toLocaleDateString()
-        }));
-        break;
-      case 'Measurements':
-        exportData = data.map((item, index) => ({
-          'S. No.': index + 1,
-          // 'Patient Name': item.patient_name || '-',
-          BP: item.systolic_bp + '/' + item.diastolic_bp || '-',
-          Pulse: item.pulse || '-',
-          Weight: item.weight || '-',
-          Temperature: item.temperature || '-',
-          Glucose: item.fasting_glucose || '-',
-          ppbgs: item.ppbgs || '-',
-          symptoms: item.symptom || '-',
-          range: item.symptom_range || '-',
-          'Created Date': new Date(item.createtime).toLocaleDateString()
-        }));
-        break;
-      case 'Compliance':
-        exportData = data.map((item, index) => ({
-          'S. No.': index + 1,
-          // 'Patient Name': item.name || '-',
-          Medicine: item.medicine_name || '-',
-          Status: item.taken_status === 1 ? 'Taken' : 'Not Taken',
-          'Created Date': new Date(item.updatetime).toLocaleDateString()
-        }));
-        break;
-      default:
-        break;
-    }
+  const exportToExcel = () => {
+    const base = (exportSelectedOnly && filterPatients.length > 0)
+      ? medicationData.filter(item => filterPatients.includes(String(item.user_id)))
+      : medicationData;
 
-    const ws = XLSX.utils.json_to_sheet(exportData);
+    const rows = base.map((item, i) => ({
+      'S. No': i + 1,
+      'Patient Name': item.patient_name || '-',
+      'Medicine': item.medicine_name || '-',
+      'Dosage': item.dosage || '-',
+      'Schedule': item.schedule == 0 ? 'Daily' : 'Weekly',
+      'Created Date': new Date(item.createtime).toLocaleDateString()
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, filename);
-    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    const blob = new Blob([excelBuffer], { type: 'application/octet-stream' });
-    saveAs(blob, `${filename}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Medication');
+    const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    saveAs(new Blob([buffer]), 'Medication_Report.xlsx');
   };
 
-  // Handle PDF view
-  const handleViewPdf = (pdfFile) => {
-    setCurrentPdf(pdfFile);
-    setShowPdfModal(true);
-  };
+  const columns = [
+    { label: "#", key: "sr_no", render: (_, i) => i + 1 },
+    { label: "Patient", key: "patient_name" },
+    { label: "Medicine", key: "medicine_name" },
+    { label: "Dosage", key: "dosage" },
+    { label: "Schedule", key: "schedule", render: (row) => row.schedule == 0 ? 'Daily' : 'Weekly' },
+    { label: "Date", key: "createtime", render: (row) => new Date(row.createtime).toLocaleDateString() }
+  ];
+
+  const patientMap = Object.fromEntries(patients.map(p => [String(p.user_id), p.name]));
 
   return (
     <>
-      <Typography style={{ marginTop: '15px', marginBottom: '30px' }} variant="h4" gutterBottom>
-        <Link to={'/'} style={{ textDecoration: 'none' }}>
-          <span style={{ color: '#0ccfb5' }}>Dashboard</span>
-        </Link>{' '}
-        / Shared Information
-      </Typography>
+      <style>{STYLES}</style>
+      <div className="std-root">
 
-      <Card className="mb-4" style={{ border: '1px solid #dee2e6', boxShadow: 'none' }}>
-        <Card.Header style={{ borderBottom: '1px solid #dee2e6', backgroundColor: 'transparent' }}>
-          <Card.Title as="h5" className="mt-2">
-            Shared Information
-          </Card.Title>
-        </Card.Header>
-        <Card.Body>
-          <Form onSubmit={handleSubmit}>
-            <Row>
-              {/* <Col sm={4}>
-                                <Form.Group className="mb-3">
-                                    <Form.Label>Select Doctor</Form.Label>
-                                    <Form.Select
-                                        onChange={(e) => {
-                                            setDoctorId(e.target.value);
-                                            setDoctorError('');
-                                        }}
-                                    >
-                                        <option value="">Select Doctor</option>
-                                        {doctors.map(doctor => (
-                                            <option key={doctor.doctor_id} value={doctor.doctor_id}>
-                                                {doctor.doctor_name}
-                                            </option>
-                                        ))}
-                                    </Form.Select>
-                                    <p style={{ color: 'red' }}>{doctor_error}</p>
-                                </Form.Group>
-                            </Col> */}
+        {/* Header */}
+        <div className="std-header">
+          <div>
+            <h4 className="std-title">Shared Tabular Report</h4>
+            <p className="std-subtitle">Export patient medication records by date range and selection</p>
+          </div>
+        </div>
 
-              <Col sm={3}>
-                <Form.Group className="mb-3">
-                  <Form.Label>From Date</Form.Label>
-                  <Form.Control
-                    type="date"
-                    onChange={(e) => {
-                      setFromDate(e.target.value);
-                      setFromDateError('');
-                    }}
-                  />
-                  <p style={{ color: 'red' }}>{from_date_error}</p>
-                </Form.Group>
-              </Col>
-              <Col sm={3}>
-                <Form.Group className="mb-3">
-                  <Form.Label>To Date</Form.Label>
-                  <Form.Control
-                    type="date"
-                    max={new Date().toISOString().split('T')[0]}
-                    onChange={(e) => {
-                      if (!from_date) {
-                        setToDateError('Please Select From Date first');
-                      } else {
-                        setToDate(e.target.value);
-                        setToDateError('');
-                      }
-                    }}
-                  />
-                  <p style={{ color: 'red' }}>{to_date_error}</p>
-                </Form.Group>
-              </Col>
-              <Col sm={3} className="mb-3 d-flex align-items-end justify-content-start">
-                <Button type="submit" className="submit-btn">
-                  View
-                </Button>
-              </Col>
-            </Row>
-          </Form>
-        </Card.Body>
-      </Card>
-
-      {dataLoaded && (
-        <>
-          <nav className="navbar navbar-expand-lg navbar-light">
-            <div className="container-fluid tabs justify-content-start" style={{ marginBottom: '41px' }}>
-              <button
-                style={{
-                  border: '1px solid #238BF0',
-                  borderRadius: '0px',
-                  height: '38px',
-                  backgroundColor: activeTab === 'medication' ? '#238BF0' : 'transparent',
-                  color: activeTab === 'medication' ? 'white' : '#238BF0'
-                }}
-                className="btn"
-                type="button"
-                onClick={() => setActiveTab('medication')}
-              >
-                Medication
-              </button>
-              <button
-                style={{
-                  border: '1px solid #238BF0',
-                  borderRadius: '0px',
-                  height: '38px',
-                  backgroundColor: activeTab === 'adverseReaction' ? '#238BF0' : 'transparent',
-                  color: activeTab === 'adverseReaction' ? 'white' : '#238BF0'
-                }}
-                className="btn"
-                type="button"
-                onClick={() => setActiveTab('adverseReaction')}
-              >
-                Adverse Reaction
-              </button>
-              {/* <button
-                                style={{
-                                    border: '1px solid #238BF0',
-                                    borderRadius: '0px',
-                                    height: '38px',
-                                    backgroundColor: activeTab === 'labReport' ? '#238BF0' : 'transparent',
-                                    color: activeTab === 'labReport' ? 'white' : '#238BF0'
-                                }}
-                                className="btn"
-                                type="button"
-                                onClick={() => setActiveTab('labReport')}
-                            >
-                                Lab Reports
-                            </button> */}
-              <button
-                style={{
-                  border: '1px solid #238BF0',
-                  borderRadius: '0px',
-                  height: '38px',
-                  backgroundColor: activeTab === 'measurement' ? '#238BF0' : 'transparent',
-                  color: activeTab === 'measurement' ? 'white' : '#238BF0'
-                }}
-                className="btn"
-                type="button"
-                onClick={() => setActiveTab('measurement')}
-              >
-                Measurements
-              </button>
-              <button
-                style={{
-                  border: '1px solid #238BF0',
-                  borderRadius: '0px',
-                  height: '38px',
-                  backgroundColor: activeTab === 'compliance' ? '#238BF0' : 'transparent',
-                  color: activeTab === 'compliance' ? 'white' : '#238BF0'
-                }}
-                className="btn"
-                type="button"
-                onClick={() => setActiveTab('compliance')}
-              >
-                Compliance
-              </button>
+        {/* Filter Card */}
+        <div className="std-filter-card">
+          <form onSubmit={handleSubmit}>
+            <div className="std-filter-grid">
+              <div>
+                <label className="std-label" htmlFor="std-from-date">From Date</label>
+                <input
+                  id="std-from-date"
+                  type="date"
+                  className="std-input"
+                  value={from_date}
+                  onChange={e => setFromDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="std-label" htmlFor="std-to-date">To Date</label>
+                <input
+                  id="std-to-date"
+                  type="date"
+                  className="std-input"
+                  value={to_date}
+                  onChange={e => setToDate(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="std-label" htmlFor="std-patient-picker-label">Filter by Patients</label>
+                <PatientPicker
+                  patients={patients}
+                  selected={filterPatients}
+                  onChange={setFilterPatients}
+                />
+              </div>
+              <div>
+                <button
+                  type="submit"
+                  className="std-apply-btn"
+                  disabled={loading}
+                  style={{ width: '100%' }}
+                >
+                  {loading ? 'Loading…' : 'Apply Filters'}
+                </button>
+              </div>
             </div>
-          </nav>
 
-          {/* Medication Tab */}
-          {activeTab === 'medication' && (
-            <Card>
-              {medicationData.length > 0 && (
-                <div className="mb-3 pt-3 px-3 text-end">
-                  <Button
-                    variant="success"
-                    onClick={() => exportToExcel(medicationData, 'Medication')}
-                    style={{ backgroundColor: '#0ccfb5', border: 'none' }}
-                  >
-                    Export to Excel
-                  </Button>
+            {/* Selected patient chips */}
+            {filterPatients.length > 0 && filterPatients.length < patients.length && (
+              <div className="std-chips">
+                {filterPatients.map(id => (
+                  <span className="std-chip" key={id}>
+                    {patientMap[id] || `Patient ${id}`}
+                    <button
+                      type="button"
+                      className="std-chip-remove"
+                      onClick={() => setFilterPatients(p => p.filter(x => x !== id))}
+                    >×</button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {/* Options */}
+            <div className="std-options-row">
+              <label className="std-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={exportSelectedOnly}
+                  onChange={e => setExportSelectedOnly(e.target.checked)}
+                />
+                Export only selected patients
+              </label>
+              <label className="std-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={tableFilterActive}
+                  onChange={e => setTableFilterActive(e.target.checked)}
+                />
+                Show only selected patients in table
+              </label>
+            </div>
+          </form>
+        </div>
+
+        {/* Table section */}
+        {dataLoaded && (
+          <>
+            {/* Stats */}
+            <div className="std-stats-bar">
+              <div className="std-stat accent">
+                <div className="std-stat-val">{displayData.length}</div>
+                <div className="std-stat-lbl">Records shown</div>
+              </div>
+              <div className="std-stat">
+                <div className="std-stat-val">{uniquePatients}</div>
+                <div className="std-stat-lbl">Total patients</div>
+              </div>
+              <div className="std-stat">
+                <div className="std-stat-val">{medicationData.length}</div>
+                <div className="std-stat-lbl">Total records</div>
+              </div>
+              {filterPatients.length > 0 && (
+                <div className="std-stat">
+                  <div className="std-stat-val">{filterPatients.length}</div>
+                  <div className="std-stat-lbl">Patients selected</div>
+                </div>
+              )}
+            </div>
+
+            <div className="std-table-card">
+              {loading && (
+                <div className="std-overlay">
+                  <div className="std-spinner" />
                 </div>
               )}
 
-              <Card.Body>
-                {/* <div className="d-flex justify-content-between flex-wrap mb-3">
-                                    <Typography variant="h5" gutterBottom>
-                                        <span style={{ color: '#000' }}>Medication List</span>
-                                    </Typography>
-                                    <div>
-                                        <Form.Control
-                                            type="text"
-                                            placeholder="Search..."
-                                            onChange={(e) => handleSearch('medication', e.target.value)}
-                                            style={{ width: '200px' }}
-                                        />
-                                    </div>
-                                </div> */}
-
-                <div style={{ overflowX: 'auto' }}>
-                  <Table responsive style={{ border: '1px solid #dee2e6' }}>
-                    <thead>
-                      <tr>
-                        <th style={{ textAlign: 'center', fontWeight: '500', width: '100px', borderBottom: '1px solid #dee2e6' }}>S. No</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', width: '300px', borderBottom: '1px solid #dee2e6' }}>
-                          Patient Name
-                        </th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', width: '200px', borderBottom: '1px solid #dee2e6' }}>Age</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', width: '500px', borderBottom: '1px solid #dee2e6' }}>
-                          Medicine
-                        </th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Dosage</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Schedule</th>
-                        {/* <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Remaining Quantity</th> */}
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Remind me when</th>
-                        {/* <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Reminder Time</th> */}
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Instruction</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Created Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {medicationData.length > 0 ? (
-                        getPaginatedData(medicationData, 'medication').currentItems.map((item, index) => (
-                          <tr key={item.medication_id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                            <td style={{ textAlign: 'center', width: '120px', borderBottom: '1px solid #dee2e6' }}>
-                              {getPaginatedData(medicationData, 'medication').indexOfFirstItem + index + 1}
-                            </td>
-                            <td style={{ textAlign: 'center', width: '300px', borderBottom: '1px solid #dee2e6' }}>{item.patient_name || '-'}</td>
-                            <td style={{ textAlign: 'center', width: '200px', borderBottom: '1px solid #dee2e6' }}>
-                              {calculateAge(item.dob) + ' years'}
-                            </td>
-                            <td
-                              style={{
-                                textAlign: 'center',
-                                borderBottom: '1px solid #dee2e6',
-                                textWrap: 'wrap',
-                                width: '100px !important' // Optional: Limit column width
-                              }}
-                            >
-                              {item.medicine_name || '-'}
-                            </td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6', width: '250px' }}>{item.dosage || '-'}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                              {item.schedule == 0 ? 'Daily' : 'Weekly' || '-'}
-                            </td>
-                            {/* <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.remaing_quantity || "1"}</td> */}
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.remind_quantity || '1'}</td>
-                            {/* <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.reminder_time}</td> */}
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.instruction || '-'}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                              {new Date(item.createtime).toLocaleDateString()}
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={7} className="text-center" style={{ borderBottom: '1px solid #dee2e6' }}>
-                            No Data Found
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </Table>
-                </div>
-
-                {medicationData.length > 0 && (
-                  <div className="d-flex justify-content-between mt-3">
-                    <p style={{ fontWeight: '500' }}>
-                      {`Showing ${getPaginatedData(medicationData, 'medication').indexOfFirstItem + 1} to ${getPaginatedData(medicationData, 'medication').indexOfLastItem} of ${getPaginatedData(medicationData, 'medication').totalItems} entries`}
+              <div className="std-table-header">
+                <div>
+                  <p className="std-table-title">Medication Records</p>
+                  {(from_date || to_date) && (
+                    <p className="std-table-meta">
+                      {from_date && `From ${new Date(from_date).toLocaleDateString()}`}
+                      {from_date && to_date && ' — '}
+                      {to_date && `To ${new Date(to_date).toLocaleDateString()}`}
                     </p>
-                    <Stack spacing={2}>
-                      <Pagination
-                        count={getPaginatedData(medicationData, 'medication').totalPages}
-                        page={currentPage.medication}
-                        onChange={(e, value) => handlePageChange('medication', value)}
-                        color="primary"
-                      />
-                    </Stack>
-                  </div>
+                  )}
+                </div>
+
+                {displayData.length > 0 && (
+                  <button className="std-export-btn" onClick={exportToExcel}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                      <polyline points="7 10 12 15 17 10"/>
+                      <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    Export Excel
+                    {exportSelectedOnly && filterPatients.length > 0 &&
+                      ` (${filterPatients.length})`
+                    }
+                  </button>
                 )}
-              </Card.Body>
-            </Card>
-          )}
+              </div>
 
-          {/* Adverse Reaction Tab */}
-          {activeTab === 'adverseReaction' && (
-            <Card>
-              {adverseReactionData.length > 0 && (
-                <div className="mb-3 pt-3 px-3 text-end">
-                  <Button
-                    variant="success"
-                    onClick={() => exportToExcel(adverseReactionData, 'AdverseReaction')}
-                    style={{ backgroundColor: '#0ccfb5', border: 'none' }}
-                  >
-                    Export to Excel
-                  </Button>
-                </div>
-              )}
-
-              <Card.Body>
-                {/* <div className="d-flex justify-content-between flex-wrap mb-3">
-                                    <Typography variant="h5" gutterBottom>
-                                        <span style={{ color: '#000' }}>Adverse Reaction List</span>
-                                    </Typography>
-                                    <div>
-                                        <Form.Control
-                                            type="text"
-                                            placeholder="Search..."
-                                            onChange={(e) => handleSearch('adverseReaction', e.target.value)}
-                                            style={{ width: '200px' }}
-                                        />
-                                    </div>
-                                </div> */}
-
-                <div style={{ overflowX: 'auto' }}>
-                  <Table responsive style={{ whiteSpace: 'nowrap', border: '1px solid #dee2e6' }}>
-                    <thead>
-                      <tr>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>S. No</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Patient Name</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Medicine Name</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Dosage</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Medicine Type</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Symptom</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Description</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Medication start date</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Reaction Date</th>
-                        {/* <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Created Date</th> */}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {adverseReactionData.length > 0 ? (
-                        getPaginatedData(adverseReactionData, 'adverseReaction').currentItems.map((item, index) => (
-                          <tr key={item.adverse_reaction_id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                              {getPaginatedData(adverseReactionData, 'adverseReaction').indexOfFirstItem + index + 1}
-                            </td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.patient_name}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.medicine_name}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.dosage}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.category_name}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.symptom_name}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.instruction}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                              {new Date(item.medication_start_date).toLocaleDateString()}
-                            </td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                              {new Date(item.reaction_date).toLocaleDateString()}
-                            </td>
-                            {/* <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                                                            {new Date(item.createtime).toLocaleDateString()}
-                                                        </td> */}
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={7} className="text-center" style={{ borderBottom: '1px solid #dee2e6' }}>
-                            No Data Found
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </Table>
-                </div>
-
-                {adverseReactionData.length > 0 && (
-                  <div className="d-flex justify-content-between mt-3">
-                    <p style={{ fontWeight: '500' }}>
-                      {`Showing ${getPaginatedData(adverseReactionData, 'adverseReaction').indexOfFirstItem + 1} to ${getPaginatedData(adverseReactionData, 'adverseReaction').indexOfLastItem} of ${getPaginatedData(adverseReactionData, 'adverseReaction').totalItems} entries`}
-                    </p>
-                    <Stack spacing={2}>
-                      <Pagination
-                        count={getPaginatedData(adverseReactionData, 'adverseReaction').totalPages}
-                        page={currentPage.adverseReaction}
-                        onChange={(e, value) => handlePageChange('adverseReaction', value)}
-                        color="primary"
-                      />
-                    </Stack>
+              <div className="std-table-body">
+                {displayData.length === 0 ? (
+                  <div className="std-empty">
+                    <div className="std-empty-icon">🗂</div>
+                    <p>No records match the current filters</p>
                   </div>
+                ) : (
+                  <CustomTable
+                    columns={columns}
+                    data={displayData}
+                    currentPage={currentPage}
+                    rowsPerPage={rowsPerPage}
+                    onPageChange={(page) => setCurrentPage(page)}
+                    onRowsPerPageChange={(size) => { setRowsPerPage(size); setCurrentPage(1); }}
+                  />
                 )}
-              </Card.Body>
-            </Card>
-          )}
-
-          {/* Lab Reports Tab */}
-          {activeTab === 'labReport' && (
-            <Card>
-              {labReportData.length > 0 && (
-                <div className="mb-3 pt-3 px-3 text-end">
-                  <Button
-                    variant="success"
-                    onClick={() => exportToExcel(labReportData, 'LabReports')}
-                    style={{ backgroundColor: '#0ccfb5', border: 'none' }}
-                  >
-                    Export to Excel
-                  </Button>
-                </div>
-              )}
-
-              <Card.Body>
-                {/* <div className="d-flex justify-content-between flex-wrap mb-3">
-                                    <Typography variant="h5" gutterBottom>
-                                        <span style={{ color: '#000' }}>Lab Report List</span>
-                                    </Typography>
-                                    <div>
-                                        <Form.Control
-                                            type="text"
-                                            placeholder="Search..."
-                                            onChange={(e) => handleSearch('labReport', e.target.value)}
-                                            style={{ width: '200px' }}
-                                        />
-                                    </div>
-                                </div> */}
-
-                <div style={{ overflowX: 'auto' }}>
-                  <Table responsive style={{ whiteSpace: 'nowrap', border: '1px solid #dee2e6' }}>
-                    <thead>
-                      <tr>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>S. No</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Patient Name</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Category</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Report</th>
-                        {/* <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Created Date</th> */}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {labReportData.length > 0 ? (
-                        getPaginatedData(labReportData, 'labReport').currentItems.map((report, index) => (
-                          <tr key={report.medical_report_id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                              {getPaginatedData(labReportData, 'labReport').indexOfFirstItem + index + 1}
-                            </td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{report.patient_name}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{report.category_name}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                              <Button
-                                variant="link"
-                                onClick={() => handleViewPdf(report.file)}
-                                style={{ padding: 0, textDecoration: 'none' }}
-                              >
-                                <VisibilityIcon style={{ color: '#0ccfb5' }} /> View
-                              </Button>
-                            </td>
-                            {/* <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                                                            {new Date(report.createtime).toLocaleDateString()}
-                                                        </td> */}
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={5} className="text-center" style={{ borderBottom: '1px solid #dee2e6' }}>
-                            No Data Found
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </Table>
-                </div>
-
-                {labReportData.length > 0 && (
-                  <div className="d-flex justify-content-between mt-3">
-                    <p style={{ fontWeight: '500' }}>
-                      {`Showing ${getPaginatedData(labReportData, 'labReport').indexOfFirstItem + 1} to ${getPaginatedData(labReportData, 'labReport').indexOfLastItem} of ${getPaginatedData(labReportData, 'labReport').totalItems} entries`}
-                    </p>
-                    <Stack spacing={2}>
-                      <Pagination
-                        count={getPaginatedData(labReportData, 'labReport').totalPages}
-                        page={currentPage.labReport}
-                        onChange={(e, value) => handlePageChange('labReport', value)}
-                        color="primary"
-                      />
-                    </Stack>
-                  </div>
-                )}
-              </Card.Body>
-            </Card>
-          )}
-
-          {/* Measurements Tab */}
-          {activeTab === 'measurement' && (
-            <Card>
-              {measurementData.length > 0 && (
-                <div className="mb-3 pt-3 px-3 text-end">
-                  <Button
-                    variant="success"
-                    onClick={() => exportToExcel(measurementData, 'Measurements')}
-                    style={{ backgroundColor: '#0ccfb5', border: 'none' }}
-                  >
-                    Export to Excel
-                  </Button>
-                </div>
-              )}
-
-              <Card.Body>
-                {/* <div className="d-flex justify-content-between flex-wrap mb-3">
-                                    <Typography variant="h5" gutterBottom>
-                                        <span style={{ color: '#000' }}>Measurements List</span>
-                                    </Typography>
-                                    <div>
-                                        <Form.Control
-                                            type="text"
-                                            placeholder="Search..."
-                                            onChange={(e) => handleSearch('measurement', e.target.value)}
-                                            style={{ width: '200px' }}
-                                        />
-                                    </div>
-                                </div> */}
-
-                <div style={{ overflowX: 'auto' }}>
-                  <Table responsive style={{ whiteSpace: 'nowrap', border: '1px solid #dee2e6' }}>
-                    <thead>
-                      <tr>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>S. No</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Patient Name</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Systolic BP</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Diastolic BP</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Pulse</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Weight</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>PPBGS</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Glucose</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Temperature</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Symptom</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Range</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Time</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {measurementData.length > 0 ? (
-                        getPaginatedData(measurementData, 'measurement').currentItems.map((item, index) => (
-                          <tr key={item.measurement_id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                              {getPaginatedData(measurementData, 'measurement').indexOfFirstItem + index + 1}
-                            </td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.patient_name || '-'}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.systolic_bp|| '-'}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.diastolic_bp|| '-'}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.pulse|| '-'}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.weight ? `${item.weight} KG` : '-'} </td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.ppbgs ? `${item.ppbgs} mg/dl` : '-'} </td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.fasting_glucose ? `${item.fasting_glucose} mg/dl` : '-'} </td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.temperature ? `${item.temperature} °C` : '-'} </td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.symptom || '-'}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.symptom_range || '-'}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.time|| '-'}</td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                              {new Date(item.date).toLocaleDateString()}
-                            </td>
-                            {/* <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                                                            {new Date(item.createtime).toLocaleDateString()}
-                                                        </td> */}
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={9} className="text-center" style={{ borderBottom: '1px solid #dee2e6' }}>
-                            No Data Found
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </Table>
-                </div>
-
-                {measurementData.length > 0 && (
-                  <div className="d-flex justify-content-between mt-3">
-                    <p style={{ fontWeight: '500' }}>
-                      {`Showing ${getPaginatedData(measurementData, 'measurement').indexOfFirstItem + 1} to ${getPaginatedData(measurementData, 'measurement').indexOfLastItem} of ${getPaginatedData(measurementData, 'measurement').totalItems} entries`}
-                    </p>
-                    <Stack spacing={2}>
-                      <Pagination
-                        count={getPaginatedData(measurementData, 'measurement').totalPages}
-                        page={currentPage.measurement}
-                        onChange={(e, value) => handlePageChange('measurement', value)}
-                        color="primary"
-                      />
-                    </Stack>
-                  </div>
-                )}
-              </Card.Body>
-            </Card>
-          )}
-
-          {/* Compliance Tab */}
-          {activeTab === 'compliance' && (
-            <Card>
-              {complianceData.length > 0 && (
-                <div className="mb-3 pt-3 px-3 text-end">
-                  <Button
-                    variant="success"
-                    onClick={() => exportToExcel(complianceData, 'Compliance')}
-                    style={{ backgroundColor: '#0ccfb5', border: 'none' }}
-                  >
-                    Export to Excel
-                  </Button>
-                </div>
-              )}
-
-              <Card.Body>
-                {/* <div className="d-flex justify-content-between flex-wrap mb-3">
-                                    <Typography variant="h5" gutterBottom>
-                                        <span style={{ color: '#000' }}>Medication List</span>
-                                    </Typography>
-                                    <div>
-                                        <Form.Control
-                                            type="text"
-                                            placeholder="Search..."
-                                            onChange={(e) => handleSearch('medication', e.target.value)}
-                                            style={{ width: '200px' }}
-                                        />
-                                    </div>
-                                </div> */}
-
-                <div style={{ overflowX: 'auto' }}>
-                  <Table responsive style={{ border: '1px solid #dee2e6' }}>
-                    <thead>
-                      <tr>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>S. No</th>
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Medicine Name</th>
-                        {/* <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Patient Name</th> */}
-                        <th style={{ textAlign: 'center', fontWeight: '500', borderBottom: '1px solid #dee2e6' }}>Taken Status</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                      {complianceData.length > 0 ? (
-                        getPaginatedData(complianceData, 'medication').currentItems.map((item, index) => (
-                          <tr key={item.medication_id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                              {getPaginatedData(complianceData, 'medication').indexOfFirstItem + index + 1}
-                            </td>
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6', textWrap: 'wrap', width: '200px' }}>
-                              {item.medicine_name}
-                            </td>
-                            {/* <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.name}</td> */}
-                            <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                              {item.taken_status == 0 ? 'Not taken' : item.taken_status == 1 ? 'Taken' : 'NA'}
-                            </td>
-                            {/* <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.dosage}</td>
-                                                        <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.schedule == 0 ? "Daily" : "Weekly"}</td>
-                                                        <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.remaing_quantity || "1"}</td>
-                                                        <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.remind_quantity || "1"}</td>
-                                                        <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.reminder_time}</td>
-                                                        <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{item.instruction}</td> */}
-                            {/* <td style={{ textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                                                            {new Date(item.createtime).toLocaleDateString()}
-                                                        </td> */}
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan={7} className="text-center" style={{ borderBottom: '1px solid #dee2e6' }}>
-                            No Data Found
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </Table>
-                </div>
-
-                {complianceData.length > 0 && (
-                  <div className="d-flex justify-content-between mt-3">
-                    <p style={{ fontWeight: '500' }}>
-                      {`Showing ${getPaginatedData(complianceData, 'medication').indexOfFirstItem + 1} to ${getPaginatedData(complianceData, 'medication').indexOfLastItem} of ${getPaginatedData(complianceData, 'medication').totalItems} entries`}
-                    </p>
-                    <Stack spacing={2}>
-                      <Pagination
-                        count={getPaginatedData(complianceData, 'medication').totalPages}
-                        page={currentPage.medication}
-                        onChange={(e, value) => handlePageChange('medication', value)}
-                        color="primary"
-                      />
-                    </Stack>
-                  </div>
-                )}
-              </Card.Body>
-            </Card>
-          )}
-        </>
-      )}
-
-      {/* PDF Modal */}
-      <Modal show={showPdfModal} onHide={() => setShowPdfModal(false)} size="lg" centered>
-        <Modal.Header closeButton>
-          <Modal.Title>View Report</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <iframe
-            src={`${IMAGE_PATH}${currentPdf}`}
-            style={{ width: '100%', height: '320px' }}
-            // frameBorder="0"
-            title="PDF Viewer"
-          ></iframe>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowPdfModal(false)}>
-            Close
-          </Button>
-        </Modal.Footer>
-      </Modal>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </>
   );
 }

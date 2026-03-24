@@ -8,7 +8,7 @@ const StyledCard = styled(Card)(() => ({
   background: "#fff",
   boxShadow: "0 4px 16px rgba(0,0,0,0.05)",
   transition: "all .25s ease",
-  cursor: "pointer",
+  // cursor: "pointer",
 
   "&:hover": {
     transform: "translateY(-4px)",
