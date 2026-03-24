@@ -299,7 +299,7 @@ const MeasurementChart = ({ data, type }) => {
                     {
                         y: 70, y2: 99, fillColor: "#22c55e", opacity: 0.08,
                         label: {
-                            text: "Normal",
+                            // text: "Normal",
                             style: {
                                 color: "#166534", background: "#fff", fontSize: "9px", fontWeight: 500,
                                 padding: { left: 4, right: 4, top: 2, bottom: 2 }

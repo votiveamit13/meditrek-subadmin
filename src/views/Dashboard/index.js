@@ -6,7 +6,7 @@ import { Grid } from '@mui/material';
 
 //project import
 import ReportCard from './ReportCard';
-import { APP_PREFIX_PATH } from 'config.js';
+// import { APP_PREFIX_PATH } from 'config.js';
 import { Base_Url } from '../../config';
 
 // assets
@@ -16,7 +16,7 @@ import { Base_Url } from '../../config';
 // import PermPhoneMsgIcon from '@mui/icons-material/PermPhoneMsg';
 // import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+// import { Link } from 'react-router-dom';
 import PatientGrowthChart from './Graph/PatientGrowthChart';
 import GenderChart from './Graph/GenderChart';
 import AgeChart from './Graph/AgeChart';
@@ -46,6 +46,8 @@ const [medicationGrowth, setMedicationGrowth] = useState(null);
 const [adverseGrowth, setAdverseGrowth] = useState(null);
 const [labGrowth, setLabGrowth] = useState(null);
 const [measurementGrowth, setMeasurementGrowth] = useState(null);
+const [selectedYear, setSelectedYear] = useState("");
+const [graphLoading, setGraphLoading] = useState(false);
 
   const fetchUserDetails = async () => {
     try {
@@ -157,22 +159,39 @@ const [measurementGrowth, setMeasurementGrowth] = useState(null);
     }
   };
 
-  const fetchGraphData = async () => {
+const fetchGraphData = async (year) => {
   try {
+    setGraphLoading(true);
+
     const token = sessionStorage.getItem("token");
 
-    const response = await axios.get(`${Base_Url}dashboard_graphs`, {
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+    const response = await axios.get(
+      `${Base_Url}dashboard_graphs${year ? `?year=${year}` : ""}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       }
-    });
+    );
 
     if (response.data.status) {
       setGraphData(response.data);
+
+      // auto set latest year
+      const currentYear = new Date().getFullYear();
+
+if (!selectedYear && response.data.availableYears?.length) {
+  const matchedYear = response.data.availableYears.find(
+    y => y === currentYear
+  );
+
+  setSelectedYear(matchedYear || response.data.availableYears[0]);
+}
     }
-  } catch (error) {
+  }  catch (error) {
     console.error("Graph API error:", error);
+  } finally {
+    setGraphLoading(false);
   }
 };
 
@@ -182,8 +201,11 @@ const [measurementGrowth, setMeasurementGrowth] = useState(null);
     fetchAdverseDetails();
     fetchLabreportsDetails();
     fetchmeasurementDetails();
-    fetchGraphData();
   }, []);
+
+  useEffect(() => {
+  fetchGraphData(selectedYear);
+}, [selectedYear]);
 
   return (
     <>
@@ -202,13 +224,13 @@ const [measurementGrowth, setMeasurementGrowth] = useState(null);
           }}
         >
           <Grid item xs={12} sm={6} md={4} lg={2.4}>
-            <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}>
+            {/* <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}> */}
               <ReportCard primary={patient} secondary="Total Patients" growth={`${patientGrowth}%`} color={theme.palette.success.main} iconPrimary={PeopleAltIcon} loading={!patient} />
-            </Link>
+            {/* </Link> */}
           </Grid>
 
           <Grid item xs={12} sm={6} md={4} lg={2.4}>
-            <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}>
+            {/* <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}> */}
               <ReportCard
                 primary={medication}
                 secondary="Total Medications"
@@ -217,23 +239,23 @@ const [measurementGrowth, setMeasurementGrowth] = useState(null);
                 iconPrimary={MedicationIcon}
                 loading={!patient} 
               />
-            </Link>
+            {/* </Link> */}
           </Grid>
 
           <Grid item xs={12} sm={6} md={4} lg={2.4}>
-            <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}>
+            {/* <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}> */}
               <ReportCard primary={adverse} secondary="Adverse Reactions" growth={`${adverseGrowth}%`} color={theme.palette.warning.main} iconPrimary={WarningAmberIcon} loading={!patient} />
-            </Link>
+            {/* </Link> */}
           </Grid>
 
           <Grid item xs={12} sm={6} md={4} lg={2.4}>
-            <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}>
+            {/* <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}> */}
               <ReportCard primary={lab} secondary="Lab Reports" growth={`${labGrowth}%`} color={theme.palette.warning.main} iconPrimary={ScienceIcon} loading={!patient} />
-            </Link>
+            {/* </Link> */}
           </Grid>
 
           <Grid item xs={12} sm={6} md={4} lg={2.4}>
-            <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}>
+            {/* <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}> */}
               <ReportCard
                 primary={measurement}
                 secondary="Total Measurements"
@@ -242,7 +264,7 @@ const [measurementGrowth, setMeasurementGrowth] = useState(null);
                 iconPrimary={MonitorHeartIcon}
                 loading={!patient} 
               />
-            </Link>
+            {/* </Link> */}
           </Grid>
         </Grid>
 
@@ -278,7 +300,13 @@ const [measurementGrowth, setMeasurementGrowth] = useState(null);
                 minHeight: 320
               }}
             >
-              <PatientGrowthChart data={graphData?.monthlyPatients} />
+              <PatientGrowthChart 
+                 data={graphData?.monthlyPatients}
+  availableYears={graphData?.availableYears}
+  selectedYear={selectedYear}
+  setSelectedYear={setSelectedYear}
+  loading={graphLoading} 
+              />
             </Box>
           </Grid>
 

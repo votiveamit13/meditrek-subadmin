@@ -12,7 +12,8 @@ const CustomTable = ({
     rowsPerPage,
     onPageChange,
     onRowsPerPageChange,
-    hideRowsPerPage = false
+    hideRowsPerPage = false,
+    hidePagination = false
 }) => {
 
     const indexOfLast = currentPage * rowsPerPage;
@@ -107,6 +108,7 @@ const CustomTable = ({
             </div>
 
             {/* PAGINATION */}
+            {!hidePagination && (
             <CustomPagination
                 count={data.length}
                 page={currentPage}
@@ -115,6 +117,7 @@ const CustomTable = ({
                 onRowsPerPageChange={onRowsPerPageChange}
                 hideRowsPerPage={hideRowsPerPage}
             />
+            )}
         </div>
     );
 };
