@@ -3,9 +3,6 @@ import TagSearch from "./Analytics/TagSearch";
 import AgeRangeFilter from "./Analytics/AgeRangeFilter";
 import GenderFilter from "./Analytics/GenderFilter";
 
-/* ============================================================
-   SHARED MOCK DATA
-   ============================================================ */
 const ALL_PATIENTS = [
   { id: 1, name: "John Smith", age: 65, gender: "Male", conditions: ["Hypertension", "Diabetes"], meds: ["Lisinopril", "Metformin"], reportedHealth: ["Headache", "Fatigue"] },
   { id: 2, name: "Michael Brown", age: 72, gender: "Male", conditions: ["Hypertension", "CAD", "Hyperlipidemia"], meds: ["Amlodipine", "Atorvastatin", "Metoprolol"], reportedHealth: ["Chest Pain", "Dizziness"] },
@@ -29,10 +26,8 @@ const AGE_GROUPS = {
 
 const ACCENT = "#1ddec4";
 const ACCENT_BG = "rgba(29,222,196,0.13)";
+const GCOLORS = { Male: ACCENT, Female: "#60a5fa", Other: "#8b5cf6" };
 
-/* ============================================================
-   STYLE HELPERS
-   ============================================================ */
 const styles = {
   wrap: { display: "flex", gap: 24, fontFamily: "'DM Sans', sans-serif", minHeight: "100vh", background: "#f7f8fc" },
   nav: { width: 210, minWidth: 180, background: "#fff", borderRight: "1px solid #e8eaf0", display: "flex", flexDirection: "column", gap: 4, borderRadius: "0 16px 16px 0" },
@@ -70,6 +65,7 @@ const styles = {
   noData: { textAlign: "center", padding: 32, color: "#94a3b8", fontSize: 13 },
   progressBg: { background: "#f1f5f9", borderRadius: 999, height: 6, overflow: "hidden", marginTop: 4 },
   progressFg: (pct, color) => ({ height: "100%", width: `${pct}%`, background: color || ACCENT, borderRadius: 999, transition: "width .5s" }),
+  chartGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 0 },
 };
 
 function Table({ cols, rows, empty = "No data found" }) {
@@ -104,7 +100,7 @@ function StatCard({ label, value, sub }) {
 }
 
 function SimpleBar({ data, color }) {
-  const max = Math.max(...data.map(d => d.value), 1);
+  // const max = Math.max(...data.map(d => d.value), 1);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {data.map((d, i) => (
@@ -113,7 +109,9 @@ function SimpleBar({ data, color }) {
             <span style={{ color: "#374151", fontWeight: 500 }}>{d.label}</span>
             <span style={{ color: color || ACCENT, fontWeight: 700 }}>{d.value}{d.pct != null ? ` (${d.pct}%)` : ""}</span>
           </div>
-          <div style={styles.progressBg}><div style={styles.progressFg((d.value / max) * 100, color)} /></div>
+          <div style={styles.progressBg}>
+  <div style={styles.progressFg(parseFloat(d.pct), color)} />
+</div>
         </div>
       ))}
     </div>
@@ -127,38 +125,64 @@ function MedChips({ arr }) {
   return <>{arr.map((m, i) => <span key={i} style={styles.chip(true)}>{m}</span>)}</>;
 }
 
-/* ============================================================
-   SECTION: DISEASE PATIENTS
-   ============================================================ */
+function buildAgeDist(pts, denom) {
+  const map = {};
+  pts.forEach(p => { const g = Object.keys(AGE_GROUPS).find(k => AGE_GROUPS[k](p.age)) || "Other"; map[g] = (map[g] || 0) + 1; });
+  return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / Math.max(denom, 1)) * 100).toFixed(1) }));
+}
+
+function buildGenderDist(pts, denom) {
+  const map = {};
+  pts.forEach(p => { map[p.gender] = (map[p.gender] || 0) + 1; });
+  return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / Math.max(denom, 1)) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
+}
+
 function DiseasePatients() {
   const allDiseases = [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
   const [selDiseases, setSelDiseases] = useState([]);
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
+  const [combinedOnly, setCombinedOnly] = useState(false);
 
   const toggle = (d) => setSelDiseases(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
 
+  const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
+    if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
+    if (gender !== "All" && p.gender !== gender) return false;
+    return true;
+  }), [ageGroup, gender]);
+
   const patients = useMemo(() => {
-    if (selDiseases.length === 0) return ALL_PATIENTS.filter(p => {
-      if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
-      if (gender !== "All" && p.gender !== gender) return false;
-      return true;
-    });
-    const seen = new Set();
-    return ALL_PATIENTS.filter(p => {
-      if (!selDiseases.some(d => p.conditions.includes(d))) return false;
-      if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
-      if (gender !== "All" && p.gender !== gender) return false;
-      if (seen.has(p.id)) return false;
-      seen.add(p.id); return true;
-    });
-  }, [selDiseases, ageGroup, gender]);
+    let result = basePool;
+
+    if (selDiseases.length > 0) {
+      const seen = new Set();
+      result = result.filter(p => {
+        if (!selDiseases.some(d => p.conditions.includes(d))) return false;
+        if (seen.has(p.id)) return false;
+        seen.add(p.id);
+        return true;
+      });
+    }
+
+    if (combinedOnly) {
+      result = result.filter(p => p.conditions.length >= 2);
+    }
+
+    return result;
+  }, [selDiseases, basePool, combinedOnly]);
 
   const diseaseDist = useMemo(() => {
     const map = {};
-    patients.forEach(p => p.conditions.forEach(c => { if (!selDiseases.length || selDiseases.includes(c)) { map[c] = (map[c] || 0) + 1; } }));
-    return Object.entries(map).map(([k, v]) => ({ label: k, value: v, pct: ((v / Math.max(patients.length, 1)) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
-  }, [patients, selDiseases]);
+    basePool.forEach(p => p.conditions.forEach(c => {
+      if (!selDiseases.length || selDiseases.includes(c)) { map[c] = (map[c] || 0) + 1; }
+    }));
+    const denom = Math.max(basePool.length, 1);
+    return Object.entries(map).map(([k, v]) => ({ label: k, value: v, pct: ((v / denom) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
+  }, [basePool, selDiseases]);
+
+  const ageDist = useMemo(() => buildAgeDist(patients, patients.length), [patients]);
+  const genderDist = useMemo(() => buildGenderDist(patients, patients.length), [patients]);
 
   return (
     <div>
@@ -182,11 +206,62 @@ function DiseasePatients() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
           {diseaseDist.length > 0 && (
             <div style={styles.card}>
-              <h3 style={styles.h3}>Disease Distribution</h3>
+              <h3 style={styles.h3}>Disease Distribution <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 11 }}>% of matched patients</span></h3>
               <SimpleBar data={diseaseDist} />
             </div>
           )}
+          {patients.length > 0 && (ageDist.length > 0 || genderDist.length > 0) && (
+            <div style={styles.chartGrid}>
+              {ageDist.length > 0 && (
+                <div style={styles.card}>
+                  <h3 style={styles.h3}>Age Breakdown <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 11 }}>% of matched patients</span></h3>
+                  <SimpleBar data={ageDist} />
+                </div>
+              )}
+              {genderDist.length > 0 && (
+                <div style={styles.card}>
+                  <h3 style={styles.h3}>Gender Breakdown <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 11 }}>% of matched patients</span></h3>
+                  {genderDist.map((g, i) => (
+                    <div key={i} style={{ marginBottom: 10 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 2 }}>
+                        <span style={{ fontWeight: 600, color: GCOLORS[g.label] || "#374151" }}>{g.label}</span>
+                        <span style={{ fontWeight: 700, color: GCOLORS[g.label] || ACCENT }}>{g.value} ({g.pct}%)</span>
+                      </div>
+                      <div style={styles.progressBg}><div style={styles.progressFg(parseFloat(g.pct), GCOLORS[g.label])} /></div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <div style={styles.card}>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 12
+            }}>
+              <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>
+                Patients
+              </h3>
+
+              <label style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 12,
+                cursor: "pointer",
+                color: combinedOnly ? ACCENT : "#64748b"
+              }}>
+                <input
+                  type="checkbox"
+                  checked={combinedOnly}
+                  onChange={e => setCombinedOnly(e.target.checked)}
+                  style={{ accentColor: ACCENT }}
+                />
+                Combined Diseases
+              </label>
+            </div>
             <Table
               cols={[
                 { key: "name", label: "Patient Name" },
@@ -205,9 +280,6 @@ function DiseasePatients() {
   );
 }
 
-/* ============================================================
-   SECTION: MEDICATION PATIENTS (merged with combination)
-   ============================================================ */
 function MedicationPatients() {
   const allMeds = [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
   const [selMeds, setSelMeds] = useState([]);
@@ -224,25 +296,35 @@ function MedicationPatients() {
     return Object.entries(map).map(([combo, count]) => ({ combo, count, pct: ((count / ALL_PATIENTS.length) * 100).toFixed(1) })).sort((a, b) => b.count - a.count);
   }, []);
 
-  const patients = useMemo(() => {
-    return ALL_PATIENTS.filter(p => {
-      if (selMeds.length > 0 && !selMeds.every(m => p.meds.includes(m))) return false;
-      if (noOtherMeds && p.meds.some(m => !selMeds.includes(m))) return false;
-      if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
-      if (gender !== "All" && p.gender !== gender) return false;
-      return true;
-    });
-  }, [selMeds, noOtherMeds, ageGroup, gender]);
+  const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
+    if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
+    if (gender !== "All" && p.gender !== gender) return false;
+    return true;
+  }), [ageGroup, gender]);
+
+  const patients = useMemo(() => basePool.filter(p => {
+    if (selMeds.length > 0 && !selMeds.every(m => p.meds.includes(m))) return false;
+    if (noOtherMeds && p.meds.some(m => !selMeds.includes(m))) return false;
+    return true;
+  }), [selMeds, noOtherMeds, basePool]);
 
   const ageRangeDist = useMemo(() => {
     if (selMeds.length === 0) return [];
-    const map = {};
-    patients.forEach(p => {
-      const g = Object.keys(AGE_GROUPS).find(k => AGE_GROUPS[k](p.age)) || "Other";
-      map[g] = (map[g] || 0) + 1;
-    });
-    return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / Math.max(patients.length, 1)) * 100).toFixed(1) }));
+    return buildAgeDist(patients, patients.length);
   }, [patients, selMeds]);
+
+  const genderDist = useMemo(() => {
+    if (selMeds.length === 0) return [];
+    return buildGenderDist(patients, patients.length);
+  }, [patients, selMeds]);
+
+  const medDist = useMemo(() => {
+    if (selMeds.length === 0) return [];
+    const map = {};
+    basePool.forEach(p => p.meds.forEach(m => { if (selMeds.includes(m)) map[m] = (map[m] || 0) + 1; }));
+    const denom = Math.max(basePool.length, 1);
+    return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / denom) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
+  }, [basePool, selMeds]);
 
   return (
     <div>
@@ -252,16 +334,16 @@ function MedicationPatients() {
         <h3 style={styles.h3}>Filters</h3>
         <div className="d-flex align-items-center justify-content-between gap-2">
           <TagSearch label="Medications" all={allMeds} selected={selMeds} onToggle={toggle} searchPlaceholder="Search medications…" />
-          
+
           <AgeRangeFilter value={ageGroup} onChange={setAgeGroup} />
           <GenderFilter value={gender} onChange={setGender} />
         </div>
         <div style={{ marginBottom: 14 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer", color: noOtherMeds ? ACCENT : "#374151" }}>
-              <input type="checkbox" checked={noOtherMeds} onChange={e => setNoOtherMeds(e.target.checked)} style={{ accentColor: ACCENT }} />
-              No other medications
-            </label>
-          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer", color: noOtherMeds ? ACCENT : "#374151" }}>
+            <input type="checkbox" checked={noOtherMeds} onChange={e => setNoOtherMeds(e.target.checked)} style={{ accentColor: ACCENT }} />
+            No other medications
+          </label>
+        </div>
       </div>
       <div style={styles.row}>
         <StatCard label="Matching Patients" value={patients.length} sub={`of ${ALL_PATIENTS.length} total`} />
@@ -292,28 +374,46 @@ function MedicationPatients() {
 
       <div style={styles.sectionRow}>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
-          {ageRangeDist.length > 0 && (
+          {medDist.length > 0 && (
             <div style={styles.card}>
-              <h3 style={styles.h3}>Age Distribution for Selected Medication(s)</h3>
-              <SimpleBar data={ageRangeDist} />
+              <h3 style={styles.h3}>Medication Usage <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 11 }}>% of {basePool.length} patients in group</span></h3>
+              <SimpleBar data={medDist} />
+            </div>
+          )}
+          {patients.length > 0 && selMeds.length > 0 && (
+            <div style={styles.chartGrid}>
+              {ageRangeDist.length > 0 && (
+                <div style={styles.card}>
+                  <h3 style={styles.h3}>Age Breakdown <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 11 }}>% of matched patients</span></h3>
+                  <SimpleBar data={ageRangeDist} />
+                </div>
+              )}
+              {genderDist.length > 0 && (
+                <div style={styles.card}>
+                  <h3 style={styles.h3}>Gender Breakdown <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 11 }}>% of matched patients</span></h3>
+                  {genderDist.map((g, i) => (
+                    <div key={i} style={{ marginBottom: 10 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 2 }}>
+                        <span style={{ fontWeight: 600, color: GCOLORS[g.label] || "#374151" }}>{g.label}</span>
+                        <span style={{ fontWeight: 700, color: GCOLORS[g.label] || ACCENT }}>{g.value} ({g.pct}%)</span>
+                      </div>
+                      <div style={styles.progressBg}><div style={styles.progressFg(parseFloat(g.pct), GCOLORS[g.label])} /></div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           <div style={styles.card}>
-            {selMeds.length === 0 && (
-              <div style={{ ...styles.noData, padding: "16px 0 8px" }}>Select at least one medication to see patients</div>
-            )}
-            <Table
-              cols={[
-                { key: "name", label: "Patient Name" },
-                { key: "age", label: "Age" },
-                { key: "gender", label: "Gender", render: r => <span style={styles.badge(r.gender)}>{r.gender}</span> },
-                { key: "conditions", label: "Diseases", render: r => <DiseaseChips arr={r.conditions} /> },
-                { key: "meds", label: "Selected Meds", render: r => <MedChips arr={r.meds.filter(m => selMeds.includes(m))} /> },
-                { key: "othermeds", label: "Other Meds", render: r => <>{r.meds.filter(m => !selMeds.includes(m)).map((m, i) => <span key={i} style={styles.chip(false)}>{m}</span>)}</> },
-              ]}
-              rows={patients}
-              empty="No patients match the selected filters"
-            />
+            {selMeds.length === 0 && <div style={{ ...styles.noData, padding: "16px 0 8px" }}>Select at least one medication to see patients</div>}
+            <Table cols={[
+              { key: "name", label: "Patient Name" },
+              { key: "age", label: "Age" },
+              { key: "gender", label: "Gender", render: r => <span style={styles.badge(r.gender)}>{r.gender}</span> },
+              { key: "conditions", label: "Diseases", render: r => <DiseaseChips arr={r.conditions} /> },
+              { key: "meds", label: "Selected Meds", render: r => <MedChips arr={r.meds.filter(m => selMeds.includes(m))} /> },
+              { key: "othermeds", label: "Other Meds", render: r => <>{r.meds.filter(m => !selMeds.includes(m)).map((m, i) => <span key={i} style={styles.chip(false)}>{m}</span>)}</> },
+            ]} rows={patients} empty="No patients match the selected filters" />
           </div>
         </div>
       </div>
@@ -321,9 +421,6 @@ function MedicationPatients() {
   );
 }
 
-/* ============================================================
-   SECTION: DISEASE → MEDICATION
-   ============================================================ */
 function DiseaseMedication() {
   const allDiseases = [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
   const allMeds = [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
@@ -335,19 +432,27 @@ function DiseaseMedication() {
   const toggleD = (d) => setSelDiseases(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
   const toggleM = (m) => setSelMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
-  const patients = useMemo(() => ALL_PATIENTS.filter(p => {
-    if (selDiseases.length > 0 && !selDiseases.some(d => p.conditions.includes(d))) return false;
-    if (selMeds.length > 0 && !selMeds.some(m => p.meds.includes(m))) return false;
+  const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
     if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
     if (gender !== "All" && p.gender !== gender) return false;
     return true;
-  }), [selDiseases, selMeds, ageGroup, gender]);
+  }), [ageGroup, gender]);
+
+  const patients = useMemo(() => basePool.filter(p => {
+    if (selDiseases.length > 0 && !selDiseases.some(d => p.conditions.includes(d))) return false;
+    if (selMeds.length > 0 && !selMeds.some(m => p.meds.includes(m))) return false;
+    return true;
+  }), [selDiseases, selMeds, basePool]);
 
   const medDist = useMemo(() => {
     const map = {};
-    patients.forEach(p => p.meds.forEach(m => { map[m] = (map[m] || 0) + 1; }));
-    return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / Math.max(patients.length, 1)) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
-  }, [patients]);
+    basePool.forEach(p => p.meds.forEach(m => { map[m] = (map[m] || 0) + 1; }));
+    const denom = Math.max(basePool.length, 1);
+    return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / denom) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
+  }, [basePool]);
+
+  const ageDist = useMemo(() => buildAgeDist(patients, patients.length), [patients]);
+  const genderDist = useMemo(() => buildGenderDist(patients, patients.length), [patients]);
 
   return (
     <div>
@@ -371,22 +476,38 @@ function DiseaseMedication() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
           {medDist.length > 0 && (
             <div style={styles.card}>
-              <h3 style={styles.h3}>Medication Distribution</h3>
+              <h3 style={styles.h3}>Medication Distribution <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 11 }}>% of {basePool.length} patients in group</span></h3>
               <SimpleBar data={medDist} />
             </div>
           )}
+          {patients.length > 0 && (
+            <div style={styles.chartGrid}>
+              <div style={styles.card}>
+                <h3 style={styles.h3}>Age Breakdown</h3>
+                <SimpleBar data={ageDist} />
+              </div>
+              <div style={styles.card}>
+                <h3 style={styles.h3}>Gender Breakdown</h3>
+                {genderDist.map((g, i) => (
+                  <div key={i} style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 2 }}>
+                      <span style={{ fontWeight: 600, color: GCOLORS[g.label] || "#374151" }}>{g.label}</span>
+                      <span style={{ fontWeight: 700, color: GCOLORS[g.label] || ACCENT }}>{g.value} ({g.pct}%)</span>
+                    </div>
+                    <div style={styles.progressBg}><div style={styles.progressFg(parseFloat(g.pct), GCOLORS[g.label])} /></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={styles.card}>
-            <Table
-              cols={[
-                { key: "name", label: "Patient Name" },
-                { key: "age", label: "Age" },
-                { key: "gender", label: "Gender", render: r => <span style={styles.badge(r.gender)}>{r.gender}</span> },
-                { key: "conditions", label: "Diseases", render: r => <DiseaseChips arr={r.conditions} /> },
-                { key: "meds", label: "Medications", render: r => <MedChips arr={r.meds} /> },
-              ]}
-              rows={patients}
-              empty="No patients match the selected filters"
-            />
+            <Table cols={[
+              { key: "name", label: "Patient Name" },
+              { key: "age", label: "Age" },
+              { key: "gender", label: "Gender", render: r => <span style={styles.badge(r.gender)}>{r.gender}</span> },
+              { key: "conditions", label: "Diseases", render: r => <DiseaseChips arr={r.conditions} /> },
+              { key: "meds", label: "Medications", render: r => <MedChips arr={r.meds} /> },
+            ]} rows={patients} empty="No patients match the selected filters" />
           </div>
         </div>
       </div>
@@ -394,9 +515,6 @@ function DiseaseMedication() {
   );
 }
 
-/* ============================================================
-   SECTION: COMBINED DISEASES
-   ============================================================ */
 function CombinedDiseases() {
   const allDiseases = [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
   const [selDiseases, setSelDiseases] = useState([]);
@@ -412,21 +530,29 @@ function CombinedDiseases() {
     return Object.entries(map).map(([combo, count]) => ({ combo, count, pct: ((count / ALL_PATIENTS.length) * 100).toFixed(1) })).sort((a, b) => b.count - a.count);
   }, []);
 
-  const patients = useMemo(() => {
-    return ALL_PATIENTS.filter(p => {
-      if (selDiseases.length > 0 && !selDiseases.every(d => p.conditions.includes(d))) return false;
-      if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
-      if (gender !== "All" && p.gender !== gender) return false;
-      if (p.conditions.length < 2) return false;
-      return true;
-    }).map(p => ({ ...p, otherDiseases: p.conditions.filter(c => !selDiseases.includes(c)) }));
-  }, [selDiseases, ageGroup, gender]);
+  const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
+    if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
+    if (gender !== "All" && p.gender !== gender) return false;
+    return true;
+  }), [ageGroup, gender]);
+
+  const patients = useMemo(() => basePool.filter(p => {
+    if (selDiseases.length > 0 && !selDiseases.every(d => p.conditions.includes(d))) return false;
+    if (p.conditions.length < 2) return false;
+    return true;
+  }).map(p => ({ ...p, otherDiseases: p.conditions.filter(c => !selDiseases.includes(c)) })), [selDiseases, basePool]);
 
   const coDist = useMemo(() => {
     const map = {};
-    patients.forEach(p => p.conditions.forEach(c => { if (!selDiseases.includes(c)) { map[c] = (map[c] || 0) + 1; } }));
-    return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / Math.max(patients.length, 1)) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
-  }, [patients, selDiseases]);
+    basePool.filter(p => p.conditions.length >= 2).forEach(p => p.conditions.forEach(c => {
+      if (!selDiseases.includes(c)) map[c] = (map[c] || 0) + 1;
+    }));
+    const denom = Math.max(basePool.filter(p => p.conditions.length >= 2).length, 1);
+    return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / denom) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
+  }, [basePool, selDiseases]);
+
+  const ageDist = useMemo(() => buildAgeDist(patients, patients.length), [patients]);
+  const genderDist = useMemo(() => buildGenderDist(patients, patients.length), [patients]);
 
   return (
     <div>
@@ -468,23 +594,39 @@ function CombinedDiseases() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
           {coDist.length > 0 && (
             <div style={styles.card}>
-              <h3 style={styles.h3}>Co-occurring Disease Distribution</h3>
+              <h3 style={styles.h3}>Co-occurring Disease Distribution <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 11 }}>% of multi-disease patients in group</span></h3>
               <SimpleBar data={coDist} />
             </div>
           )}
+          {patients.length > 0 && (
+            <div style={styles.chartGrid}>
+              <div style={styles.card}>
+                <h3 style={styles.h3}>Age Breakdown</h3>
+                <SimpleBar data={ageDist} />
+              </div>
+              <div style={styles.card}>
+                <h3 style={styles.h3}>Gender Breakdown</h3>
+                {genderDist.map((g, i) => (
+                  <div key={i} style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 2 }}>
+                      <span style={{ fontWeight: 600, color: GCOLORS[g.label] || "#374151" }}>{g.label}</span>
+                      <span style={{ fontWeight: 700, color: GCOLORS[g.label] || ACCENT }}>{g.value} ({g.pct}%)</span>
+                    </div>
+                    <div style={styles.progressBg}><div style={styles.progressFg(parseFloat(g.pct), GCOLORS[g.label])} /></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={styles.card}>
-            <Table
-              cols={[
-                { key: "name", label: "Patient Name" },
-                { key: "age", label: "Age" },
-                { key: "gender", label: "Gender", render: r => <span style={styles.badge(r.gender)}>{r.gender}</span> },
-                { key: "conditions", label: "All Diseases", render: r => <DiseaseChips arr={r.conditions} /> },
-                { key: "otherDiseases", label: "Co-occurring", render: r => <DiseaseChips arr={r.otherDiseases || []} /> },
-                { key: "meds", label: "Medications", render: r => <MedChips arr={r.meds} /> },
-              ]}
-              rows={patients}
-              empty="No patients with multiple diseases match these filters"
-            />
+            <Table cols={[
+              { key: "name", label: "Patient Name" },
+              { key: "age", label: "Age" },
+              { key: "gender", label: "Gender", render: r => <span style={styles.badge(r.gender)}>{r.gender}</span> },
+              { key: "conditions", label: "All Diseases", render: r => <DiseaseChips arr={r.conditions} /> },
+              { key: "otherDiseases", label: "Co-occurring", render: r => <DiseaseChips arr={r.otherDiseases || []} /> },
+              { key: "meds", label: "Medications", render: r => <MedChips arr={r.meds} /> },
+            ]} rows={patients} empty="No patients with multiple diseases match these filters" />
           </div>
         </div>
       </div>
@@ -492,9 +634,6 @@ function CombinedDiseases() {
   );
 }
 
-/* ============================================================
-   SECTION: AGE VS DISEASE
-   ============================================================ */
 function AgeVsDisease() {
   const allDiseases = [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
   const [ageGroup, setAgeGroup] = useState("All");
@@ -503,20 +642,27 @@ function AgeVsDisease() {
 
   const toggle = (d) => setSelDiseases(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
 
-  const patients = useMemo(() => ALL_PATIENTS.filter(p => {
+  const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
     if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
     if (gender !== "All" && p.gender !== gender) return false;
-    if (selDiseases.length > 0 && !selDiseases.some(d => p.conditions.includes(d))) return false;
     return true;
-  }), [ageGroup, selDiseases, gender]);
+  }), [ageGroup, gender]);
+
+  const patients = useMemo(() => {
+    if (selDiseases.length === 0) return basePool;
+    return basePool.filter(p => selDiseases.some(d => p.conditions.includes(d)));
+  }, [basePool, selDiseases]);
 
   const diseaseDist = useMemo(() => {
     const map = {};
-    patients.forEach(p => p.conditions.forEach(c => {
+    basePool.forEach(p => p.conditions.forEach(c => {
       if (selDiseases.length === 0 || selDiseases.includes(c)) map[c] = (map[c] || 0) + 1;
     }));
-    return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / Math.max(patients.length, 1)) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
-  }, [patients, selDiseases]);
+    const denom = Math.max(basePool.length, 1);
+    return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / denom) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
+  }, [basePool, selDiseases]);
+
+  const genderDist = useMemo(() => buildGenderDist(patients, patients.length), [patients]);
 
   return (
     <div>
@@ -535,22 +681,35 @@ function AgeVsDisease() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
           {diseaseDist.length > 0 && (
             <div style={styles.card}>
-              <h3 style={styles.h3}>Disease Prevalence {ageGroup !== "All" ? `· Age ${ageGroup}` : ""}</h3>
+              <h3 style={styles.h3}>
+                Disease Prevalence {ageGroup !== "All" ? `· Age ${ageGroup}` : ""}
+                <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 11 }}> % of {basePool.length} patients in group</span>
+              </h3>
               <SimpleBar data={diseaseDist} />
             </div>
           )}
+          {patients.length > 0 && genderDist.length > 0 && (
+            <div style={styles.card}>
+              <h3 style={styles.h3}>Gender Breakdown of Matched Patients</h3>
+              {genderDist.map((g, i) => (
+                <div key={i} style={{ marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 2 }}>
+                    <span style={{ fontWeight: 600, color: GCOLORS[g.label] || "#374151" }}>{g.label}</span>
+                    <span style={{ fontWeight: 700, color: GCOLORS[g.label] || ACCENT }}>{g.value} ({g.pct}%)</span>
+                  </div>
+                  <div style={styles.progressBg}><div style={styles.progressFg(parseFloat(g.pct), GCOLORS[g.label])} /></div>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={styles.card}>
-            <Table
-              cols={[
-                { key: "name", label: "Patient Name" },
-                { key: "age", label: "Age" },
-                { key: "gender", label: "Gender", render: r => <span style={styles.badge(r.gender)}>{r.gender}</span> },
-                { key: "conditions", label: "Diseases", render: r => <DiseaseChips arr={r.conditions} /> },
-                { key: "meds", label: "Medications", render: r => <MedChips arr={r.meds} /> },
-              ]}
-              rows={patients}
-              empty="No patients match the selected filters"
-            />
+            <Table cols={[
+              { key: "name", label: "Patient Name" },
+              { key: "age", label: "Age" },
+              { key: "gender", label: "Gender", render: r => <span style={styles.badge(r.gender)}>{r.gender}</span> },
+              { key: "conditions", label: "Diseases", render: r => <DiseaseChips arr={r.conditions} /> },
+              { key: "meds", label: "Medications", render: r => <MedChips arr={r.meds} /> },
+            ]} rows={patients} empty="No patients match the selected filters" />
           </div>
         </div>
       </div>
@@ -558,9 +717,6 @@ function AgeVsDisease() {
   );
 }
 
-/* ============================================================
-   SECTION: AGE VS MEDICATION
-   ============================================================ */
 function AgeVsMedication() {
   const allMeds = [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
   const [ageGroup, setAgeGroup] = useState("All");
@@ -569,20 +725,27 @@ function AgeVsMedication() {
 
   const toggle = (m) => setSelMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
-  const patients = useMemo(() => ALL_PATIENTS.filter(p => {
+  const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
     if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
     if (gender !== "All" && p.gender !== gender) return false;
-    if (selMeds.length > 0 && !selMeds.some(m => p.meds.includes(m))) return false;
     return true;
-  }), [ageGroup, selMeds, gender]);
+  }), [ageGroup, gender]);
+
+  const patients = useMemo(() => {
+    if (selMeds.length === 0) return basePool;
+    return basePool.filter(p => selMeds.some(m => p.meds.includes(m)));
+  }, [basePool, selMeds]);
 
   const medDist = useMemo(() => {
     const map = {};
-    patients.forEach(p => p.meds.forEach(m => {
+    basePool.forEach(p => p.meds.forEach(m => {
       if (selMeds.length === 0 || selMeds.includes(m)) map[m] = (map[m] || 0) + 1;
     }));
-    return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / Math.max(patients.length, 1)) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
-  }, [patients, selMeds]);
+    const denom = Math.max(basePool.length, 1);
+    return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / denom) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
+  }, [basePool, selMeds]);
+
+  const genderDist = useMemo(() => buildGenderDist(patients, patients.length), [patients]);
 
   return (
     <div>
@@ -601,22 +764,35 @@ function AgeVsMedication() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
           {medDist.length > 0 && (
             <div style={styles.card}>
-              <h3 style={styles.h3}>Medication Prevalence {ageGroup !== "All" ? `· Age ${ageGroup}` : ""}</h3>
+              <h3 style={styles.h3}>
+                Medication Prevalence {ageGroup !== "All" ? `· Age ${ageGroup}` : ""}
+                <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 11 }}> % of {basePool.length} patients in group</span>
+              </h3>
               <SimpleBar data={medDist} />
             </div>
           )}
+          {patients.length > 0 && genderDist.length > 0 && (
+            <div style={styles.card}>
+              <h3 style={styles.h3}>Gender Breakdown of Matched Patients</h3>
+              {genderDist.map((g, i) => (
+                <div key={i} style={{ marginBottom: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 2 }}>
+                    <span style={{ fontWeight: 600, color: GCOLORS[g.label] || "#374151" }}>{g.label}</span>
+                    <span style={{ fontWeight: 700, color: GCOLORS[g.label] || ACCENT }}>{g.value} ({g.pct}%)</span>
+                  </div>
+                  <div style={styles.progressBg}><div style={styles.progressFg(parseFloat(g.pct), GCOLORS[g.label])} /></div>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={styles.card}>
-            <Table
-              cols={[
-                { key: "name", label: "Patient Name" },
-                { key: "age", label: "Age" },
-                { key: "gender", label: "Gender", render: r => <span style={styles.badge(r.gender)}>{r.gender}</span> },
-                { key: "conditions", label: "Diseases", render: r => <DiseaseChips arr={r.conditions} /> },
-                { key: "meds", label: "Medications", render: r => <MedChips arr={r.meds} /> },
-              ]}
-              rows={patients}
-              empty="No patients match the selected filters"
-            />
+            <Table cols={[
+              { key: "name", label: "Patient Name" },
+              { key: "age", label: "Age" },
+              { key: "gender", label: "Gender", render: r => <span style={styles.badge(r.gender)}>{r.gender}</span> },
+              { key: "conditions", label: "Diseases", render: r => <DiseaseChips arr={r.conditions} /> },
+              { key: "meds", label: "Medications", render: r => <MedChips arr={r.meds} /> },
+            ]} rows={patients} empty="No patients match the selected filters" />
           </div>
         </div>
       </div>
@@ -624,26 +800,23 @@ function AgeVsMedication() {
   );
 }
 
-/* ============================================================
-   SECTION: AGE VS SEX
-   ============================================================ */
 function AgeVsSex() {
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
 
-  const patients = useMemo(() => ALL_PATIENTS.filter(p => {
+  const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
     if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
+    return true;
+  }), [ageGroup]);
+
+  const patients = useMemo(() => basePool.filter(p => {
     if (gender !== "All" && p.gender !== gender) return false;
     return true;
-  }), [ageGroup, gender]);
+  }), [basePool, gender]);
 
-  const genderDist = useMemo(() => {
-    const map = {};
-    patients.forEach(p => { map[p.gender] = (map[p.gender] || 0) + 1; });
-    return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / Math.max(patients.length, 1)) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
-  }, [patients]);
+  const genderDist = useMemo(() => buildGenderDist(basePool, basePool.length), [basePool]);
 
-  const GCOLORS = { Male: ACCENT, Female: "#60a5fa", Other: "#8b5cf6" };
+  const ageDist = useMemo(() => buildAgeDist(basePool, basePool.length), [basePool]);
 
   return (
     <div>
@@ -652,8 +825,8 @@ function AgeVsSex() {
       <div style={styles.filterPanel}>
         <h3 style={styles.h3}>Filters</h3>
         <div className="d-flex align-items-center justify-content-between gap-2">
-        <AgeRangeFilter value={ageGroup} onChange={setAgeGroup} />
-        <GenderFilter value={gender} onChange={setGender} />
+          <AgeRangeFilter value={ageGroup} onChange={setAgeGroup} />
+          <GenderFilter value={gender} onChange={setGender} />
         </div>
       </div>
       <div style={styles.row}><StatCard label="Patients in Group" value={patients.length} /></div>
@@ -661,7 +834,10 @@ function AgeVsSex() {
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
           {genderDist.length > 0 && (
             <div style={styles.card}>
-              <h3 style={styles.h3}>Gender Distribution {ageGroup !== "All" ? `· Age ${ageGroup}` : ""}</h3>
+              <h3 style={styles.h3}>
+                Gender Distribution {ageGroup !== "All" ? `· Age ${ageGroup}` : ""}
+                <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 11 }}> % of {basePool.length} patients in age group</span>
+              </h3>
               <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
                 {genderDist.map((g, i) => (
                   <div key={i} style={{ flex: 1, minWidth: 120 }}>
@@ -669,25 +845,27 @@ function AgeVsSex() {
                       <span style={{ fontWeight: 600, color: GCOLORS[g.label] || "#374151" }}>{g.label}</span>
                       <span style={{ fontWeight: 700 }}>{g.pct}%</span>
                     </div>
-                    <div style={styles.progressBg}><div style={styles.progressFg((g.value / patients.length) * 100, GCOLORS[g.label])} /></div>
+                    <div style={styles.progressBg}><div style={styles.progressFg(parseFloat(g.pct), GCOLORS[g.label])} /></div>
                     <div style={{ fontSize: 11, color: "#94a3b8", marginTop: 2 }}>{g.value} patients</div>
                   </div>
                 ))}
               </div>
             </div>
           )}
+          {ageGroup === "All" && ageDist.length > 0 && (
+            <div style={styles.card}>
+              <h3 style={styles.h3}>Age Group Distribution <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 11 }}>% of all patients</span></h3>
+              <SimpleBar data={ageDist} />
+            </div>
+          )}
           <div style={styles.card}>
-            <Table
-              cols={[
-                { key: "name", label: "Patient Name" },
-                { key: "age", label: "Age" },
-                { key: "gender", label: "Gender", render: r => <span style={styles.badge(r.gender)}>{r.gender}</span> },
-                { key: "conditions", label: "Diseases", render: r => <DiseaseChips arr={r.conditions} /> },
-                { key: "meds", label: "Medications", render: r => <MedChips arr={r.meds} /> },
-              ]}
-              rows={patients}
-              empty="No patients match the selected filters"
-            />
+            <Table cols={[
+              { key: "name", label: "Patient Name" },
+              { key: "age", label: "Age" },
+              { key: "gender", label: "Gender", render: r => <span style={styles.badge(r.gender)}>{r.gender}</span> },
+              { key: "conditions", label: "Diseases", render: r => <DiseaseChips arr={r.conditions} /> },
+              { key: "meds", label: "Medications", render: r => <MedChips arr={r.meds} /> },
+            ]} rows={patients} empty="No patients match the selected filters" />
           </div>
         </div>
       </div>
@@ -695,9 +873,6 @@ function AgeVsSex() {
   );
 }
 
-/* ============================================================
-   SECTION: MOST COMMON REPORTED HEALTH
-   ============================================================ */
 function CommonReportedHealth() {
   const allSymptoms = [...new Set(ALL_PATIENTS.flatMap(p => p.reportedHealth))].sort();
   const [selSymptoms, setSelSymptoms] = useState([]);
@@ -706,18 +881,28 @@ function CommonReportedHealth() {
 
   const toggle = (s) => setSelSymptoms(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
 
-  const patients = useMemo(() => ALL_PATIENTS.filter(p => {
+  const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
     if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
     if (gender !== "All" && p.gender !== gender) return false;
-    if (selSymptoms.length > 0 && !selSymptoms.some(s => p.reportedHealth.includes(s))) return false;
     return true;
-  }), [selSymptoms, ageGroup, gender]);
+  }), [ageGroup, gender]);
+
+  const patients = useMemo(() => {
+    if (selSymptoms.length === 0) return basePool;
+    return basePool.filter(p => selSymptoms.some(s => p.reportedHealth.includes(s)));
+  }, [selSymptoms, basePool]);
 
   const symptomDist = useMemo(() => {
     const map = {};
-    ALL_PATIENTS.forEach(p => { if (ageGroup === "All" || AGE_GROUPS[ageGroup]?.(p.age)) { if (gender === "All" || p.gender === gender) { p.reportedHealth.forEach(s => { map[s] = (map[s] || 0) + 1; }); } } });
-    return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / ALL_PATIENTS.length) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
-  }, [ageGroup, gender]);
+    basePool.forEach(p => p.reportedHealth.forEach(s => {
+      if (selSymptoms.length === 0 || selSymptoms.includes(s)) map[s] = (map[s] || 0) + 1;
+    }));
+    const denom = Math.max(basePool.length, 1);
+    return Object.entries(map).map(([label, value]) => ({ label, value, pct: ((value / denom) * 100).toFixed(1) })).sort((a, b) => b.value - a.value);
+  }, [basePool, selSymptoms]);
+
+  const ageDist = useMemo(() => buildAgeDist(patients, patients.length), [patients]);
+  const genderDist = useMemo(() => buildGenderDist(patients, patients.length), [patients]);
 
   return (
     <div>
@@ -738,21 +923,37 @@ function CommonReportedHealth() {
       <div style={styles.sectionRow}>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={styles.card}>
-            <h3 style={styles.h3}>Symptom Prevalence</h3>
+            <h3 style={styles.h3}>Symptom Prevalence <span style={{ fontWeight: 400, color: "#94a3b8", fontSize: 11 }}>% of {basePool.length} patients in group</span></h3>
             <SimpleBar data={symptomDist} />
           </div>
+          {patients.length > 0 && (
+            <div style={styles.chartGrid}>
+              <div style={styles.card}>
+                <h3 style={styles.h3}>Age Breakdown</h3>
+                <SimpleBar data={ageDist} />
+              </div>
+              <div style={styles.card}>
+                <h3 style={styles.h3}>Gender Breakdown</h3>
+                {genderDist.map((g, i) => (
+                  <div key={i} style={{ marginBottom: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 2 }}>
+                      <span style={{ fontWeight: 600, color: GCOLORS[g.label] || "#374151" }}>{g.label}</span>
+                      <span style={{ fontWeight: 700, color: GCOLORS[g.label] || ACCENT }}>{g.value} ({g.pct}%)</span>
+                    </div>
+                    <div style={styles.progressBg}><div style={styles.progressFg(parseFloat(g.pct), GCOLORS[g.label])} /></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={styles.card}>
-            <Table
-              cols={[
-                { key: "name", label: "Patient Name" },
-                { key: "age", label: "Age" },
-                { key: "gender", label: "Gender", render: r => <span style={styles.badge(r.gender)}>{r.gender}</span> },
-                { key: "conditions", label: "Diseases", render: r => <DiseaseChips arr={r.conditions} /> },
-                { key: "reportedHealth", label: "Reported Symptoms", render: r => <DiseaseChips arr={r.reportedHealth} /> },
-              ]}
-              rows={patients}
-              empty="No patients match the selected filters"
-            />
+            <Table cols={[
+              { key: "name", label: "Patient Name" },
+              { key: "age", label: "Age" },
+              { key: "gender", label: "Gender", render: r => <span style={styles.badge(r.gender)}>{r.gender}</span> },
+              { key: "conditions", label: "Diseases", render: r => <DiseaseChips arr={r.conditions} /> },
+              { key: "reportedHealth", label: "Reported Symptoms", render: r => <DiseaseChips arr={r.reportedHealth} /> },
+            ]} rows={patients} empty="No patients match the selected filters" />
           </div>
         </div>
       </div>
@@ -760,9 +961,6 @@ function CommonReportedHealth() {
   );
 }
 
-/* ============================================================
-   SECTION: DRUGS & REPORTED HEALTH
-   ============================================================ */
 function DrugsReportedHealth() {
   const allMeds = [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
   const allSymptoms = [...new Set(ALL_PATIENTS.flatMap(p => p.reportedHealth))].sort();
@@ -778,7 +976,6 @@ function DrugsReportedHealth() {
     return true;
   }), [selMeds, selSymptoms]);
 
-  // drug → most common symptom cross-reference
   const drugSymptomMap = useMemo(() => {
     return allMeds.map(med => {
       const pts = ALL_PATIENTS.filter(p => p.meds.includes(med));
@@ -803,29 +1000,23 @@ function DrugsReportedHealth() {
       <div style={styles.sectionRow}>
         <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={styles.card}>
-            <h3 style={styles.h3}>Drug → Most Common Reported Symptom</h3>
-            <Table
-              cols={[
-                { key: "med", label: "Medication", render: r => <span style={styles.chip(true)}>{r.med}</span> },
-                { key: "patientCount", label: "Patients" },
-                { key: "topSymptom", label: "Most Reported Symptom", render: r => <span style={styles.chip(false)}>{r.topSymptom}</span> },
-                { key: "topPct", label: "% of Drug Patients", render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.topPct}%</span> },
-              ]}
-              rows={selMeds.length > 0 ? drugSymptomMap.filter(d => selMeds.includes(d.med)) : drugSymptomMap}
-            />
+            <h3 style={styles.h3}>Drug &#8594; Most Common Reported Symptom</h3>
+            <Table cols={[
+              { key: "med", label: "Medication", render: r => <span style={styles.chip(true)}>{r.med}</span> },
+              { key: "patientCount", label: "Patients" },
+              { key: "topSymptom", label: "Most Reported Symptom", render: r => <span style={styles.chip(false)}>{r.topSymptom}</span> },
+              { key: "topPct", label: "% of Drug Patients", render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.topPct}%</span> },
+            ]} rows={selMeds.length > 0 ? drugSymptomMap.filter(d => selMeds.includes(d.med)) : drugSymptomMap} />
           </div>
           {patients.length > 0 && (
             <div style={styles.card}>
               <h3 style={styles.h3}>Matching Patients</h3>
-              <Table
-                cols={[
-                  { key: "name", label: "Patient Name" },
-                  { key: "age", label: "Age" },
-                  { key: "meds", label: "Medications", render: r => <MedChips arr={r.meds} /> },
-                  { key: "reportedHealth", label: "Reported Symptoms", render: r => <DiseaseChips arr={r.reportedHealth} /> },
-                ]}
-                rows={patients}
-              />
+              <Table cols={[
+                { key: "name", label: "Patient Name" },
+                { key: "age", label: "Age" },
+                { key: "meds", label: "Medications", render: r => <MedChips arr={r.meds} /> },
+                { key: "reportedHealth", label: "Reported Symptoms", render: r => <DiseaseChips arr={r.reportedHealth} /> },
+              ]} rows={patients} />
             </div>
           )}
         </div>
@@ -834,9 +1025,6 @@ function DrugsReportedHealth() {
   );
 }
 
-/* ============================================================
-   SECTION: CUSTOM TABLE BUILDER
-   ============================================================ */
 const ALL_FIELDS = [
   { key: "name", label: "Patient Name" },
   { key: "age", label: "Age" },
@@ -880,12 +1068,12 @@ function CustomTableBuilder() {
       <div style={styles.filterPanel}>
         <h3 style={styles.h3}>Columns</h3>
         <div className="d-flex align-items-center justify-content-between gap-2">
-        {ALL_FIELDS.map(f => (
-          <label key={f.key} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0", cursor: "pointer", fontSize: 12, color: selFields.includes(f.key) ? ACCENT : "#374151" }}>
-            <input type="checkbox" checked={selFields.includes(f.key)} onChange={() => toggleField(f.key)} style={{ accentColor: ACCENT }} />
-            {f.label}
-          </label>
-        ))}
+          {ALL_FIELDS.map(f => (
+            <label key={f.key} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 0", cursor: "pointer", fontSize: 12, color: selFields.includes(f.key) ? ACCENT : "#374151" }}>
+              <input type="checkbox" checked={selFields.includes(f.key)} onChange={() => toggleField(f.key)} style={{ accentColor: ACCENT }} />
+              {f.label}
+            </label>
+          ))}
         </div>
         <div style={{ borderTop: "1px solid #e8eaf0", margin: "12px 0" }} />
         <h3 style={styles.h3}>Data Filters</h3>
@@ -912,9 +1100,6 @@ function CustomTableBuilder() {
   );
 }
 
-/* ============================================================
-   NAV CONFIG
-   ============================================================ */
 const NAV = [
   { section: "Ready-Made Tables" },
   { key: "disease", label: "Disease Patients", icon: "🏥" },
@@ -945,16 +1130,12 @@ const COMPONENTS = {
   custom: CustomTableBuilder,
 };
 
-/* ============================================================
-   ROOT
-   ============================================================ */
 export default function Analytics() {
   const [active, setActive] = useState("disease");
   const ActiveComponent = COMPONENTS[active];
 
   return (
     <div style={styles.wrap}>
-      {/* ——— SIDEBAR NAV ——— */}
       <nav style={styles.nav}>
         <div style={{ padding: "18px 20px 10px", borderBottom: "1px solid #f1f5f9", marginBottom: 8 }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: "#1a202c", letterSpacing: -.3 }}>Analytics</div>
@@ -972,7 +1153,6 @@ export default function Analytics() {
         })}
       </nav>
 
-      {/* ——— MAIN CONTENT ——— */}
       <main style={styles.content}>
         {ActiveComponent && <ActiveComponent />}
       </main>
