@@ -1246,6 +1246,7 @@ const chartPageData = [...paginatedData].reverse();
                       columns={[
                         { label: "Date", key: "date" },
                         { label: "Time", key: "time" },
+                        { label: "Symptom Name", key: "symptomname" },
                         { label: "Symptom Score", key: "symptom" },
                         { label: "Severity", key: "symptom_range" }
                       ]}
