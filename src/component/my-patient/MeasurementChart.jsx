@@ -3,8 +3,7 @@ import Chart from "react-apexcharts";
 
 const TOTAL_SLOTS = 10;
 
-// Types that should show ONLY scatter dots (no connecting line)
-const SCATTER_ONLY_TYPES = ["bp", "ppbgs", "temp"];
+const SCATTER_ONLY_TYPES = ["bp", "ppbgs", "temp", "symptom"];
 
 const MeasurementChart = ({ data, type }) => {
 
@@ -16,6 +15,7 @@ const MeasurementChart = ({ data, type }) => {
             case "ppbgs": return data.filter(i => i.ppbgs != null);
             case "weight": return data.filter(i => i.weight != null);
             case "temp": return data.filter(i => i.temperature != null);
+            case "symptom": return data.filter(i => i.symptom != null && i.symptom > 0);
             default: return data;
         }
     };
@@ -59,7 +59,6 @@ const MeasurementChart = ({ data, type }) => {
         return map;
     };
 
-    // Line series: average per slot (used only for weight/fasting)
     const buildLineSeries = (name, accessor) => {
         const grouped = groupBySlot(accessor);
         return {
@@ -75,7 +74,6 @@ const MeasurementChart = ({ data, type }) => {
         };
     };
 
-    // Scatter series: every individual reading as a dot
     const buildScatterSeries = (name, accessor) => ({
         name: `${name}_scatter`,
         type: "scatter",
@@ -85,7 +83,6 @@ const MeasurementChart = ({ data, type }) => {
         }))
     });
 
-    // Pure scatter series (no companion line) — for bp/ppbgs/temp
     const buildPureScatterSeries = (name, accessor) => ({
         name,
         type: "scatter",
@@ -97,7 +94,6 @@ const MeasurementChart = ({ data, type }) => {
 
     const getSeries = () => {
         if (isScatterOnly) {
-            // No line at all — just dots
             switch (type) {
                 case "bp":
                     return [
@@ -109,12 +105,13 @@ const MeasurementChart = ({ data, type }) => {
                     return [buildPureScatterSeries("PPBGS", r => r.ppbgs)];
                 case "temp":
                     return [buildPureScatterSeries("Temperature", r => r.temperature)];
+                case "symptom":
+                    return [buildPureScatterSeries("Symptom", r => r.symptom)];
                 default:
                     return [];
             }
         }
 
-        // Line + scatter for weight and fasting
         switch (type) {
             case "fasting":
                 return [
@@ -138,12 +135,11 @@ const MeasurementChart = ({ data, type }) => {
             case "ppbgs": return ["#f59e0b"];
             case "weight": return ["#6366f1"];
             case "temp": return ["#ef4444"];
+            case "symptom": return ["#ec4899"];
             default: return ["#1ddec4"];
         }
     })();
 
-    // For scatter-only: colors = baseColors directly (no companion line series)
-    // For line+scatter: line colors first, then semi-transparent scatter colors
     const colors = isScatterOnly
         ? baseColors
         : [...baseColors, ...baseColors.map(c => c + "99")];
@@ -214,7 +210,7 @@ const MeasurementChart = ({ data, type }) => {
         },
 
         stroke: isScatterOnly
-            ? { width: 0 }  // no lines at all for scatter-only types
+            ? { width: 0 }
             : {
                 width: colors.map((_, i) => i < numLineSeries ? 2.5 : 0),
                 curve: "smooth",
@@ -223,9 +219,9 @@ const MeasurementChart = ({ data, type }) => {
         markers: isScatterOnly
             ? {
                 size: 6,
-                colors: baseColors.map(() => "#ffffff"),
+                colors: baseColors,
                 strokeColors: baseColors,
-                strokeWidth: 2,
+                strokeWidth: 0,
                 hover: { size: 8 },
             }
             : {
@@ -299,7 +295,6 @@ const MeasurementChart = ({ data, type }) => {
                     {
                         y: 70, y2: 99, fillColor: "#22c55e", opacity: 0.08,
                         label: {
-                            // text: "Normal",
                             style: {
                                 color: "#166534", background: "#fff", fontSize: "9px", fontWeight: 500,
                                 padding: { left: 4, right: 4, top: 2, bottom: 2 }

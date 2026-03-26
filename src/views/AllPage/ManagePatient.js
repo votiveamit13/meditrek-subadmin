@@ -248,7 +248,7 @@ const parseDateTime = (str) => {
     if (!selectedPatientId) return;
 
     try {
-      const response = await axios.get(`${Base_Url}get_notes?user_id=${selectedPatientId}`, {
+      const response = await axios.get(`${Base_Url}get_notes?user_id=${selectedPatientId}&doctor_id=${doctor_id}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -303,7 +303,7 @@ const parseDateTime = (str) => {
       axios.get(`${Base_Url}view_compliance?user_id=${selectedPatientId}`, {
         headers: { Authorization: `Bearer ${token}` }
       }),
-      axios.get(`${Base_Url}get_notes?user_id=${selectedPatientId}`, {
+      axios.get(`${Base_Url}get_notes?user_id=${selectedPatientId}&doctor_id=${doctor_id}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
     ])
@@ -416,42 +416,59 @@ const parseDateTime = (str) => {
     setCurrentPage(value);
   };
 
-  const handleAddNote = async () => {
-    if (!noteDescription.trim()) {
-      setDescriptionError('Description is required');
-      return;
-    } else if (noteDescription.length > 500) {
-      setDescriptionError('Description must be less than 500 characters');
-      return;
-    }
+const handleAddNote = async () => {
+  if (!noteDescription.trim()) {
+    setDescriptionError('Description is required');
+    return;
+  }
 
-    setDescriptionError('');
-
-    try {
-      const response = await axios.post(
-        `${Base_Url}add_note`,
-        {
-          user_id: selectedPatientId,
-          description: noteDescription
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      );
-
-      if (!response.data.success) {
-        throw new Error(response.data.msg || 'Failed to add note');
+  try {
+    const response = await axios.post(
+      `${Base_Url}add_note`,
+      {
+        user_id: selectedPatientId,
+        doctor_id: doctor_id,
+        description: noteDescription
+      },
+      {
+        headers: { Authorization: `Bearer ${token}` }
       }
+    );
 
-      await fetchNotes();
-      setShowNoteModal(false);
-      setNoteDescription('');
-    } catch (error) {
-      console.error('Error adding note:', error);
+    if (!response.data.success) {
+      throw new Error(response.data.msg || 'Failed to add note');
     }
-  };
+
+    const newNote = {
+      id: Date.now(),
+      sr_no: notes.length + 1,
+      description: noteDescription,
+      createtime: new Date().toLocaleString()
+    };
+
+    setNotes((prev) => [newNote, ...prev]);
+
+    await fetchNotes();
+
+    Swal.fire({
+      icon: 'success',
+      title: 'Success',
+      text: 'Note added successfully',
+      confirmButtonText: 'OK'
+    });
+
+    setShowNoteModal(false);
+    setNoteDescription('');
+
+  } catch (error) {
+    Swal.fire({
+      icon: 'error',
+      title: 'Error',
+      text: error.message || 'Something went wrong',
+      confirmButtonText: 'OK'
+    });
+  }
+};
 
   const handleEditNote = (note) => {
     setEditingNoteId(note.id);
@@ -474,6 +491,7 @@ const parseDateTime = (str) => {
         `${Base_Url}update_note`,
         {
           note_id: editingNoteId,
+          doctor_id: doctor_id,
           description: editNoteDescription
         },
         {
@@ -922,11 +940,15 @@ const exportReportsToExcel = () => {
           return `Weekly (${days})`;
         }
 
-        if (row.schedule === "Monthly" && row.schedule_date !== "NA") {
-          const day = row.schedule_date.split("-")[0];
-
-          return `Monthly (Day ${day})`;
-        }
+        if (
+  row.schedule === "Monthly" &&
+  row.schedule_date &&
+  row.schedule_date !== "NA" &&
+  row.schedule_date !== "Invalid date"
+) {
+  const day = row.schedule_date.split("-")[0];
+  return `Monthly (Day ${day})`;
+}
         return row.schedule;
       }
     },
@@ -1030,6 +1052,7 @@ const baseMeasurement = [...measurement]
       case "ppbgs": return m.type === 2;
       case "weight": return m.type === 3;
       case "temp": return m.type === 4;
+      case "symptom": return m.type === 5;
       default: return false;
     }
   })
@@ -1214,6 +1237,19 @@ const chartPageData = [...paginatedData].reverse();
                         { label: "Temperature", key: "temperature" }
                       ]}
                       data={baseMeasurement} 
+                      {...tableProps}
+                    />
+                  )}
+
+                  {measurementType === "symptom" && (
+                    <CustomTable
+                      columns={[
+                        { label: "Date", key: "date" },
+                        { label: "Time", key: "time" },
+                        { label: "Symptom Score", key: "symptom" },
+                        { label: "Severity", key: "symptom_range" }
+                      ]}
+                      data={baseMeasurement}
                       {...tableProps}
                     />
                   )}

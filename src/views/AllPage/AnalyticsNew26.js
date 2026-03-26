@@ -151,85 +151,18 @@ function HBar({ label, value, total, pctVal, color }) {
 }
 
 function DataTable({ cols, rows, empty = "No data found" }) {
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
-
-  const onSort = (key) => {
-    setSortConfig(prev => {
-      if (prev.key === key) {
-        return {
-          key,
-          direction: prev.direction === "asc" ? "desc" : "asc"
-        };
-      }
-      return { key, direction: "asc" };
-    });
-  };
-
-  const sortedRows = useMemo(() => {
-    if (!sortConfig.key) return rows;
-
-    return [...rows].sort((a, b) => {
-      const aVal = a[sortConfig.key] ?? "";
-      const bVal = b[sortConfig.key] ?? "";
-
-      if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
-      if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
-      return 0;
-    });
-  }, [rows, sortConfig]);
   return (
     <div style={S.tWrap}>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
-          <tr>
-            {cols.map(c => (
-              <th
-                key={c.key}
-                style={{
-                  ...S.th,
-                  textAlign: c.align || "left",
-                  cursor: c.sortable ? "pointer" : "default"
-                }}
-                onClick={() => c.sortable && onSort(c.key)}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  {c.label}
-
-                  {c.sortable && (
-  <span className="sort-icons">
-    <span
-      className={`arrow up ${
-        sortConfig?.key === c.key &&
-        sortConfig.direction === "asc"
-          ? "active"
-          : ""
-      }`}
-    />
-    <span
-      className={`arrow down ${
-        sortConfig?.key === c.key &&
-        sortConfig.direction === "desc"
-          ? "active"
-          : ""
-      }`}
-    />
-  </span>
-)}
-                </div>
-              </th>
-            ))}
-          </tr>
+          <tr>{cols.map(c => <th key={c.key} style={{ ...S.th, textAlign: c.align || "left" }}>{c.label}</th>)}</tr>
         </thead>
         <tbody>
-          {sortedRows.length === 0
+          {rows.length === 0
             ? <tr><td colSpan={cols.length} style={S.noData}>{empty}</td></tr>
-            : sortedRows.map((r, i) => (
+            : rows.map((r, i) => (
               <tr key={i} style={{ background: i % 2 === 0 ? "#fff" : "#fafbfd" }}>
-                {cols.map(c => (
-                  <td key={c.key} style={{ ...S.td, ...(c.style || {}) }}>
-                    {c.render ? c.render(r) : r[c.key]}
-                  </td>
-                ))}
+                {cols.map(c => <td key={c.key} style={{ ...S.td, ...(c.style || {}) }}>{c.render ? c.render(r) : r[c.key]}</td>)}
               </tr>
             ))
           }
@@ -252,11 +185,11 @@ function ExpandPanel({ patients, showSymptoms = false }) {
         <div style={S.expandPanel}>
           <DataTable
             cols={[
-              { key: "name", label: "Patient Name", sortable: true, },
-              { key: "age", label: "Age", sortable: true, },
-              { key: "gender", label: "Gender", sortable: true, render: r => <span style={S.badge(r.gender)}>{r.gender}</span> },
-              { key: "conditions", label: "Diseases", sortable: true, render: r => <DChips arr={r.conditions} /> },
-              { key: "meds", label: "Medications", sortable: true, render: r => <MChips arr={r.meds} /> },
+              { key: "name", label: "Patient Name" },
+              { key: "age", label: "Age" },
+              { key: "gender", label: "Gender", render: r => <span style={S.badge(r.gender)}>{r.gender}</span> },
+              { key: "conditions", label: "Diseases", render: r => <DChips arr={r.conditions} /> },
+              { key: "meds", label: "Medications", render: r => <MChips arr={r.meds} /> },
               ...(showSymptoms ? [
                 {
                   key: "reportedHealth",
@@ -347,11 +280,11 @@ function Demographics() {
         <p style={S.cardTitle}>Age × Sex Cross-table</p>
         <DataTable
           cols={[
-            { key: "age", label: "Age Group", sortable: true, },
-            { key: "Male", label: "Male", sortable: true, render: r => <span style={{ fontWeight: 600, color: ACCENT }}>{r.Male} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.Male_pct}%)</span></span> },
-            { key: "Female", label: "Female", sortable: true, render: r => <span style={{ fontWeight: 600, color: "#60a5fa" }}>{r.Female} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.Female_pct}%)</span></span> },
-            { key: "Other", label: "Other", sortable: true, render: r => <span style={{ fontWeight: 600, color: "#8b5cf6" }}>{r.Other} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.Other_pct}%)</span></span> },
-            { key: "total", label: "Total", sortable: true, render: r => <span style={{ fontWeight: 700 }}>{r.total} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.total_pct}%)</span></span> },
+            { key: "age", label: "Age Group" },
+            { key: "Male", label: "Male", render: r => <span style={{ fontWeight: 600, color: ACCENT }}>{r.Male} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.Male_pct}%)</span></span> },
+            { key: "Female", label: "Female", render: r => <span style={{ fontWeight: 600, color: "#60a5fa" }}>{r.Female} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.Female_pct}%)</span></span> },
+            { key: "Other", label: "Other", render: r => <span style={{ fontWeight: 600, color: "#8b5cf6" }}>{r.Other} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.Other_pct}%)</span></span> },
+            { key: "total", label: "Total", render: r => <span style={{ fontWeight: 700 }}>{r.total} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.total_pct}%)</span></span> },
           ]}
           rows={crossData}
         />
@@ -461,11 +394,11 @@ function DiseaseDemo() {
         <p style={S.cardTitle}>Patient Table</p>
         <DataTable
           cols={[
-            { key: "name", label: "Patient Name", sortable: true, },
-            { key: "age", label: "Age", sortable: true, },
-            { key: "gender", label: "Gender", sortable: true, render: r => <span style={S.badge(r.gender)}>{r.gender}</span> },
-            { key: "conditions", label: "Diseases", sortable: true, render: r => <DChips arr={r.conditions} /> },
-            { key: "meds", label: "Medications", sortable: true, render: r => <MChips arr={r.meds} /> },
+            { key: "name", label: "Patient Name" },
+            { key: "age", label: "Age" },
+            { key: "gender", label: "Gender", render: r => <span style={S.badge(r.gender)}>{r.gender}</span> },
+            { key: "conditions", label: "Diseases", render: r => <DChips arr={r.conditions} /> },
+            { key: "meds", label: "Medications", render: r => <MChips arr={r.meds} /> },
           ]}
           rows={patients}
           empty="No patients match the selected filters"
@@ -587,10 +520,10 @@ function DiseaseMedication() {
           ? <div style={S.noData}>Select a disease to see medication data</div>
           : <DataTable
             cols={[
-              { key: "label", label: "Medication", sortable: true, render: r => <Chip label={r.label} teal={true} /> },
-              { key: "value", label: "Patients", sortable: true, render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.value}</span> },
-              { key: "pctOfMatched", label: "% of Matched", sortable: true, render: r => <span style={{ fontWeight: 600 }}>{r.pctOfMatched}%</span> },
-              { key: "pctOfAll", label: "% of All Patients", sortable: true, render: r => <span style={{ color: "#94a3b8" }}>{r.pctOfAll}%</span> },
+              { key: "label", label: "Medication", render: r => <Chip label={r.label} teal={true} /> },
+              { key: "value", label: "# Patients", render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.value}</span> },
+              { key: "pctOfMatched", label: "% of Matched", render: r => <span style={{ fontWeight: 600 }}>{r.pctOfMatched}%</span> },
+              { key: "pctOfAll", label: "% of All Patients", render: r => <span style={{ color: "#94a3b8" }}>{r.pctOfAll}%</span> },
               {
                 key: "bar", label: "", render: r => (
                   <div style={{ ...S.barTrack, minWidth: 80 }}>
@@ -687,11 +620,11 @@ function MedicationDemo() {
         <p style={S.cardTitle}>Patient Table</p>
         <DataTable
           cols={[
-            { key: "name", label: "Patient Name", sortable: true, },
-            { key: "age", label: "Age", sortable: true, },
-            { key: "gender", label: "Gender", sortable: true, render: r => <span style={S.badge(r.gender)}>{r.gender}</span> },
-            { key: "conditions", label: "Diseases", sortable: true, render: r => <DChips arr={r.conditions} /> },
-            { key: "meds", label: "Medications", sortable: true, render: r => <MChips arr={r.meds} /> },
+            { key: "name", label: "Patient Name" },
+            { key: "age", label: "Age" },
+            { key: "gender", label: "Gender", render: r => <span style={S.badge(r.gender)}>{r.gender}</span> },
+            { key: "conditions", label: "Diseases", render: r => <DChips arr={r.conditions} /> },
+            { key: "meds", label: "Medications", render: r => <MChips arr={r.meds} /> },
           ]}
           rows={patients}
           empty="No patients match the selected filters"
@@ -811,10 +744,10 @@ function MedicationDisease() {
           ? <div style={S.noData}>Select a medication to see disease data</div>
           : <DataTable
             cols={[
-              { key: "label", label: "Disease", sortable: true, render: r => <Chip label={r.label} teal={false} /> },
-              { key: "value", label: "# Patients", sortable: true, render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.value}</span> },
-              { key: "pctOfMatched", label: "% of Matched", sortable: true, render: r => <span style={{ fontWeight: 600 }}>{r.pctOfMatched}%</span> },
-              { key: "pctOfAll", label: "% of All Patients", sortable: true, render: r => <span style={{ color: "#94a3b8" }}>{r.pctOfAll}%</span> },
+              { key: "label", label: "Disease", render: r => <Chip label={r.label} teal={false} /> },
+              { key: "value", label: "# Patients", render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.value}</span> },
+              { key: "pctOfMatched", label: "% of Matched", render: r => <span style={{ fontWeight: 600 }}>{r.pctOfMatched}%</span> },
+              { key: "pctOfAll", label: "% of All Patients", render: r => <span style={{ color: "#94a3b8" }}>{r.pctOfAll}%</span> },
               {
                 key: "bar", label: "", render: r => (
                   <div style={{ ...S.barTrack, minWidth: 80 }}>
@@ -928,7 +861,7 @@ function CustomizeTable() {
   }), [filterDis, filterMed, filterHealth, ageGroup, gender]);
 
   const cols = FIELD_DEFS.filter(f => selFields.includes(f.key)).map(f => ({
-    key: f.key, label: f.label, sortable: true,
+    key: f.key, label: f.label,
     render: f.isArr
       ? (r => f.teal ? <MChips arr={r[f.key]} /> : <DChips arr={r[f.key]} />)
       : f.key === "gender" ? (r => <span style={S.badge(r.gender)}>{r.gender}</span>)
