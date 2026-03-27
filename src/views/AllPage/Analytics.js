@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import TagSearch from "./Analytics/TagSearch";
 import AgeRangeFilter from "./Analytics/AgeRangeFilter";
 import GenderFilter from "./Analytics/GenderFilter";
@@ -8,16 +8,67 @@ import ExportButton from "component/common/ExportButton";
    MOCK DATA
    ============================================================ */
 const ALL_PATIENTS = [
-  { id: 1, name: "John Smith", age: 65, gender: "Male", conditions: ["Hypertension", "Diabetes"], meds: ["Lisinopril", "Metformin"], reportedHealth: ["Headache", "Fatigue"] },
-  { id: 2, name: "Michael Brown", age: 72, gender: "Male", conditions: ["Hypertension", "CAD", "Hyperlipidemia"], meds: ["Amlodipine", "Atorvastatin", "Metoprolol"], reportedHealth: ["Chest Pain", "Dizziness"] },
-  { id: 3, name: "Jennifer Martinez", age: 52, gender: "Female", conditions: ["Hypertension", "Depression"], meds: ["Losartan", "Sertraline"], reportedHealth: ["Fatigue", "Insomnia"] },
-  { id: 4, name: "Lisa Taylor", age: 55, gender: "Female", conditions: ["Diabetes", "Hypertension"], meds: ["Metformin", "Amlodipine"], reportedHealth: ["Nausea", "Fatigue"] },
-  { id: 5, name: "James Thomas", age: 70, gender: "Male", conditions: ["Hypertension", "Diabetes", "COPD"], meds: ["Metoprolol", "Lisinopril", "Metformin", "Insulin"], reportedHealth: ["Shortness of Breath", "Fatigue", "Cough"] },
-  { id: 6, name: "Emma Wilson", age: 28, gender: "Female", conditions: ["Asthma"], meds: ["Salbutamol"], reportedHealth: ["Wheezing", "Cough"] },
-  { id: 7, name: "Chris Evans", age: 25, gender: "Male", conditions: ["Asthma", "Allergy"], meds: ["Cetirizine", "Salbutamol"], reportedHealth: ["Runny Nose", "Cough"] },
-  { id: 8, name: "Alex Morgan", age: 34, gender: "Other", conditions: ["Anxiety"], meds: ["Escitalopram"], reportedHealth: ["Insomnia", "Palpitations"] },
-  { id: 9, name: "Sarah Johnson", age: 48, gender: "Female", conditions: ["Hypertension", "Thyroid"], meds: ["Amlodipine", "Levothyroxine"], reportedHealth: ["Fatigue", "Weight Gain"] },
-  { id: 10, name: "Robert Davis", age: 61, gender: "Male", conditions: ["Diabetes", "CAD"], meds: ["Metformin", "Atorvastatin", "Aspirin"], reportedHealth: ["Chest Pain", "Fatigue"] },
+  {
+    id: 1, name: "John Smith", age: 65, gender: "Male", conditions: ["Hypertension", "Diabetes"], meds: ["Lisinopril", "Metformin"], reportedHealth: [
+      { drug: "Lisinopril", symptom: "Headache" },
+      { drug: "Metformin", symptom: "Fatigue" }
+    ]
+  },
+  {
+    id: 2, name: "Michael Brown", age: 72, gender: "Male", conditions: ["Hypertension", "CAD", "Hyperlipidemia"], meds: ["Amlodipine", "Atorvastatin", "Metoprolol"], reportedHealth: [
+      { drug: "Losartan", symptom: "Fatigue" },
+      { drug: "Sertraline", symptom: "Insomnia" }
+    ]
+  },
+  {
+    id: 3, name: "Jennifer Martinez", age: 52, gender: "Female", conditions: ["Hypertension", "Depression"], meds: ["Losartan", "Sertraline"], reportedHealth: [
+      { drug: "Losartan", symptom: "Fatigue" },
+      { drug: "Sertraline", symptom: "Insomnia" }
+    ]
+  },
+  {
+    id: 4, name: "Lisa Taylor", age: 55, gender: "Female", conditions: ["Diabetes", "Hypertension"], meds: ["Metformin", "Amlodipine"], reportedHealth: [
+      { drug: "Metformin", symptom: "Nausea" },
+      { drug: "Amlodipine", symptom: "Fatigue" }
+    ]
+  },
+  {
+    id: 5, name: "James Thomas", age: 70, gender: "Male", conditions: ["Hypertension", "Diabetes", "COPD"], meds: ["Metoprolol", "Lisinopril", "Metformin", "Insulin"], reportedHealth: [
+      { drug: "Metoprolol", symptom: "Shortness of Breath" },
+      { drug: "Metformin", symptom: "Fatigue" },
+      { drug: "Insulin", symptom: "Cough" }
+    ]
+  },
+  {
+    id: 6, name: "Emma Wilson", age: 28, gender: "Female", conditions: ["Asthma"], meds: ["Salbutamol"], reportedHealth: [
+      { drug: "Salbutamol", symptom: "Wheezing" },
+      { drug: "Salbutamol", symptom: "Cough" }
+    ]
+  },
+  {
+    id: 7, name: "Chris Evans", age: 25, gender: "Male", conditions: ["Asthma", "Allergy"], meds: ["Cetirizine", "Salbutamol"], reportedHealth: [
+      { drug: "Cetirizine", symptom: "Runny Nose" },
+      { drug: "Salbutamol", symptom: "Cough" }
+    ]
+  },
+  {
+    id: 8, name: "Alex Morgan", age: 34, gender: "Other", conditions: ["Anxiety"], meds: ["Escitalopram"], reportedHealth: [
+      { drug: "Escitalopram", symptom: "Insomnia" },
+      { drug: "Escitalopram", symptom: "Palpitations" }
+    ]
+  },
+  {
+    id: 9, name: "Sarah Johnson", age: 48, gender: "Female", conditions: ["Hypertension", "Thyroid"], meds: ["Amlodipine", "Levothyroxine"], reportedHealth: [
+      { drug: "Amlodipine", symptom: "Fatigue" },
+      { drug: "Levothyroxine", symptom: "Weight Gain" }
+    ]
+  },
+  {
+    id: 10, name: "Robert Davis", age: 61, gender: "Male", conditions: ["Diabetes", "CAD"], meds: ["Metformin", "Atorvastatin", "Aspirin"], reportedHealth: [
+      { drug: "Atorvastatin", symptom: "Chest Pain" },
+      { drug: "Metformin", symptom: "Fatigue" }
+    ]
+  },
 ];
 
 const AGE_GROUPS = {
@@ -196,25 +247,23 @@ function DataTable({ cols, rows, empty = "No data found" }) {
                   {c.label}
 
                   {c.sortable && (
-  <span className="sort-icons">
-    <span
-      className={`arrow up ${
-        sortConfig?.key === c.key &&
-        sortConfig.direction === "asc"
-          ? "active"
-          : ""
-      }`}
-    />
-    <span
-      className={`arrow down ${
-        sortConfig?.key === c.key &&
-        sortConfig.direction === "desc"
-          ? "active"
-          : ""
-      }`}
-    />
-  </span>
-)}
+                    <span className="sort-icons">
+                      <span
+                        className={`arrow up ${sortConfig?.key === c.key &&
+                            sortConfig.direction === "asc"
+                            ? "active"
+                            : ""
+                          }`}
+                      />
+                      <span
+                        className={`arrow down ${sortConfig?.key === c.key &&
+                            sortConfig.direction === "desc"
+                            ? "active"
+                            : ""
+                          }`}
+                      />
+                    </span>
+                  )}
                 </div>
               </th>
             ))}
@@ -261,7 +310,9 @@ function ExpandPanel({ patients, showSymptoms = false }) {
                 {
                   key: "reportedHealth",
                   label: "Symptoms",
-                  render: r => <DChips arr={r.reportedHealth} />
+                  render: r => (
+    <DChips arr={r.reportedHealth.map(x => x.symptom)} />
+  )
                 }
               ] : [])
             ]}
@@ -372,6 +423,7 @@ function DiseaseDemo() {
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
   const [combinedOnly, setCombined] = useState(false);
+  const [singleOnly, setSingleOnly] = useState(false);
 
   const toggleD = d => setSelDiseases(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
 
@@ -383,20 +435,41 @@ function DiseaseDemo() {
 
   const patients = useMemo(() => {
     let r = basePool;
+
     if (selDiseases.length > 0) {
-      if (combinedOnly && selDiseases.length >= 2)
+
+      // ✅ SINGLE EXACT
+      if (selDiseases.length === 1 && singleOnly) {
+        r = r.filter(p =>
+          p.conditions.length === 1 &&
+          p.conditions.includes(selDiseases[0])
+        );
+      }
+
+      // ✅ MULTI EXACT
+      else if (combinedOnly && selDiseases.length >= 2) {
         r = r.filter(p => {
           const hasAll = selDiseases.every(d => p.conditions.includes(d));
           const exactCount = p.conditions.length === selDiseases.length;
           return hasAll && exactCount;
         });
-      else
-        r = r.filter(p => selDiseases.some(d => p.conditions.includes(d)));
-    } else if (combinedOnly) {
-      r = r.filter(p => p.conditions.length >= 2);
+      }
+
+      // ✅ DEFAULT
+      else {
+        r = r.filter(p =>
+          selDiseases.some(d => p.conditions.includes(d))
+        );
+      }
     }
+
     return r;
-  }, [basePool, selDiseases, combinedOnly]);
+  }, [basePool, selDiseases, combinedOnly, singleOnly]);
+
+  useEffect(() => {
+    setSingleOnly(false);
+    setCombined(false);
+  }, [selDiseases]);
 
   const diseaseDist = useMemo(() => {
     const map = {};
@@ -426,6 +499,17 @@ function DiseaseDemo() {
           <label style={{ ...S.checkLabel(combinedOnly) }}>
             <input type="checkbox" checked={combinedOnly} onChange={e => setCombined(e.target.checked)} style={{ accentColor: ACCENT }} />
             Combined diseases only (patients with ALL selected diseases)
+          </label>
+        )}
+        {selDiseases.length === 1 && (
+          <label style={S.checkLabel(singleOnly)}>
+            <input
+              type="checkbox"
+              checked={singleOnly}
+              onChange={e => setSingleOnly(e.target.checked)}
+              style={{ accentColor: ACCENT }}
+            />
+            Only patients with this disease
           </label>
         )}
       </div>
@@ -486,6 +570,7 @@ function DiseaseMedication() {
   const [gender, setGender] = useState("All");
   const [combinedOnly, setCombined] = useState(false);
   const [excludeMeds, setExcludeMeds] = useState([]);
+  const [singleOnly, setSingleOnly] = useState(false);
 
   const toggleD = d => setSelDiseases(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
   const toggleExclude = m => setExcludeMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
@@ -498,18 +583,41 @@ function DiseaseMedication() {
 
   const patients = useMemo(() => {
     let r = basePool;
+
     if (selDiseases.length > 0) {
-      if (combinedOnly && selDiseases.length >= 2)
+
+      // ✅ SINGLE EXACT
+      if (selDiseases.length === 1 && singleOnly) {
+        r = r.filter(p =>
+          p.conditions.length === 1 &&
+          p.conditions.includes(selDiseases[0])
+        );
+      }
+
+      // ✅ MULTI EXACT
+      else if (combinedOnly && selDiseases.length >= 2) {
         r = r.filter(p => {
           const hasAll = selDiseases.every(d => p.conditions.includes(d));
           const exactCount = p.conditions.length === selDiseases.length;
           return hasAll && exactCount;
         });
-      else
-        r = r.filter(p => selDiseases.some(d => p.conditions.includes(d)));
+      }
+
+      // ✅ DEFAULT
+      else {
+        r = r.filter(p =>
+          selDiseases.some(d => p.conditions.includes(d))
+        );
+      }
     }
+
     return r;
-  }, [basePool, selDiseases, combinedOnly]);
+  }, [basePool, selDiseases, combinedOnly, singleOnly]);
+
+  useEffect(() => {
+    setSingleOnly(false);
+    setCombined(false);
+  }, [selDiseases]);
 
   /* drug distribution among matched patients */
   const medDist = useMemo(() => {
@@ -543,6 +651,17 @@ function DiseaseMedication() {
           <label style={{ ...S.checkLabel(combinedOnly) }}>
             <input type="checkbox" checked={combinedOnly} onChange={e => setCombined(e.target.checked)} style={{ accentColor: ACCENT }} />
             Combined — patients must have ALL selected diseases
+          </label>
+        )}
+        {selDiseases.length === 1 && (
+          <label style={S.checkLabel(singleOnly)}>
+            <input
+              type="checkbox"
+              checked={singleOnly}
+              onChange={e => setSingleOnly(e.target.checked)}
+              style={{ accentColor: ACCENT }}
+            />
+            Only patients with this disease
           </label>
         )}
         {allMedsInResult.length > 0 && (
@@ -712,6 +831,7 @@ function MedicationDisease() {
   const [gender, setGender] = useState("All");
   const [comboOnly, setComboOnly] = useState(false);
   const [excludeDis, setExcludeDis] = useState([]);
+  const [singleOnly, setSingleOnly] = useState(false);
 
   const toggleM = m => setSelMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
   const toggleExclude = d => setExcludeDis(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
@@ -724,18 +844,41 @@ function MedicationDisease() {
 
   const patients = useMemo(() => {
     let r = basePool;
+
     if (selMeds.length > 0) {
-      if (comboOnly && selMeds.length >= 2)
+
+      // ✅ SINGLE EXACT
+      if (selMeds.length === 1 && singleOnly) {
+        r = r.filter(p =>
+          p.meds.length === 1 &&
+          p.meds.includes(selMeds[0])
+        );
+      }
+
+      // ✅ MULTI EXACT
+      else if (comboOnly && selMeds.length >= 2) {
         r = r.filter(p => {
           const hasAll = selMeds.every(m => p.meds.includes(m));
           const exactCount = p.meds.length === selMeds.length;
           return hasAll && exactCount;
         });
-      else
-        r = r.filter(p => selMeds.some(m => p.meds.includes(m)));
+      }
+
+      // ✅ DEFAULT
+      else {
+        r = r.filter(p =>
+          selMeds.some(m => p.meds.includes(m))
+        );
+      }
     }
+
     return r;
-  }, [basePool, selMeds, comboOnly]);
+  }, [basePool, selMeds, comboOnly, singleOnly]);
+
+  useEffect(() => {
+    setSingleOnly(false);
+    setComboOnly(false);
+  }, [selMeds]);
 
   const diseaseDist = useMemo(() => {
     const map = {};
@@ -768,6 +911,17 @@ function MedicationDisease() {
           <label style={{ ...S.checkLabel(comboOnly) }}>
             <input type="checkbox" checked={comboOnly} onChange={e => setComboOnly(e.target.checked)} style={{ accentColor: ACCENT }} />
             Combination — patients must be on ALL selected medications
+          </label>
+        )}
+        {selMeds.length === 1 && (
+          <label style={S.checkLabel(singleOnly)}>
+            <input
+              type="checkbox"
+              checked={singleOnly}
+              onChange={e => setSingleOnly(e.target.checked)}
+              style={{ accentColor: ACCENT }}
+            />
+            Only patients with this medication
           </label>
         )}
         {allDisInResult.length > 0 && (
@@ -846,7 +1000,13 @@ function MedicationHealth() {
     return meds.map(med => {
       const pts = ALL_PATIENTS.filter(p => p.meds.includes(med));
       const symMap = {};
-      pts.forEach(p => p.reportedHealth.forEach(s => { symMap[s] = (symMap[s] || 0) + 1; }));
+      pts.forEach(p => {
+        p.reportedHealth.forEach(r => {
+          if (r.drug === med) {
+            symMap[r.symptom] = (symMap[r.symptom] || 0) + 1;
+          }
+        });
+      });
       const outcomes = Object.entries(symMap)
         .map(([symptom, count]) => ({ symptom, count, pct: pct(count, pts.length) }))
         .sort((a, b) => b.count - a.count);
@@ -904,7 +1064,11 @@ const FIELD_DEFS = [
 function CustomizeTable() {
   const allDiseases = [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
   const allMeds = [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
-  const allSymptoms = [...new Set(ALL_PATIENTS.flatMap(p => p.reportedHealth))].sort();
+  const allSymptoms = [
+  ...new Set(
+    ALL_PATIENTS.flatMap(p => p.reportedHealth.map(r => r.symptom))
+  )
+].sort();
 
   const [selFields, setSelFields] = useState(["name", "age", "gender", "conditions", "meds"]);
   const [filterDis, setFilterDis] = useState([]);
@@ -921,7 +1085,12 @@ function CustomizeTable() {
   const patients = useMemo(() => ALL_PATIENTS.filter(p => {
     if (filterDis.length > 0 && !filterDis.some(d => p.conditions.includes(d))) return false;
     if (filterMed.length > 0 && !filterMed.some(m => p.meds.includes(m))) return false;
-    if (filterHealth.length > 0 && !filterHealth.some(h => p.reportedHealth.includes(h))) return false;
+    if (
+  filterHealth.length > 0 &&
+  !filterHealth.some(h =>
+    p.reportedHealth.some(r => r.symptom === h)
+  )
+) return false;
     if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
     if (gender !== "All" && p.gender !== gender) return false;
     return true;
