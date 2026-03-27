@@ -250,7 +250,7 @@ if (!selectedYear && response.data.availableYears?.length) {
 
           <Grid item xs={12} sm={6} md={4} lg={2.4}>
             {/* <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}> */}
-              <ReportCard primary={lab} secondary="Lab Reports" growth={`${labGrowth}%`} color={theme.palette.warning.main} iconPrimary={ScienceIcon} loading={!patient} />
+              <ReportCard primary={lab} secondary="Files" growth={`${labGrowth}%`} color={theme.palette.warning.main} iconPrimary={ScienceIcon} loading={!patient} />
             {/* </Link> */}
           </Grid>
 
