@@ -3,10 +3,8 @@ import TagSearch from "./Analytics/TagSearch";
 import AgeRangeFilter from "./Analytics/AgeRangeFilter";
 import GenderFilter from "./Analytics/GenderFilter";
 import ExportButton from "component/common/ExportButton";
+import { fetchDiseases, fetchMedicines } from "services/analyticsAPI";
 
-/* ============================================================
-   MOCK DATA
-   ============================================================ */
 const ALL_PATIENTS = [
   {
     id: 1, name: "John Smith", age: 65, gender: "Male", conditions: ["Hypertension", "Diabetes"], meds: ["Lisinopril", "Metformin"], reportedHealth: [
@@ -81,12 +79,9 @@ const AGE_GROUPS = {
 
 const ACCENT = "#1ddec4";
 const ACCENT_BG = "rgba(29,222,196,0.13)";
-const GCOLORS = { Male: ACCENT, Female: "#60a5fa", Other: "#8b5cf6" };
+const GCOLORS = { Male: ACCENT, Female: "#60a5fa", Other: "#8b5cf6", "Not Specified": "#94a3b8" };
 const TOTAL = ALL_PATIENTS.length;
 
-/* ============================================================
-   STYLES
-   ============================================================ */
 const S = {
   wrap: { display: "flex", fontFamily: "'DM Sans',sans-serif", minHeight: "100vh", background: "#f4f6fb" },
   nav: { width: 230, minWidth: 210, background: "#fff", borderRight: "1px solid #eaecf2", display: "flex", flexDirection: "column", flexShrink: 0 },
@@ -157,9 +152,6 @@ const S = {
   checkLabel: active => ({ display: "flex", alignItems: "center", gap: 7, fontSize: 12, cursor: "pointer", color: active ? ACCENT : "#374151", fontWeight: active ? 600 : 400 }),
 };
 
-/* ============================================================
-   HELPERS
-   ============================================================ */
 function pct(n, d) { return d === 0 ? "0.0" : ((n / d) * 100).toFixed(1); }
 
 function buildAgeDist(pts, denom) {
@@ -173,9 +165,6 @@ function buildGenderDist(pts, denom) {
   return Object.entries(map).map(([label, value]) => ({ label, value, pct: pct(value, denom) })).sort((a, b) => b.value - a.value);
 }
 
-/* ============================================================
-   REUSABLE UI
-   ============================================================ */
 function Chip({ label, teal }) { return <span style={S.chip(teal)}>{label}</span>; }
 function DChips({ arr }) { return <>{arr.map((c, i) => <Chip key={i} label={c} teal={false} />)}</>; }
 function MChips({ arr }) { return <>{arr.map((m, i) => <Chip key={i} label={m} teal={true} />)}</>; }
@@ -288,7 +277,6 @@ function DataTable({ cols, rows, empty = "No data found" }) {
   );
 }
 
-/* collapsible patient detail panel */
 function ExpandPanel({ patients, showSymptoms = false }) {
   const [open, setOpen] = useState(false);
   if (!patients || patients.length === 0) return null;
@@ -324,9 +312,6 @@ function ExpandPanel({ patients, showSymptoms = false }) {
   );
 }
 
-/* ============================================================
-   1. DEMOGRAPHICS  (Age group × Sex)
-   ============================================================ */
 function Demographics() {
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
@@ -414,11 +399,11 @@ function Demographics() {
   );
 }
 
-/* ============================================================
-   2. DISEASE / DEMOGRAPHICS
-   ============================================================ */
-function DiseaseDemo() {
-  const allDiseases = [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
+function DiseaseDemo({ diseases }) {
+  const allDiseases =
+  diseases?.length > 0
+    ? diseases.map(d => d.label)
+    : [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
   const [selDiseases, setSelDiseases] = useState([]);
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
@@ -559,12 +544,11 @@ function DiseaseDemo() {
   );
 }
 
-/* ============================================================
-   3. DISEASE / MEDICATION
-   Multiple disease combos → drug list with % and numbers
-   ============================================================ */
-function DiseaseMedication() {
-  const allDiseases = [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
+function DiseaseMedication({ diseases, medicines }) {
+  const allDiseases =
+  diseases?.length > 0
+    ? diseases.map(d => d.label)
+    : [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
   const [selDiseases, setSelDiseases] = useState([]);
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
@@ -632,7 +616,10 @@ function DiseaseMedication() {
     })).sort((a, b) => b.value - a.value);
   }, [patients, excludeMeds]);
 
-  const allMedsInResult = useMemo(() => [...new Set(patients.flatMap(p => p.meds))].sort(), [patients]);
+  const allMedsInResult =
+  medicines?.length > 0
+    ? medicines.map(m => m.label)
+    : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
 
   return (
     <div>
@@ -727,11 +714,11 @@ function DiseaseMedication() {
   );
 }
 
-/* ============================================================
-   4. MEDICATION / DEMOGRAPHICS
-   ============================================================ */
-function MedicationDemo() {
-  const allMeds = [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
+function MedicationDemo({ medicines }) {
+  const allMeds =
+  medicines?.length > 0
+    ? medicines.map(m => m.label)
+    : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
   const [selMeds, setSelMeds] = useState([]);
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
@@ -820,12 +807,11 @@ function MedicationDemo() {
   );
 }
 
-/* ============================================================
-   5. MEDICATION / DISEASE
-   Multiple medication combos → disease list with % and numbers
-   ============================================================ */
-function MedicationDisease() {
-  const allMeds = [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
+function MedicationDisease({ medicines, diseases }) {
+  const allMeds =
+  medicines?.length > 0
+    ? medicines.map(m => m.label)
+    : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
   const [selMeds, setSelMeds] = useState([]);
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
@@ -892,7 +878,10 @@ function MedicationDisease() {
     })).sort((a, b) => b.value - a.value);
   }, [patients, excludeDis]);
 
-  const allDisInResult = useMemo(() => [...new Set(patients.flatMap(p => p.conditions))].sort(), [patients]);
+  const allDisInResult =
+  diseases?.length > 0
+    ? diseases.map(d => d.label)
+    : [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
 
   return (
     <div>
@@ -986,11 +975,11 @@ function MedicationDisease() {
   );
 }
 
-/* ============================================================
-   6. MEDICATION / REPORTED HEALTH
-   ============================================================ */
-function MedicationHealth() {
-  const allMeds = [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
+function MedicationHealth({ medicines }) {
+  const allMeds =
+  medicines?.length > 0
+    ? medicines.map(m => m.label)
+    : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
   const [selMeds, setSelMeds] = useState([]);
   const toggleM = m => setSelMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
@@ -1049,9 +1038,6 @@ function MedicationHealth() {
   );
 }
 
-/* ============================================================
-   7. CUSTOMIZE TABLE
-   ============================================================ */
 const FIELD_DEFS = [
   { key: "name", label: "Patient Name" },
   { key: "age", label: "Age" },
@@ -1061,9 +1047,16 @@ const FIELD_DEFS = [
   { key: "reportedHealth", label: "Reported Health", isArr: true },
 ];
 
-function CustomizeTable() {
-  const allDiseases = [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
-  const allMeds = [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
+function CustomizeTable({ diseases, medicines }) {
+  const allDiseases =
+  diseases?.length > 0
+    ? diseases.map(d => d.label)
+    : [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
+
+const allMeds =
+  medicines?.length > 0
+    ? medicines.map(m => m.label)
+    : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
   const allSymptoms = [
   ...new Set(
     ALL_PATIENTS.flatMap(p => p.reportedHealth.map(r => r.symptom))
@@ -1151,9 +1144,6 @@ function CustomizeTable() {
   );
 }
 
-/* ============================================================
-   NAV
-   ============================================================ */
 const NAV = [
   { section: "Patient Info" },
   { key: "demographics", label: "Demographics", icon: "👥" },
@@ -1178,12 +1168,23 @@ const VIEWS = {
   customize: CustomizeTable,
 };
 
-/* ============================================================
-   ROOT
-   ============================================================ */
 export default function Analytics() {
   const [active, setActive] = useState("demographics");
   const View = VIEWS[active];
+  const [diseases, setDiseases] = useState([]);
+  const [medicines, setMedicines] = useState([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      const d = await fetchDiseases();
+      const m = await fetchMedicines();
+
+      setDiseases(d);
+      setMedicines(m);
+    };
+
+    loadData();
+  }, []);
 
   return (
     <div style={S.wrap}>
@@ -1212,7 +1213,7 @@ export default function Analytics() {
       </nav>
 
       <main style={S.main}>
-        {View && <View />}
+        {View && <View diseases={diseases} medicines={medicines}/>}
       </main>
     </div>
   );
