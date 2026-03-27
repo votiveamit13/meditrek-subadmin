@@ -134,11 +134,10 @@ const DROPDOWN_STYLES = `
 `;
 
 const AGE_GROUPS = {
-  "0–18":  (a) => a <= 18,
-  "19–30": (a) => a >= 19 && a <= 30,
-  "31–45": (a) => a >= 31 && a <= 45,
-  "46–60": (a) => a >= 46 && a <= 60,
-  "60+":   (a) => a > 60,
+  "0–18": a => a <= 18,
+  "19–30": a => a >= 19 && a <= 30,
+  "31–45": a => a >= 31 && a <= 45,
+  "46+": a => a >= 46,
 };
 
 function AgeRangeFilter({ value, onChange }) {
