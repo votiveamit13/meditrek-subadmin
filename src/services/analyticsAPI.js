@@ -1,37 +1,43 @@
 import { Base_Url } from "../config";
 
-let diseaseCache = null;
-let medicineCache = null;
+let diseaseCache = {};
+let medicineCache = {};
 
-export const fetchDiseases = async () => {
-  if (diseaseCache) return diseaseCache;
+export const fetchDiseases = async (doctor_id) => {
+  if (diseaseCache[doctor_id]) return diseaseCache[doctor_id];
 
-  const res = await fetch(`${Base_Url}subadmin/diseases`);
+  const res = await fetch(
+    `${Base_Url}subadmin/docterwise/diseases?doctor_id=${doctor_id}`
+  );
+
   const data = await res.json();
 
   if (data.success) {
-    diseaseCache = data.diseases.map(d => ({
+    diseaseCache[doctor_id] = data.diseases.map(d => ({
       label: d.disease_name,
       value: d.disease_id,
     }));
-    return diseaseCache;
+    return diseaseCache[doctor_id];
   }
 
   return [];
 };
 
-export const fetchMedicines = async () => {
-  if (medicineCache) return medicineCache;
+export const fetchMedicines = async (doctor_id) => {
+  if (medicineCache[doctor_id]) return medicineCache[doctor_id];
 
-  const res = await fetch(`${Base_Url}subadmin/medicines`);
+  const res = await fetch(
+    `${Base_Url}subadmin/docterwise/medicines?doctor_id=${doctor_id}`
+  );
+
   const data = await res.json();
 
   if (data.success) {
-    medicineCache = data.medicines.map(m => ({
+    medicineCache[doctor_id] = data.medicines.map(m => ({
       label: m.medicine_name,
       value: m.medicine_id,
     }));
-    return medicineCache;
+    return medicineCache[doctor_id];
   }
 
   return [];
@@ -72,6 +78,8 @@ export const fetchDemographicDetails = async ({
   doctor_id,
   age_group,
   gender,
+  page = 1,
+  limit = 10,
 }) => {
   try {
     const res = await fetch(
@@ -85,6 +93,8 @@ export const fetchDemographicDetails = async ({
           doctor_id,
           age_group,
           gender,
+          page,
+          limit,
         }),
       }
     );
@@ -102,5 +112,33 @@ export const fetchDemographicDetails = async ({
   } catch (error) {
     console.error("Demographics Details Error:", error);
     return { total: 0, patients: [] };
+  }
+};
+
+export const fetchDiseaseDashboard = async ({ doctor_id, disease, age_group, gender, page = 1, limit = 10 }) => {
+  try {
+    const res = await fetch(
+      `${Base_Url}subadmin-disease-dashboard`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          doctor_id, 
+          disease: disease || [], 
+          age_group, 
+          gender, 
+          page, 
+          limit 
+        }),
+      }
+    );
+
+    const data = await res.json();
+    return data.success ? data : null;
+  } catch (err) {
+    console.error(err);
+    return null;
   }
 };
