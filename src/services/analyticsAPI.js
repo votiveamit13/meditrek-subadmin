@@ -142,3 +142,126 @@ export const fetchDiseaseDashboard = async ({ doctor_id, disease, age_group, gen
     return null;
   }
 };
+
+export const fetchDiseaseMedicationStats = async ({
+  doctor_id,
+  disease,
+  medication,
+  age_group,
+  gender,
+  singleOnly,
+  combinedOnly,
+}) => {
+  try {
+    const res = await fetch(
+      `${Base_Url}subadmin-DiseasesMedicine`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          doctor_id,
+          disease: disease || [],
+          medication: medication || [],
+          age_group,
+          gender,
+          singleOnly,
+  combinedOnly,
+        }),
+      }
+    );
+
+    const data = await res.json();
+    return data.success ? data : null;
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+};
+
+export const fetchDiseaseMedicationSummary = async ({
+  doctor_id,
+  disease,
+  age_group,
+  gender,
+  page,
+  limit,
+  singleOnly,
+  combinedOnly,
+}) => {
+  try {
+    const res = await fetch(
+      `${Base_Url}subadmin-DiseasesMedicine-Summary`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          doctor_id,
+          disease,
+          age_group,
+          gender,
+          page,
+          limit,
+          singleOnly,
+  combinedOnly,
+        }),
+      }
+    );
+
+    const data = await res.json();
+    return data.success ? data : null;
+  } catch (err) {
+    console.error(err);
+    return null;
+  }
+};
+
+export const fetchDiseaseMedicationDetails = async ({
+  doctor_id,
+  age_group,
+  gender,
+  diseases,
+  singleOnly,
+  combinedOnly,
+  page,
+  limit,
+}) => {
+  try {
+    const res = await fetch(
+      `${Base_Url}subadmin-DiseasesMedicine-Details`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          doctor_id,
+          age_group,
+          gender,
+          diseases: diseases || [],
+          singleOnly,
+          combinedOnly,
+          page,
+          limit,
+        }),
+      }
+    );
+
+    const data = await res.json();
+
+    if (data.success) {
+      return {
+        total: 0,
+        patients: data.data,
+      };
+    }
+
+    return { total: 0, patients: [] };
+  } catch (err) {
+    console.error(err);
+    return { total: 0, patients: [] };
+  }
+};
