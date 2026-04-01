@@ -151,7 +151,8 @@ function GenderFilter({ value, onChange }) {
     { value: "All", label: "All Genders" },
     { value: "Male", label: "Male" },
     { value: "Female", label: "Female" },
-    { value: "Other", label: "Other" }
+    { value: "Other", label: "Other" },
+    { value: "Not Specified", label: "Not Specified" }
   ];
 
   const getDisplayText = () => {

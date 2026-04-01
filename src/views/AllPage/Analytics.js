@@ -3,10 +3,10 @@ import TagSearch from "./Analytics/TagSearch";
 import AgeRangeFilter from "./Analytics/AgeRangeFilter";
 import GenderFilter from "./Analytics/GenderFilter";
 import ExportButton from "component/common/ExportButton";
+import { fetchDemographicDetails, fetchDemographics, fetchDiseaseDashboard, fetchDiseaseMedicationStats, fetchDiseaseMedicationSummary, fetchDiseases, fetchMedicines, fetchDiseaseMedicationDetails } from "services/analyticsAPI";
+import CustomPagination from "component/common/Pagination";
+import { CircularProgress } from "@mui/material";
 
-/* ============================================================
-   MOCK DATA
-   ============================================================ */
 const ALL_PATIENTS = [
   {
     id: 1, name: "John Smith", age: 65, gender: "Male", conditions: ["Hypertension", "Diabetes"], meds: ["Lisinopril", "Metformin"], reportedHealth: [
@@ -72,21 +72,17 @@ const ALL_PATIENTS = [
 ];
 
 const AGE_GROUPS = {
-  "0–18": a => a <= 18,
-  "19–30": a => a >= 19 && a <= 30,
-  "31–45": a => a >= 31 && a <= 45,
-  "46–60": a => a >= 46 && a <= 60,
-  "60+": a => a > 60,
+  "0-18": a => a <= 18,
+  "19-30": a => a >= 19 && a <= 30,
+  "31-45": a => a >= 31 && a <= 45,
+  "46+": a => a >= 46,
 };
 
 const ACCENT = "#1ddec4";
 const ACCENT_BG = "rgba(29,222,196,0.13)";
-const GCOLORS = { Male: ACCENT, Female: "#60a5fa", Other: "#8b5cf6" };
+const GCOLORS = { Male: ACCENT, Female: "#60a5fa", Other: "#8b5cf6", "Not Specified": "#94a3b8" };
 const TOTAL = ALL_PATIENTS.length;
 
-/* ============================================================
-   STYLES
-   ============================================================ */
 const S = {
   wrap: { display: "flex", fontFamily: "'DM Sans',sans-serif", minHeight: "100vh", background: "#f4f6fb" },
   nav: { width: 230, minWidth: 210, background: "#fff", borderRight: "1px solid #eaecf2", display: "flex", flexDirection: "column", flexShrink: 0 },
@@ -134,7 +130,7 @@ const S = {
     border: t ? `1px solid rgba(29,222,196,0.3)` : "1px solid #e5e7eb", margin: "2px 3px 2px 0",
   }),
   badge: c => ({
-    display: "inline-block", padding: "2px 9px", borderRadius: 999, fontSize: 11, fontWeight: 600,
+    display: "inline-block", whiteSpace: "nowrap", padding: "2px 9px", borderRadius: 999, fontSize: 11, fontWeight: 600,
     background: c === "Male" ? ACCENT_BG : c === "Female" ? "rgba(96,165,250,0.15)" : "rgba(139,92,246,0.15)",
     color: c === "Male" ? ACCENT : c === "Female" ? "#60a5fa" : "#8b5cf6",
   }),
@@ -157,9 +153,6 @@ const S = {
   checkLabel: active => ({ display: "flex", alignItems: "center", gap: 7, fontSize: 12, cursor: "pointer", color: active ? ACCENT : "#374151", fontWeight: active ? 600 : 400 }),
 };
 
-/* ============================================================
-   HELPERS
-   ============================================================ */
 function pct(n, d) { return d === 0 ? "0.0" : ((n / d) * 100).toFixed(1); }
 
 function buildAgeDist(pts, denom) {
@@ -173,9 +166,6 @@ function buildGenderDist(pts, denom) {
   return Object.entries(map).map(([label, value]) => ({ label, value, pct: pct(value, denom) })).sort((a, b) => b.value - a.value);
 }
 
-/* ============================================================
-   REUSABLE UI
-   ============================================================ */
 function Chip({ label, teal }) { return <span style={S.chip(teal)}>{label}</span>; }
 function DChips({ arr }) { return <>{arr.map((c, i) => <Chip key={i} label={c} teal={false} />)}</>; }
 function MChips({ arr }) { return <>{arr.map((m, i) => <Chip key={i} label={m} teal={true} />)}</>; }
@@ -250,16 +240,16 @@ function DataTable({ cols, rows, empty = "No data found" }) {
                     <span className="sort-icons">
                       <span
                         className={`arrow up ${sortConfig?.key === c.key &&
-                            sortConfig.direction === "asc"
-                            ? "active"
-                            : ""
+                          sortConfig.direction === "asc"
+                          ? "active"
+                          : ""
                           }`}
                       />
                       <span
                         className={`arrow down ${sortConfig?.key === c.key &&
-                            sortConfig.direction === "desc"
-                            ? "active"
-                            : ""
+                          sortConfig.direction === "desc"
+                          ? "active"
+                          : ""
                           }`}
                       />
                     </span>
@@ -288,73 +278,242 @@ function DataTable({ cols, rows, empty = "No data found" }) {
   );
 }
 
-/* collapsible patient detail panel */
-function ExpandPanel({ patients, showSymptoms = false }) {
+function ExpandPanel({ patients, showSymptoms = false, useAPI = false, fetchFn, fetchParams = {}, count = 0, }) {
   const [open, setOpen] = useState(false);
-  if (!patients || patients.length === 0) return null;
+  const [apiPatients, setApiPatients] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open && useAPI) {
+      loadFromAPI();
+    }
+  }, [page, rowsPerPage, fetchParams]);
+
+  const loadFromAPI = async () => {
+    if (!fetchFn) return;
+
+    setLoading(true);
+
+    const res = await fetchFn({
+      ...fetchParams,
+      page,
+      limit: rowsPerPage
+    });
+
+    const formatted = (res.patients || []).map(p => ({
+      ...p,
+      conditions: p.diseases
+        ? p.diseases
+          .replace(/\n/g, ",")   
+          .split("},").map(d => {
+          const match = d.match(/name:\s*([^,}]+)/);
+          return match ? match[1].trim() : "";
+        }).filter(Boolean)
+        : [],
+      meds: Array.isArray(p.medications)
+        ? p.medications.map(m => m.name).filter(Boolean)
+        : [],
+    }));
+console.log(res.patients);
+    setApiPatients(formatted);
+    setTotal(res.total || count || 0);
+    setLoading(false);
+  };
+
+  const handleToggle = () => {
+    if (!open && useAPI) {
+      loadFromAPI();
+    }
+    setOpen(!open);
+  };
+
+  const rows = useAPI ? apiPatients : patients;
+
+  if (!useAPI && (!patients || patients.length === 0)) return null;
+
   return (
     <div>
-      <button style={S.expandBtn} onClick={() => setOpen(v => !v)}>
-        {open ? "▲ Collapse patients" : `▼ Expand — view ${patients.length} patient${patients.length !== 1 ? "s" : ""}`}
+      <button style={S.expandBtn} onClick={handleToggle}>
+        {open ? "▲ Collapse patients" : `▼ Expand — view ${useAPI ? count : patients.length} patients`}
       </button>
       {open && (
         <div style={S.expandPanel}>
-          <DataTable
-            cols={[
-              { key: "name", label: "Patient Name", sortable: true, },
-              { key: "age", label: "Age", sortable: true, },
-              { key: "gender", label: "Gender", sortable: true, render: r => <span style={S.badge(r.gender)}>{r.gender}</span> },
-              { key: "conditions", label: "Diseases", sortable: true, render: r => <DChips arr={r.conditions} /> },
-              { key: "meds", label: "Medications", sortable: true, render: r => <MChips arr={r.meds} /> },
-              ...(showSymptoms ? [
-                {
-                  key: "reportedHealth",
-                  label: "Symptoms",
-                  render: r => (
-    <DChips arr={r.reportedHealth.map(x => x.symptom)} />
-  )
-                }
-              ] : [])
-            ]}
-            rows={patients}
-          />
+          {loading ? (
+            <div>Loading...</div>
+          ) : (
+            <>
+              {useAPI && (
+                <div style={{ marginBottom: 10, fontWeight: 600 }}>
+                  Total: {total} patients
+                </div>
+              )}
+              <DataTable
+                cols={[
+                  { key: "name", label: "Patient Name", sortable: true, },
+                  { key: "age", label: "Age", sortable: true, },
+                  { key: "gender", label: "Gender", sortable: true, render: r => <span style={S.badge(r.gender)}>{r.gender}</span> },
+                  { key: "conditions", label: "Diseases", sortable: true, render: r => <DChips arr={r.conditions} /> },
+                  { key: "meds", label: "Medications", sortable: true, render: r => <MChips arr={r.meds} /> },
+                  ...(showSymptoms ? [
+                    {
+                      key: "reportedHealth",
+                      label: "Symptoms",
+                      render: r => (
+                        <DChips arr={r.reportedHealth.map(x => x.symptom)} />
+                      )
+                    }
+                  ] : [])
+                ]}
+                rows={rows || []}
+              />
+              <CustomPagination
+                count={useAPI ? total : rows.length}
+                page={page}
+                rowsPerPage={rowsPerPage}
+                onPageChange={(newPage) => setPage(newPage)}
+                onRowsPerPageChange={(val) => {
+                  setRowsPerPage(val);
+                  setPage(1);
+                }}
+                hideRowsPerPage={true}
+              />
+            </>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-/* ============================================================
-   1. DEMOGRAPHICS  (Age group × Sex)
-   ============================================================ */
+const genderMap = {
+  Male: 1,
+  Female: 2,
+  Other: 3,
+  "Not Specified": 0,
+};
+
+
+const LoadingPlaceholder = () => (
+  <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "20px" }}>
+    <CircularProgress size={24} />
+  </div>
+);
+
 function Demographics() {
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
+  const [data, setData] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const doctor_id = sessionStorage.getItem("doctor_id");
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const res = await fetchDemographics({ doctor_id });
+        setData(res.list);
+        setTotal(res.total);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const pool = useMemo(() => ALL_PATIENTS.filter(p => {
-    if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
-    if (gender !== "All" && p.gender !== gender) return false;
-    return true;
-  }), [ageGroup, gender]);
+    load();
+  }, []);
 
-  const ageDist = useMemo(() => buildAgeDist(pool, TOTAL), [pool]);
-  const genderDist = useMemo(() => buildGenderDist(pool, TOTAL), [pool]);
+  const pool = useMemo(() => {
+    return data.filter(item => {
+      if (ageGroup !== "All" && item.age_group !== ageGroup) return false;
+      if (gender !== "All" && item.gender !== gender) return false;
+      return true;
+    });
+  }, [data, ageGroup, gender]);
+
+  const patientsInView = useMemo(() => {
+    return pool.reduce((sum, item) => sum + item.count, 0);
+  }, [pool]);
+
+  const ageGroupCount = useMemo(() => {
+    return new Set(data.map(item => item.age_group)).size;
+  }, [data]);
+
+  const ageDist = useMemo(() => {
+    const map = {};
+
+    pool.forEach(item => {
+      map[item.age_group] = (map[item.age_group] || 0) + item.count;
+    });
+
+    return Object.entries(map).map(([label, value]) => ({
+      label,
+      value,
+      pct: pct(value, total),
+    }));
+  }, [pool, total]);
+  const genderDist = useMemo(() => {
+    const genders = ["Male", "Female", "Other", "Not Specified"];
+    const map = {
+      Male: 0,
+      Female: 0,
+      Other: 0,
+      "Not Specified": 0,
+    };
+
+    pool.forEach(item => {
+      if (map[item.gender] !== undefined) {
+        map[item.gender] += item.count;
+      }
+    });
+
+    return genders.map(g => ({
+      label: g,
+      value: map[g],
+      pct: pct(map[g], total),
+    }));
+  }, [pool, total]);
 
   /* cross table: age group × gender */
   const crossData = useMemo(() => {
-    const genders = ["Male", "Female", "Other"];
-    return Object.keys(AGE_GROUPS).map(ag => {
-      const row = { age: ag };
-      genders.forEach(g => {
-        const n = ALL_PATIENTS.filter(p => AGE_GROUPS[ag](p.age) && p.gender === g).length;
-        row[g] = n;
-        row[g + "_pct"] = pct(n, TOTAL);
-      });
-      row.total = ALL_PATIENTS.filter(p => AGE_GROUPS[ag](p.age)).length;
-      row.total_pct = pct(row.total, TOTAL);
-      return row;
+    const genders = ["Male", "Female", "Other", "Not Specified"];
+
+    const map = {};
+
+    // init
+    Object.keys(AGE_GROUPS).forEach(age => {
+      map[age] = {
+        age,
+        Male: 0,
+        Female: 0,
+        Other: 0,
+        "Not Specified": 0,
+        total: 0,
+      };
     });
-  }, []);
+
+    // fill from API
+    pool.forEach(item => {
+      if (!map[item.age_group]) return;
+
+      map[item.age_group][item.gender] += item.count;
+      map[item.age_group].total += item.count;
+    });
+
+    // add %
+    return Object.values(map).map(row => {
+      const newRow = { ...row };
+
+      genders.forEach(g => {
+        newRow[g + "_pct"] = pct(row[g], total);
+      });
+
+      newRow.total_pct = pct(row.total, total);
+
+      return newRow;
+    });
+  }, [pool, total]);
 
   return (
     <div>
@@ -371,116 +530,349 @@ function Demographics() {
       </div>
 
       <div style={S.statRow}>
-        <StatCard label="Patients in View" value={pool.length} sub={`${pct(pool.length, TOTAL)}% of all patients`} />
-        <StatCard label="Total Patients" value={TOTAL} />
-        <StatCard label="Age Groups" value={Object.keys(AGE_GROUPS).length} />
+        {loading ? (
+          <>
+            <div style={S.statCard}>
+              <div style={S.statLbl}>Patients in View</div>
+              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+                <CircularProgress size={24} />
+              </div>
+            </div>
+
+            <div style={S.statCard}>
+              <div style={S.statLbl}>Total Patients</div>
+              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+                <CircularProgress size={24} />
+              </div>
+            </div>
+
+            <div style={S.statCard}>
+              <div style={S.statLbl}>Age Groups</div>
+              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+                <CircularProgress size={24} />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <StatCard label="Patients in View" value={patientsInView} sub={`${pct(patientsInView, total)}% of all patients`} />
+            <StatCard label="Total Patients" value={total} />
+            <StatCard label="Age Groups" value={ageGroupCount} />
+          </>
+        )}
       </div>
 
       <div style={S.grid2}>
         {/* Age dist */}
         <div style={S.card}>
-          <p style={S.cardTitle}>Age Group Distribution <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of all {TOTAL} patients</span></p>
-          <div style={S.barWrap}>
-            {ageDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={TOTAL} pctVal={d.pct} />)}
-          </div>
+          <p style={S.cardTitle}>Age Group Distribution <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of all {total} patients</span></p>
+          {loading ? (
+            <LoadingPlaceholder />
+          ) : (
+            <div style={S.barWrap}>
+              {ageDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={total} pctVal={d.pct} />)}
+            </div>
+          )}
         </div>
         {/* Gender dist */}
         <div style={S.card}>
-          <p style={S.cardTitle}>Sex Distribution <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of all {TOTAL} patients</span></p>
-          <div style={S.barWrap}>
-            {genderDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={TOTAL} pctVal={d.pct} color={GCOLORS[d.label]} />)}
-          </div>
+          <p style={S.cardTitle}>Sex Distribution <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of all {total} patients</span></p>
+          {loading ? (
+            <LoadingPlaceholder />
+          ) : (
+            <div style={S.barWrap}>
+              {genderDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={total} pctVal={d.pct} color={GCOLORS[d.label]} />)}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Cross table */}
       <div style={S.card}>
         <p style={S.cardTitle}>Age × Sex Cross-table</p>
-        <DataTable
-          cols={[
-            { key: "age", label: "Age Group", sortable: true, },
-            { key: "Male", label: "Male", sortable: true, render: r => <span style={{ fontWeight: 600, color: ACCENT }}>{r.Male} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.Male_pct}%)</span></span> },
-            { key: "Female", label: "Female", sortable: true, render: r => <span style={{ fontWeight: 600, color: "#60a5fa" }}>{r.Female} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.Female_pct}%)</span></span> },
-            { key: "Other", label: "Other", sortable: true, render: r => <span style={{ fontWeight: 600, color: "#8b5cf6" }}>{r.Other} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.Other_pct}%)</span></span> },
-            { key: "total", label: "Total", sortable: true, render: r => <span style={{ fontWeight: 700 }}>{r.total} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.total_pct}%)</span></span> },
-          ]}
-          rows={crossData}
-        />
+        {loading ? (
+          <LoadingPlaceholder />
+        ) : (
+          <DataTable
+            cols={[
+              { key: "age", label: "Age Group", sortable: true, },
+              { key: "Male", label: "Male", sortable: true, render: r => <span style={{ fontWeight: 600, color: ACCENT }}>{r.Male} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.Male_pct}%)</span></span> },
+              { key: "Female", label: "Female", sortable: true, render: r => <span style={{ fontWeight: 600, color: "#60a5fa" }}>{r.Female} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.Female_pct}%)</span></span> },
+              { key: "Other", label: "Other", sortable: true, render: r => <span style={{ fontWeight: 600, color: "#8b5cf6" }}>{r.Other} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.Other_pct}%)</span></span> },
+              {
+                key: "Not Specified",
+                label: "Not Specified",
+                sortable: true,
+                render: r => (
+                  <span style={{ fontWeight: 600, color: "#94a3b8" }}>
+                    {r["Not Specified"]}
+                    <span style={{ color: "#94a3b8", fontWeight: 400 }}>
+                      ({r["Not Specified_pct"]}%)
+                    </span>
+                  </span>
+                )
+              },
+              { key: "total", label: "Total", sortable: true, render: r => <span style={{ fontWeight: 700 }}>{r.total} <span style={{ color: "#94a3b8", fontWeight: 400 }}>({r.total_pct}%)</span></span> },
+            ]}
+            rows={crossData}
+          />
+        )}
         <div style={{ marginTop: 14 }}>
-          <ExpandPanel patients={pool} />
+          <ExpandPanel
+            useAPI={true}
+            fetchFn={fetchDemographicDetails}
+            fetchParams={{
+              doctor_id,
+              age_group: ageGroup === "All" ? undefined : ageGroup,
+              gender:
+                gender === "All"
+                  ? undefined
+                  : genderMap[gender],
+            }}
+            count={patientsInView}
+          />
         </div>
       </div>
     </div>
   );
 }
 
-/* ============================================================
-   2. DISEASE / DEMOGRAPHICS
-   ============================================================ */
-function DiseaseDemo() {
-  const allDiseases = [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
+function DiseaseDemo({ diseases }) {
+  const allDiseases =
+    diseases?.length > 0
+      ? diseases.map(d => d.label)
+      : [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
   const [selDiseases, setSelDiseases] = useState([]);
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
   const [combinedOnly, setCombined] = useState(false);
   const [singleOnly, setSingleOnly] = useState(false);
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [loading, setLoading] = useState(false);
+  const [loadingAllData, setLoadingAllData] = useState(false);
 
   const toggleD = d => setSelDiseases(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
 
-  const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
-    if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
-    if (gender !== "All" && p.gender !== gender) return false;
-    return true;
-  }), [ageGroup, gender]);
+  const [apiData, setApiData] = useState(null);
+  const [allPatientsData, setAllPatientsData] = useState(null);
 
-  const patients = useMemo(() => {
-    let r = basePool;
+  const doctor_id = sessionStorage.getItem("doctor_id");
+
+  useEffect(() => {
+    const loadAllData = async () => {
+      setLoadingAllData(true);
+      try {
+        const res = await fetchDiseaseDashboard({
+          doctor_id,
+          disease: selDiseases.length ? selDiseases : undefined,
+          age_group: ageGroup !== "All" ? ageGroup : undefined,
+          gender: gender !== "All" ? genderMap[gender] : undefined,
+        });
+        setAllPatientsData(res);
+      } catch (error) {
+        console.error("Error loading all patients data:", error);
+      } finally {
+        setLoadingAllData(false);
+      }
+    };
+    loadAllData();
+  }, [doctor_id, selDiseases, ageGroup, gender]);
+
+  useEffect(() => {
+    const loadPaginatedData = async () => {
+      setLoading(true);
+      try {
+        const res = await fetchDiseaseDashboard({
+          doctor_id,
+          disease: selDiseases.length ? selDiseases : undefined,
+          age_group: ageGroup !== "All" ? ageGroup : undefined,
+          gender: gender !== "All" ? genderMap[gender] : undefined,
+          page: page,
+          limit: rowsPerPage
+        });
+        setApiData(res);
+      } catch (error) {
+        console.error("Error loading paginated data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadPaginatedData();
+  }, [doctor_id, selDiseases, ageGroup, gender, page, rowsPerPage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [selDiseases, ageGroup, gender, combinedOnly, singleOnly]);
+
+  const extractDiseaseNames = (str) => {
+    if (!str) return ["No Disease"];
+
+    const matches = [...str.matchAll(/name:\s*([^,}]+)/g)];
+    return matches.map(m => m[1].trim());
+  };
+
+  const ALL_PATIENTS_DATA = useMemo(() => {
+    if (!allPatientsData?.patients) return [];
+
+    return allPatientsData.patients.map((p, i) => ({
+      id: p.user_id || i + 1,
+      name: p.name,
+      age: p.age,
+      gender: p.gender || "Not Specified",
+      conditions: extractDiseaseNames(p.diseases),
+      meds: Array.isArray(p.medications)
+        ? p.medications.map(m => m.name).filter(Boolean)
+        : [],
+      reportedHealth: []
+    }));
+  }, [allPatientsData]);
+
+  const filteredPatients = useMemo(() => {
+    let filtered = ALL_PATIENTS_DATA;
 
     if (selDiseases.length > 0) {
 
-      // ✅ SINGLE EXACT
       if (selDiseases.length === 1 && singleOnly) {
-        r = r.filter(p =>
+        filtered = filtered.filter(p =>
           p.conditions.length === 1 &&
           p.conditions.includes(selDiseases[0])
         );
       }
 
-      // ✅ MULTI EXACT
       else if (combinedOnly && selDiseases.length >= 2) {
-        r = r.filter(p => {
+        filtered = filtered.filter(p => {
           const hasAll = selDiseases.every(d => p.conditions.includes(d));
-          const exactCount = p.conditions.length === selDiseases.length;
-          return hasAll && exactCount;
+          const exactMatch = p.conditions.length === selDiseases.length;
+          return hasAll && exactMatch;
         });
       }
 
-      // ✅ DEFAULT
       else {
-        r = r.filter(p =>
+        filtered = filtered.filter(p =>
           selDiseases.some(d => p.conditions.includes(d))
         );
       }
     }
 
-    return r;
-  }, [basePool, selDiseases, combinedOnly, singleOnly]);
+    return filtered;
+  }, [ALL_PATIENTS_DATA, selDiseases, combinedOnly, singleOnly]);
 
-  useEffect(() => {
-    setSingleOnly(false);
-    setCombined(false);
-  }, [selDiseases]);
+  const API_PATIENTS = useMemo(() => {
+    if (!apiData?.patients) return [];
+
+    return apiData.patients.map((p, i) => ({
+      id: p.user_id || i + 1,
+      name: p.name,
+      age: p.age,
+      gender: p.gender || "Not Specified",
+      conditions: extractDiseaseNames(p.diseases),
+      meds: Array.isArray(p.medications)
+        ? p.medications.map(m => m.name).filter(Boolean)
+        : [],
+      reportedHealth: []
+    }));
+  }, [apiData]);
+
+  const basePool = useMemo(() => ALL_PATIENTS_DATA.filter(p => {
+    if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
+    if (gender !== "All" && p.gender !== gender) return false;
+    return true;
+  }), [ALL_PATIENTS_DATA, ageGroup, gender]);
+
+  const TOTAL_API = allPatientsData?.total_patients || ALL_PATIENTS_DATA.length;
+
+  const matchedCount =
+    (singleOnly || combinedOnly)
+      ? filteredPatients.length
+      : allPatientsData?.matched_patients ?? 0;
 
   const diseaseDist = useMemo(() => {
-    const map = {};
-    basePool.forEach(p => p.conditions.forEach(c => {
-      if (!selDiseases.length || selDiseases.includes(c)) map[c] = (map[c] || 0) + 1;
-    }));
-    return Object.entries(map).map(([k, v]) => ({ label: k, value: v, pct: pct(v, basePool.length) })).sort((a, b) => b.value - a.value);
-  }, [basePool, selDiseases]);
+    const source =
+      (singleOnly || combinedOnly)
+        ? filteredPatients
+        : ALL_PATIENTS_DATA;
 
-  const ageDist = useMemo(() => buildAgeDist(patients, patients.length), [patients]);
-  const genderDist = useMemo(() => buildGenderDist(patients, patients.length), [patients]);
+    const map = {};
+
+    source.forEach(p => {
+      if (!p.conditions.length) {
+        map["No Disease"] = (map["No Disease"] || 0) + 1;
+      } else {
+        p.conditions.forEach(d => {
+          map[d] = (map[d] || 0) + 1;
+        });
+      }
+    });
+
+    return Object.entries(map).map(([label, value]) => ({
+      label,
+      value,
+      pct: pct(value, source.length),
+    }));
+  }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly]);
+
+  const ageDist = useMemo(() => {
+    const source =
+      (singleOnly || combinedOnly)
+        ? filteredPatients
+        : ALL_PATIENTS_DATA;
+
+    const map = {
+      "0-18": 0,
+      "19-30": 0,
+      "31-45": 0,
+      "46+": 0,
+    };
+
+    source.forEach(p => {
+      const group = Object.keys(AGE_GROUPS).find(k => AGE_GROUPS[k](p.age));
+      if (group) map[group]++;
+    });
+
+    return Object.entries(map).map(([age_group, count]) => ({
+      age_group,
+      count,
+      percentage: pct(count, source.length),
+    }));
+  }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly]);
+
+  const genderDist = useMemo(() => {
+    const source =
+      (singleOnly || combinedOnly)
+        ? filteredPatients
+        : ALL_PATIENTS_DATA;
+
+    const base = {
+      Male: 0,
+      Female: 0,
+      Other: 0,
+      "Not Specified": 0,
+    };
+
+    source.forEach(p => {
+      if (base[p.gender] !== undefined) {
+        base[p.gender]++;
+      } else {
+        base["Not Specified"]++;
+      }
+    });
+
+    return Object.entries(base).map(([gender, count]) => ({
+      gender,
+      count,
+      percentage: pct(count, source.length),
+    }));
+  }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly]);
+
+  useEffect(() => {
+    if (selDiseases.length !== 1 && singleOnly) {
+      setSingleOnly(false);
+    }
+    if (selDiseases.length < 2 && combinedOnly) {
+      setCombined(false);
+    }
+  }, [selDiseases]);
 
   return (
     <div>
@@ -515,104 +907,243 @@ function DiseaseDemo() {
       </div>
 
       <div style={S.statRow}>
-        <StatCard label="Matched Patients" value={patients.length} sub={`${pct(patients.length, basePool.length)}% of group · ${pct(patients.length, TOTAL)}% of all`} />
-        <StatCard label="Group Size" value={basePool.length} sub={`${pct(basePool.length, TOTAL)}% of all patients`} />
-        <StatCard label="Diseases Selected" value={selDiseases.length || "All"} />
+        {loadingAllData ? (
+          <>
+            <div style={S.statCard}>
+              <div style={S.statLbl}>Matched Patients</div>
+              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+                <CircularProgress size={24} />
+              </div>
+            </div>
+            <div style={S.statCard}>
+              <div style={S.statLbl}>Group Size</div>
+              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+                <CircularProgress size={24} />
+              </div>
+            </div>
+            <div style={S.statCard}>
+              <div style={S.statLbl}>Diseases Selected</div>
+              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+                <CircularProgress size={24} />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <StatCard
+              label="Matched Patients"
+              value={matchedCount}
+              sub={`${pct(matchedCount, TOTAL_API)}% of group`}
+            />
+            <StatCard
+              label="Group Size"
+              value={TOTAL_API}
+              sub={`${pct(basePool.length, TOTAL_API)}% of all patients`}
+            />
+            <StatCard
+              label="Diseases Selected"
+              value={selDiseases.length || "All"}
+            />
+          </>
+        )}
       </div>
 
       <div style={S.grid2}>
         <div style={S.card}>
-          <p style={S.cardTitle}>Disease Distribution <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of {basePool.length} in group</span></p>
-          <div style={S.barWrap}>{diseaseDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={basePool.length} pctVal={d.pct} />)}</div>
+          <p style={S.cardTitle}>Disease Distribution <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of {matchedCount} in group</span></p>
+          {loadingAllData ? (
+            <LoadingPlaceholder />
+          ) : (
+            <div style={S.barWrap}>
+              {diseaseDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={matchedCount} pctVal={d.pct} />)}
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {ageDist.length > 0 && (
-            <div style={S.card}>
-              <p style={S.cardTitle}>Age Breakdown <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of matched</span></p>
-              <div style={S.barWrap}>{ageDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={patients.length} pctVal={d.pct} />)}</div>
-            </div>
-          )}
-          {genderDist.length > 0 && (
-            <div style={S.card}>
-              <p style={S.cardTitle}>Sex Breakdown <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of matched</span></p>
-              <div style={S.barWrap}>{genderDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={patients.length} pctVal={d.pct} color={GCOLORS[d.label]} />)}</div>
-            </div>
-          )}
+          <div style={S.card}>
+            <p style={S.cardTitle}>Age Breakdown <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of matched</span></p>
+            {loadingAllData ? (
+              <LoadingPlaceholder />
+            ) : (
+              ageDist.length > 0 ? (
+                <div style={S.barWrap}>
+                  {ageDist.map((d, i) => <HBar key={i} label={d.age_group} value={d.count} total={matchedCount} pctVal={d.percentage} />)}
+                </div>
+              ) : (
+                <div style={S.noData}>No age data available</div>
+              )
+            )}
+          </div>
+          <div style={S.card}>
+            <p style={S.cardTitle}>Sex Breakdown <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of matched</span></p>
+            {loadingAllData ? (
+              <LoadingPlaceholder />
+            ) : (
+              genderDist.length > 0 ? (
+                <div style={S.barWrap}>
+                  {genderDist.map((d, i) => <HBar key={i} label={d.gender} value={d.count} total={matchedCount} pctVal={d.percentage} color={GCOLORS[d.gender]} />)}
+                </div>
+              ) : (
+                <div style={S.noData}>No gender data available</div>
+              )
+            )}
+          </div>
         </div>
       </div>
 
       <div style={S.card}>
         <p style={S.cardTitle}>Patient Table</p>
-        <DataTable
-          cols={[
-            { key: "name", label: "Patient Name", sortable: true, },
-            { key: "age", label: "Age", sortable: true, },
-            { key: "gender", label: "Gender", sortable: true, render: r => <span style={S.badge(r.gender)}>{r.gender}</span> },
-            { key: "conditions", label: "Diseases", sortable: true, render: r => <DChips arr={r.conditions} /> },
-            { key: "meds", label: "Medications", sortable: true, render: r => <MChips arr={r.meds} /> },
-          ]}
-          rows={patients}
-          empty="No patients match the selected filters"
-        />
+        {loading ? (
+          <LoadingPlaceholder />
+        ) : (
+          <>
+            <DataTable
+              cols={[
+                { key: "name", label: "Patient Name", sortable: true, },
+                { key: "age", label: "Age", sortable: true, },
+                { key: "gender", label: "Gender", sortable: true, render: r => <span style={S.badge(r.gender)}>{r.gender}</span> },
+                { key: "conditions", label: "Diseases", sortable: true, render: r => <DChips arr={r.conditions} /> },
+                { key: "meds", label: "Medications", sortable: true, render: r => <MChips arr={r.meds} /> },
+              ]}
+              rows={
+                (singleOnly || combinedOnly)
+                  ? filteredPatients
+                  : API_PATIENTS
+              }
+              empty="No patients match the selected filters"
+            />
+            <div style={{ marginTop: 14 }}>
+              <CustomPagination
+                count={TOTAL_API}
+                page={page}
+                rowsPerPage={rowsPerPage}
+                onPageChange={(newPage) => setPage(newPage)}
+                onRowsPerPageChange={(val) => {
+                  setRowsPerPage(val);
+                  setPage(1);
+                }}
+                hideRowsPerPage={true}
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-/* ============================================================
-   3. DISEASE / MEDICATION
-   Multiple disease combos → drug list with % and numbers
-   ============================================================ */
-function DiseaseMedication() {
-  const allDiseases = [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
+function DiseaseMedication({ diseases, medicines }) {
+  const allDiseases =
+    diseases?.length > 0
+      ? diseases.map(d => d.label)
+      : [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
   const [selDiseases, setSelDiseases] = useState([]);
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
   const [combinedOnly, setCombined] = useState(false);
   const [excludeMeds, setExcludeMeds] = useState([]);
   const [singleOnly, setSingleOnly] = useState(false);
+  const [stats, setStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [summaryData, setSummaryData] = useState([]);
+  // const [totalPatients, setTotalPatients] = useState(0);
+  // const [matchedPatients, setMatchedPatients] = useState(0);
+  const [loadingTable, setLoadingTable] = useState(false);
+
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  const doctor_id = sessionStorage.getItem("doctor_id");
 
   const toggleD = d => setSelDiseases(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
   const toggleExclude = m => setExcludeMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
-  const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
-    if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
-    if (gender !== "All" && p.gender !== gender) return false;
-    return true;
-  }), [ageGroup, gender]);
+  useEffect(() => {
+    const loadStats = async () => {
+      setLoadingStats(true);
 
-  const patients = useMemo(() => {
-    let r = basePool;
+      const res = await fetchDiseaseMedicationStats({
+        doctor_id,
+        disease: selDiseases,
+        medication: excludeMeds,
+        age_group: ageGroup !== "All" ? ageGroup : undefined,
+        gender: gender !== "All" ? genderMap[gender] : undefined,
+        singleOnly,
+  combinedOnly,
+      });
 
-    if (selDiseases.length > 0) {
+      setStats(res);
+      setLoadingStats(false);
+    };
 
-      // ✅ SINGLE EXACT
-      if (selDiseases.length === 1 && singleOnly) {
-        r = r.filter(p =>
-          p.conditions.length === 1 &&
-          p.conditions.includes(selDiseases[0])
-        );
+    loadStats();
+  }, [doctor_id, selDiseases, ageGroup, gender, excludeMeds, singleOnly, combinedOnly]);
+
+  useEffect(() => {
+    const loadSummary = async () => {
+      setLoadingTable(true);
+
+      const res = await fetchDiseaseMedicationSummary({
+        doctor_id,
+        disease: selDiseases,
+        age_group: ageGroup !== "All" ? ageGroup : undefined,
+        gender: gender !== "All" ? genderMap[gender] : undefined,
+        page,
+        limit: rowsPerPage,
+        singleOnly,
+  combinedOnly,
+      });
+
+      if (res) {
+        setSummaryData(res.summary || []);
+        // setTotalPatients(res.total_patients || 0);
+        // setMatchedPatients(res.matched_patients || 0);
       }
 
-      // ✅ MULTI EXACT
-      else if (combinedOnly && selDiseases.length >= 2) {
-        r = r.filter(p => {
-          const hasAll = selDiseases.every(d => p.conditions.includes(d));
-          const exactCount = p.conditions.length === selDiseases.length;
-          return hasAll && exactCount;
-        });
-      }
+      setLoadingTable(false);
+    };
 
-      // ✅ DEFAULT
-      else {
-        r = r.filter(p =>
-          selDiseases.some(d => p.conditions.includes(d))
-        );
-      }
-    }
+    loadSummary();
+  }, [doctor_id, selDiseases, ageGroup, gender, page, rowsPerPage, singleOnly, combinedOnly]);
 
-    return r;
-  }, [basePool, selDiseases, combinedOnly, singleOnly]);
+  // const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
+  //   if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
+  //   if (gender !== "All" && p.gender !== gender) return false;
+  //   return true;
+  // }), [ageGroup, gender]);
+
+  // const patients = useMemo(() => {
+  //   let r = basePool;
+
+  //   if (selDiseases.length > 0) {
+
+  //     // ✅ SINGLE EXACT
+  //     if (selDiseases.length === 1 && singleOnly) {
+  //       r = r.filter(p =>
+  //         p.conditions.length === 1 &&
+  //         p.conditions.includes(selDiseases[0])
+  //       );
+  //     }
+
+  //     // ✅ MULTI EXACT
+  //     else if (combinedOnly && selDiseases.length >= 2) {
+  //       r = r.filter(p => {
+  //         const hasAll = selDiseases.every(d => p.conditions.includes(d));
+  //         const exactCount = p.conditions.length === selDiseases.length;
+  //         return hasAll && exactCount;
+  //       });
+  //     }
+
+  //     // ✅ DEFAULT
+  //     else {
+  //       r = r.filter(p =>
+  //         selDiseases.some(d => p.conditions.includes(d))
+  //       );
+  //     }
+  //   }
+
+  //   return r;
+  // }, [basePool, selDiseases, combinedOnly, singleOnly]);
 
   useEffect(() => {
     setSingleOnly(false);
@@ -620,19 +1151,30 @@ function DiseaseMedication() {
   }, [selDiseases]);
 
   /* drug distribution among matched patients */
-  const medDist = useMemo(() => {
-    const map = {};
-    patients.forEach(p => p.meds.forEach(m => {
-      if (!excludeMeds.includes(m)) map[m] = (map[m] || 0) + 1;
-    }));
-    return Object.entries(map).map(([label, value]) => ({
-      label, value,
-      pctOfMatched: pct(value, patients.length),
-      pctOfAll: pct(value, TOTAL),
-    })).sort((a, b) => b.value - a.value);
-  }, [patients, excludeMeds]);
+  // const medDist = useMemo(() => {
+  //   const map = {};
+  //   patients.forEach(p => p.meds.forEach(m => {
+  //     if (!excludeMeds.includes(m)) map[m] = (map[m] || 0) + 1;
+  //   }));
+  //   return Object.entries(map).map(([label, value]) => ({
+  //     label, value,
+  //     pctOfMatched: pct(value, patients.length),
+  //     pctOfAll: pct(value, TOTAL),
+  //   })).sort((a, b) => b.value - a.value);
+  // }, [patients, excludeMeds]);
 
-  const allMedsInResult = useMemo(() => [...new Set(patients.flatMap(p => p.meds))].sort(), [patients]);
+  const allMedsInResult =
+    medicines?.length > 0
+      ? medicines.map(m => m.label)
+      : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
+
+  const filteredSummaryData = useMemo(() => {
+  if (!summaryData) return [];
+
+  return summaryData.filter(
+    item => !excludeMeds.includes(item.medicine_name)
+  );
+}, [summaryData, excludeMeds]);
 
   return (
     <div>
@@ -680,58 +1222,141 @@ function DiseaseMedication() {
       </div>
 
       <div style={S.statRow}>
-        <StatCard label="Matched Patients" value={patients.length} sub={`${pct(patients.length, TOTAL)}% of all patients`} />
-        <StatCard label="Unique Drugs" value={medDist.length} />
-        <StatCard label="Top Drug" value={medDist[0]?.label || "—"} sub={medDist[0] ? `${medDist[0].pctOfMatched}% of matched` : ""} />
+        {loadingStats ? (
+          <>
+            <div style={S.statCard}>
+              <div style={S.statLbl}>Matched Patients</div>
+              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+                <CircularProgress size={24} />
+              </div>
+            </div>
+
+            <div style={S.statCard}>
+              <div style={S.statLbl}>Total Patients</div>
+              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+                <CircularProgress size={24} />
+              </div>
+            </div>
+
+            <div style={S.statCard}>
+              <div style={S.statLbl}>Top Drug</div>
+              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+                <CircularProgress size={24} />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <StatCard label="Matched Patients" value={stats?.matched_patients || 0} sub={`${stats?.percentage}% of all patients`} />
+            <StatCard label="Total Patients" value={stats?.total_patients || 0} />
+            <StatCard label="Top Drug" value={stats?.top_drug || "—"} />
+          </>
+        )}
       </div>
 
       <div style={S.card}>
         <p style={S.cardTitle}>
           Drug Distribution
 
-          <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8 }} className="d-flex align-items-center justfiy-content-between">among {patients.length} matched patients
+          <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8 }} className="d-flex align-items-center justfiy-content-between">among {stats?.matched_patients || 0} matched patients
             <ExportButton
-              data={medDist}
+              data={filteredSummaryData}
               fileName="Drug_Distribution"
               mapFn={(r, i) => ({
                 "S. No.": i + 1,
-                "Medication": r.label,
-                [`Patients Count (${patients.length})`]: r.value,
-                "% of Matched": r.pctOfMatched,
-                "% of All Patients": r.pctOfAll,
+                "Medication": r.medicine_name,
+                "Patients Count": r.patient_count,
+                "% of Matched": r.percent_matched,
+                "% of All Patients": r.percent_total,
               })}
             /></span>
         </p>
-        {medDist.length === 0
-          ? <div style={S.noData}>Select a disease to see medication data</div>
-          : <DataTable
+        {loadingTable ? (
+          <LoadingPlaceholder />
+        ) : summaryData.length === 0 ? (
+          <div style={S.noData}>No data found</div>
+        ) : (
+          <DataTable
             cols={[
-              { key: "label", label: "Medication", sortable: true, render: r => <Chip label={r.label} teal={true} /> },
-              { key: "value", label: "Patients", sortable: true, render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.value}</span> },
-              { key: "pctOfMatched", label: "% of Matched", sortable: true, render: r => <span style={{ fontWeight: 600 }}>{r.pctOfMatched}%</span> },
-              { key: "pctOfAll", label: "% of All Patients", sortable: true, render: r => <span style={{ color: "#94a3b8" }}>{r.pctOfAll}%</span> },
               {
-                key: "bar", label: "", render: r => (
-                  <div style={{ ...S.barTrack, minWidth: 80 }}>
-                    <div style={S.barFill(parseFloat(r.pctOfMatched))} />
-                  </div>
+                key: "medicine_name",
+                label: "Medication",
+                sortable: true,
+                render: r => <Chip label={r.medicine_name} teal={true} />
+              },
+              {
+                key: "patient_count",
+                label: "Patients",
+                sortable: true,
+                render: r => (
+                  <span style={{ fontWeight: 700, color: ACCENT }}>
+                    {r.patient_count}
+                  </span>
                 )
               },
+              {
+                key: "percent_matched",
+                label: "% of Matched",
+                sortable: true,
+                render: r => <span>{r.percent_matched}%</span>
+              },
+              {
+                key: "percent_total",
+                label: "% of All Patients",
+                sortable: true,
+                render: r => <span style={{ color: "#94a3b8" }}>{r.percent_total}%</span>
+              },
+              {
+                key: "bar",
+                label: "",
+                render: r => (
+                  <div style={{ ...S.barTrack, minWidth: 80 }}>
+                    <div style={S.barFill(parseFloat(r.percent_matched))} />
+                  </div>
+                )
+              }
             ]}
-            rows={medDist}
+            rows={filteredSummaryData}
           />
-        }
-        <div style={{ marginTop: 14 }}><ExpandPanel patients={patients} /></div>
+        )}
+        <div style={{ marginTop: 14 }}>
+          <CustomPagination
+            count={filteredSummaryData.length}
+            page={page}
+            rowsPerPage={rowsPerPage}
+            onPageChange={(newPage) => setPage(newPage)}
+            onRowsPerPageChange={(val) => {
+              setRowsPerPage(val);
+              setPage(1);
+            }}
+            hideRowsPerPage={true}
+          />
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <ExpandPanel
+  useAPI={true}
+  fetchFn={fetchDiseaseMedicationDetails}
+  fetchParams={{
+    doctor_id,
+    age_group: ageGroup === "All" ? undefined : ageGroup,
+    gender: gender === "All" ? undefined : genderMap[gender],
+    diseases: selDiseases,
+    singleOnly,
+    combinedOnly
+  }}
+  count={stats?.matched_patients || 0}
+/>
+        </div>
       </div>
     </div>
   );
 }
 
-/* ============================================================
-   4. MEDICATION / DEMOGRAPHICS
-   ============================================================ */
-function MedicationDemo() {
-  const allMeds = [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
+function MedicationDemo({ medicines }) {
+  const allMeds =
+    medicines?.length > 0
+      ? medicines.map(m => m.label)
+      : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
   const [selMeds, setSelMeds] = useState([]);
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
@@ -820,12 +1445,11 @@ function MedicationDemo() {
   );
 }
 
-/* ============================================================
-   5. MEDICATION / DISEASE
-   Multiple medication combos → disease list with % and numbers
-   ============================================================ */
-function MedicationDisease() {
-  const allMeds = [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
+function MedicationDisease({ medicines, diseases }) {
+  const allMeds =
+    medicines?.length > 0
+      ? medicines.map(m => m.label)
+      : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
   const [selMeds, setSelMeds] = useState([]);
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
@@ -892,7 +1516,10 @@ function MedicationDisease() {
     })).sort((a, b) => b.value - a.value);
   }, [patients, excludeDis]);
 
-  const allDisInResult = useMemo(() => [...new Set(patients.flatMap(p => p.conditions))].sort(), [patients]);
+  const allDisInResult =
+    diseases?.length > 0
+      ? diseases.map(d => d.label)
+      : [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
 
   return (
     <div>
@@ -986,11 +1613,11 @@ function MedicationDisease() {
   );
 }
 
-/* ============================================================
-   6. MEDICATION / REPORTED HEALTH
-   ============================================================ */
-function MedicationHealth() {
-  const allMeds = [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
+function MedicationHealth({ medicines }) {
+  const allMeds =
+    medicines?.length > 0
+      ? medicines.map(m => m.label)
+      : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
   const [selMeds, setSelMeds] = useState([]);
   const toggleM = m => setSelMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
@@ -1049,9 +1676,6 @@ function MedicationHealth() {
   );
 }
 
-/* ============================================================
-   7. CUSTOMIZE TABLE
-   ============================================================ */
 const FIELD_DEFS = [
   { key: "name", label: "Patient Name" },
   { key: "age", label: "Age" },
@@ -1061,14 +1685,21 @@ const FIELD_DEFS = [
   { key: "reportedHealth", label: "Reported Health", isArr: true },
 ];
 
-function CustomizeTable() {
-  const allDiseases = [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
-  const allMeds = [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
+function CustomizeTable({ diseases, medicines }) {
+  const allDiseases =
+    diseases?.length > 0
+      ? diseases.map(d => d.label)
+      : [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
+
+  const allMeds =
+    medicines?.length > 0
+      ? medicines.map(m => m.label)
+      : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
   const allSymptoms = [
-  ...new Set(
-    ALL_PATIENTS.flatMap(p => p.reportedHealth.map(r => r.symptom))
-  )
-].sort();
+    ...new Set(
+      ALL_PATIENTS.flatMap(p => p.reportedHealth.map(r => r.symptom))
+    )
+  ].sort();
 
   const [selFields, setSelFields] = useState(["name", "age", "gender", "conditions", "meds"]);
   const [filterDis, setFilterDis] = useState([]);
@@ -1086,11 +1717,11 @@ function CustomizeTable() {
     if (filterDis.length > 0 && !filterDis.some(d => p.conditions.includes(d))) return false;
     if (filterMed.length > 0 && !filterMed.some(m => p.meds.includes(m))) return false;
     if (
-  filterHealth.length > 0 &&
-  !filterHealth.some(h =>
-    p.reportedHealth.some(r => r.symptom === h)
-  )
-) return false;
+      filterHealth.length > 0 &&
+      !filterHealth.some(h =>
+        p.reportedHealth.some(r => r.symptom === h)
+      )
+    ) return false;
     if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
     if (gender !== "All" && p.gender !== gender) return false;
     return true;
@@ -1150,22 +1781,23 @@ function CustomizeTable() {
     </div>
   );
 }
-
-/* ============================================================
-   NAV
-   ============================================================ */
+import { BsFillFileBarGraphFill, BsPeopleFill } from "react-icons/bs";
+import { PiHospitalFill } from "react-icons/pi";
+import { GiMedicines, GiPillDrop } from "react-icons/gi";
+import { FaStethoscope } from "react-icons/fa";
+import { BiSolidCustomize } from "react-icons/bi";
 const NAV = [
   { section: "Patient Info" },
-  { key: "demographics", label: "Demographics", icon: "👥" },
+  { key: "demographics", label: "Demographics", icon: <BsPeopleFill /> },
   { section: "Disease" },
-  { key: "diseasedemo", label: "Disease / Demographics", icon: "🏥" },
-  { key: "diseasemed", label: "Disease / Medication", icon: "💊" },
+  { key: "diseasedemo", label: "Disease / Demographics", icon: <PiHospitalFill /> },
+  { key: "diseasemed", label: "Disease / Medication", icon: <GiMedicines /> },
   { section: "Drug Info" },
-  { key: "meddemo", label: "Medication / Demographics", icon: "📊" },
-  { key: "meddisease", label: "Medication / Disease", icon: "🔗" },
-  { key: "medhealth", label: "Medication / Reported Health", icon: "🩺" },
+  { key: "meddemo", label: "Medication / Demographics", icon: <BsFillFileBarGraphFill /> },
+  { key: "meddisease", label: "Medication / Disease", icon: <GiPillDrop /> },
+  { key: "medhealth", label: "Medication / Reported Health", icon: <FaStethoscope /> },
   { section: "Custom" },
-  { key: "customize", label: "Customize Table", icon: "🛠️" },
+  { key: "customize", label: "Customize Table", icon: <BiSolidCustomize /> },
 ];
 
 const VIEWS = {
@@ -1178,12 +1810,25 @@ const VIEWS = {
   customize: CustomizeTable,
 };
 
-/* ============================================================
-   ROOT
-   ============================================================ */
 export default function Analytics() {
   const [active, setActive] = useState("demographics");
   const View = VIEWS[active];
+  const [diseases, setDiseases] = useState([]);
+  const [medicines, setMedicines] = useState([]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      const doctor_id = sessionStorage.getItem("doctor_id");
+
+      const d = await fetchDiseases(doctor_id);
+      const m = await fetchMedicines(doctor_id);
+
+      setDiseases(d);
+      setMedicines(m);
+    };
+
+    loadData();
+  }, []);
 
   return (
     <div style={S.wrap}>
@@ -1212,7 +1857,7 @@ export default function Analytics() {
       </nav>
 
       <main style={S.main}>
-        {View && <View />}
+        {View && <View diseases={diseases} medicines={medicines} />}
       </main>
     </div>
   );
