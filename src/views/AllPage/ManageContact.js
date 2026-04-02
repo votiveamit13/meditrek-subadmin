@@ -160,7 +160,7 @@ function ManageContact() {
                       name="message"
                       rows="5"
                       placeholder="Write your message here..."
-                      className={`form-control rounded-3 ${errors.message && touched.message ? 'is-invalid' : ''
+                      className={`form-control custom-textarea rounded-3 ${errors.message && touched.message ? 'is-invalid' : ''
                         }`}
                     />
                     <ErrorMessage name="message" component="div" className="invalid-feedback" />
