@@ -3,7 +3,7 @@ import TagSearch from "./Analytics/TagSearch";
 import AgeRangeFilter from "./Analytics/AgeRangeFilter";
 import GenderFilter from "./Analytics/GenderFilter";
 import ExportButton from "component/common/ExportButton";
-import { fetchDemographicDetails, fetchDemographics, fetchDiseaseDashboard, fetchDiseaseMedicationStats, fetchDiseaseMedicationSummary, fetchDiseases, fetchMedicines, fetchDiseaseMedicationDetails, fetchMedicationFull, fetchMedicationDiseaseDashboard } from "services/analyticsAPI";
+import { fetchDemographicDetails, fetchDemographics, fetchDiseaseDashboard, fetchDiseaseMedicationStats, fetchDiseaseMedicationSummary, fetchDiseases, fetchMedicines, fetchDiseaseMedicationDetails, fetchMedicationFull, fetchMedicationDiseaseDashboard, fetchMedicationReportedHealth } from "services/analyticsAPI";
 import CustomPagination from "component/common/Pagination";
 import { CircularProgress } from "@mui/material";
 
@@ -148,6 +148,7 @@ const S = {
     display: "inline-flex", alignItems: "center", gap: 3, padding: "2px 9px", borderRadius: 999,
     fontSize: 11, fontWeight: 500, background: t ? ACCENT_BG : "#f1f5f9", color: t ? ACCENT : "#374151",
     border: t ? `1px solid rgba(29,222,196,0.3)` : "1px solid #e5e7eb", margin: "2px 3px 2px 0",
+    lineHeight: "15px"
   }),
   badge: c => ({
     display: "inline-block", whiteSpace: "nowrap", padding: "2px 9px", borderRadius: 999, fontSize: 11, fontWeight: 600,
@@ -347,10 +348,16 @@ function ExpandPanel({ patients, showSymptoms = false, useAPI = false, fetchFn, 
       meds: Array.isArray(p.medications)
         ? p.medications.map(m => m.name).filter(Boolean)
         : [],
+
+        reportedHealth: p.symptoms
+    ? p.symptoms.split(",").map(s => ({
+        symptom: s.trim()
+      }))
+    : []
     }));
     console.log(res.patients);
     setApiPatients(formatted);
-    setTotal(res?.matched_patients ?? res?.total ?? res?.total_patients ?? count ?? 0);
+    setTotal(res.total || count || res.matched_patients || 0);
     setLoading(false);
   };
 
@@ -1918,27 +1925,111 @@ function MedicationHealth({ medicines }) {
       ? medicines.map(m => m.label)
       : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
   const [selMeds, setSelMeds] = useState([]);
+  const [apiData, setApiData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  // const [patientPages, setPatientPages] = useState({}); 
+
+  const doctor_id = sessionStorage.getItem("doctor_id");
+
   const toggleM = m => setSelMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
-  /* For each medication: show reported health outcomes and % */
-  const medHealthData = useMemo(() => {
-    const meds = selMeds.length > 0 ? selMeds : allMeds;
-    return meds.map(med => {
-      const pts = ALL_PATIENTS.filter(p => p.meds.includes(med));
-      const symMap = {};
-      pts.forEach(p => {
-        p.reportedHealth.forEach(r => {
-          if (r.drug === med) {
-            symMap[r.symptom] = (symMap[r.symptom] || 0) + 1;
-          }
-        });
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+
+      const res = await fetchMedicationReportedHealth({
+        doctor_id,
+        medication: selMeds.length ? selMeds : undefined,
+        page,
+        limit: rowsPerPage,
+        patient_page: 1, // Reset patient page when changing medication page
+        patient_limit: 5,
       });
-      const outcomes = Object.entries(symMap)
-        .map(([symptom, count]) => ({ symptom, count, pct: pct(count, pts.length) }))
-        .sort((a, b) => b.count - a.count);
-      return { med, patientCount: pts.length, pctOfAll: pct(pts.length, TOTAL), outcomes };
-    }).filter(d => d.patientCount > 0);
+
+      setApiData(res);
+      setLoading(false);
+    };
+
+    loadData();
+  }, [doctor_id, selMeds, page, rowsPerPage]);
+
+  // Function to load more patients for a specific medication
+  const loadMorePatients = async (medicationName, currentPatientPage) => {
+    const res = await fetchMedicationReportedHealth({
+      doctor_id,
+      medication: selMeds.length ? selMeds : undefined,
+      page,
+      limit: rowsPerPage,
+      patient_page: currentPatientPage + 1,
+      patient_limit: 5,
+    });
+
+    if (res?.data) {
+      // Update the specific medication's patient data
+      setApiData(prev => {
+        if (!prev) return prev;
+        
+        const updatedData = {
+          ...prev,
+          data: prev.data.map(item => {
+            if (item.medication.name === medicationName) {
+              const newPatients = res.data.find(
+                newItem => newItem.medication.name === medicationName
+              )?.patients || [];
+              
+              return {
+                ...item,
+                patients: [...item.patients, ...newPatients],
+                patient_page: currentPatientPage + 1
+              };
+            }
+            return item;
+          })
+        };
+        return updatedData;
+      });
+    }
+  };
+
+  // Reset filters when medications change
+  useEffect(() => {
+    setPage(1);
+    // setPatientPages({});
   }, [selMeds]);
+
+  if (loading && !apiData) {
+    return (
+      <div>
+        <div style={S.pageHead}>
+          <h2 style={S.pageTitle}>Medication / Reported Health</h2>
+          <p style={S.pageSub}>For each medication, see the reported health outcomes and their frequency</p>
+        </div>
+        <div style={S.filterBar}>
+          <div style={S.filterRow}>
+            <div style={{ flex: 1, minWidth: 240 }}>
+              <TagSearch 
+                label="Drug name(s)" 
+                all={allMeds} 
+                selected={selMeds} 
+                onToggle={toggleM} 
+                searchPlaceholder="Filter by drug name…" 
+              />
+            </div>
+          </div>
+        </div>
+        <div style={S.card}>
+          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "40px" }}>
+            <CircularProgress size={32} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const medHealthData = apiData?.data || [];
+  const totalCount = apiData?.total_medications || 0;
 
   return (
     <div>
@@ -1949,28 +2040,107 @@ function MedicationHealth({ medicines }) {
 
       <div style={S.filterBar}>
         <div style={S.filterRow}>
-          <div style={{ flex: 1, minWidth: 240 }}><TagSearch label="Drug name(s)" all={allMeds} selected={selMeds} onToggle={toggleM} searchPlaceholder="Filter by drug name…" /></div>
-        </div>
-      </div>
-
-      {medHealthData.map((item, idx) => (
-        <div key={idx} style={S.card}>
-          <p style={S.cardTitle}>
-            <span><Chip label={item.med} teal={true} /> <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 400, marginLeft: 6 }}>{item.patientCount} patients ({item.pctOfAll}% of all)</span></span>
-          </p>
-          <div style={S.barWrap}>
-            {item.outcomes.map((o, i) => (
-              <HBar key={i} label={o.symptom} value={o.count} total={item.patientCount} pctVal={o.pct} color="#f59e0b" />
-            ))}
-          </div>
-          <div style={{ marginTop: 14 }}>
-            <ExpandPanel
-              patients={ALL_PATIENTS.filter(p => p.meds.includes(item.med))}
-              showSymptoms={true}
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <TagSearch 
+              label="Drug name(s)" 
+              all={allMeds} 
+              selected={selMeds} 
+              onToggle={toggleM} 
+              searchPlaceholder="Filter by drug name…" 
             />
           </div>
         </div>
-      ))}
+      </div>
+
+      {medHealthData.length === 0 ? (
+        <div style={S.card}>
+          <div style={S.noData}>No data found</div>
+        </div>
+      ) : (
+        <>
+          {medHealthData.map((item, idx) => {
+            // Extract disease names from diseases string for each patient
+            const extractDiseaseNames = (str) => {
+              if (!str) return [];
+              const matches = [...str.matchAll(/name:\s*([^,}]+)/g)];
+              return matches.map(m => m[1].trim());
+            };
+
+            // Transform patients for ExpandPanel
+            const formattedPatients = (item.patients || []).map(p => ({
+              id: p.user_id,
+              name: p.patient_name,
+              age: p.age,
+              gender: "Not Specified",
+              conditions: extractDiseaseNames(p.diseases),
+              meds: [item.medication.name],
+              reportedHealth: p.symptoms ? p.symptoms.split(", ").map(symptom => ({
+                drug: item.medication.name,
+                symptom: symptom
+              })) : []
+            }));
+
+            return (
+              <div key={idx} style={S.card}>
+                <p style={S.cardTitle}>
+                  <span>
+                    <Chip label={item.medication.name} teal={true} /> 
+                    <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 400, marginLeft: 6 }}>
+                      {item.total_patients} patients ({item.percentage} of total)
+                    </span>
+                  </span>
+                </p>
+                <div style={S.barWrap}>
+                  {(item.symptoms || []).map((o, i) => (
+                    <HBar 
+                      key={i} 
+                      label={o.symptom} 
+                      value={o.count} 
+                      total={item.total_patients} 
+                      pctVal={o.count / item.total_patients * 100}
+                      color="#f59e0b" 
+                    />
+                  ))}
+                  {(!item.symptoms || item.symptoms.length === 0) && (
+                    <div style={S.noData}>No reported symptoms for this medication</div>
+                  )}
+                </div>
+                <div style={{ marginTop: 14 }}>
+                  <ExpandPanel
+                    patients={formattedPatients}
+                    showSymptoms={true}
+                    useAPI={false} // Using local patients since API returns paginated patients per medication
+                  />
+                  {item.total_patients_in_medication > item.patients?.length && (
+                    <div style={{ marginTop: 10, textAlign: "center" }}>
+                      <button
+                        onClick={() => loadMorePatients(item.medication.name, item.patient_page || 1)}
+                        style={S.expandBtn}
+                      >
+                        Load More Patients ({item.patients?.length || 0} / {item.total_patients_in_medication})
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          
+          <div style={{ marginTop: 14, display: "flex", justifyContent: "center" }}>
+            <CustomPagination
+              count={totalCount}
+              page={page}
+              rowsPerPage={rowsPerPage}
+              onPageChange={(newPage) => setPage(newPage)}
+              onRowsPerPageChange={(val) => {
+                setRowsPerPage(val);
+                setPage(1);
+              }}
+              hideRowsPerPage={true}
+            />
+          </div>
+        </>
+      )}
     </div>
   );
 }

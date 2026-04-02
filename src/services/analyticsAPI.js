@@ -350,3 +350,37 @@ export const fetchMedicationDiseaseDashboard = async ({
     return null;
   }
 };
+
+export const fetchMedicationReportedHealth = async ({
+  doctor_id,
+  medication,
+  age_group,
+  page = 1,
+  limit = 10,
+  patient_page = 1,
+  patient_limit = 5,
+}) => {
+  try {
+    const res = await fetch(`${Base_Url}medication-reported-health`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        doctor_id,
+        medication: medication || [],
+        age_group,
+        page,
+        limit,
+        patient_page,
+        patient_limit,
+      }),
+    });
+
+    const data = await res.json();
+    return data.success ? data : null;
+  } catch (err) {
+    console.error("Medication Reported Health API Error:", err);
+    return null;
+  }
+};

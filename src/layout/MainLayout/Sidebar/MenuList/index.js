@@ -60,7 +60,7 @@ const bottomMenu = [
   {
     title: "Contact Us More Info",
     icon: <ContactSupportIcon />,
-    // url: APP_PREFIX_PATH + "/manage-contact-us"
+    url: APP_PREFIX_PATH + "/manage-contact-us"
   }
   // {
   //   title: "More Info",
