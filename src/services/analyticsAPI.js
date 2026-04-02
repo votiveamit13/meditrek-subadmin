@@ -384,3 +384,42 @@ export const fetchMedicationReportedHealth = async ({
     return null;
   }
 };
+
+export const fetchCustomPatientTable = async ({
+  doctor_id,
+  gender,
+  age_group,
+  disease,
+  medication,
+  symptoms,
+  page = 1,
+  limit = 10,
+}) => {
+  try {
+    const res = await fetch(
+      `${Base_Url}subadmin-patient-analytics-CustomTable`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          doctor_id,
+          gender,
+          age_group,
+          disease: disease || [],
+          medication: medication || [],
+          symptoms: symptoms || [],
+          page,
+          limit,
+        }),
+      }
+    );
+
+    const data = await res.json();
+    return data.success ? data : { total: 0, patients: [] };
+  } catch (err) {
+    console.error("Custom Table API Error:", err);
+    return { total: 0, patients: [] };
+  }
+};
