@@ -3,7 +3,7 @@ import TagSearch from "./Analytics/TagSearch";
 import AgeRangeFilter from "./Analytics/AgeRangeFilter";
 import GenderFilter from "./Analytics/GenderFilter";
 import ExportButton from "component/common/ExportButton";
-import { fetchDemographicDetails, fetchDemographics, fetchDiseaseDashboard, fetchDiseaseMedicationStats, fetchDiseaseMedicationSummary, fetchDiseases, fetchMedicines, fetchDiseaseMedicationDetails } from "services/analyticsAPI";
+import { fetchDemographicDetails, fetchDemographics, fetchDiseaseDashboard, fetchDiseaseMedicationStats, fetchDiseaseMedicationSummary, fetchDiseases, fetchMedicines, fetchDiseaseMedicationDetails, fetchMedicationFull, fetchMedicationDiseaseDashboard } from "services/analyticsAPI";
 import CustomPagination from "component/common/Pagination";
 import { CircularProgress } from "@mui/material";
 
@@ -78,6 +78,26 @@ const AGE_GROUPS = {
   "46+": a => a >= 46,
 };
 
+const getAgeGroupLabel = (age) => {
+  if (typeof age === "string") return age;
+  if (age <= 18) return "0-18";
+  if (age <= 30) return "19-30";
+  if (age <= 45) return "31-45";
+  return "46+";
+};
+
+const normalizeGender = (g) => {
+  if (!g) return "Not Specified";
+
+  const val = String(g).toLowerCase();
+
+  if (val === "male") return "Male";
+  if (val === "female") return "Female";
+  if (val === "other") return "Other";
+
+  return "Not Specified";
+};
+
 const ACCENT = "#1ddec4";
 const ACCENT_BG = "rgba(29,222,196,0.13)";
 const GCOLORS = { Male: ACCENT, Female: "#60a5fa", Other: "#8b5cf6", "Not Specified": "#94a3b8" };
@@ -137,11 +157,22 @@ const S = {
 
   /* bars */
   barWrap: { display: "flex", flexDirection: "column", gap: 9 },
-  barRow: { display: "flex", alignItems: "center", gap: 10 },
-  barLabel: { fontSize: 12, color: "#374151", fontWeight: 500, minWidth: 110, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
-  barTrack: { flex: 1, background: "#f1f5f9", borderRadius: 999, height: 7, overflow: "hidden" },
+  barRow: {
+    display: "grid",
+    gridTemplateColumns: "180px 1fr 70px",
+    alignItems: "center",
+    gap: 10
+  },
+  barLabel: { fontSize: 12, color: "#374151", fontWeight: 500, wordBreak: "break-word", },
+  barTrack: {
+    width: "100%",
+    background: "#f1f5f9",
+    borderRadius: 999,
+    height: 7,
+    overflow: "hidden"
+  },
   barFill: (pct, col) => ({ height: "100%", width: `${Math.min(pct, 100)}%`, background: col || ACCENT, borderRadius: 999, transition: "width .5s" }),
-  barVal: { fontSize: 11, fontWeight: 700, color: ACCENT, minWidth: 60, textAlign: "right" },
+  barVal: { fontSize: 11, fontWeight: 700, color: ACCENT, textAlign: "right" },
 
   /* expand */
   expandBtn: { border: "none", cursor: "pointer", fontSize: 11, color: ACCENT, fontWeight: 600, padding: "4px 10px", borderRadius: 7, background: ACCENT_BG },
@@ -155,16 +186,16 @@ const S = {
 
 function pct(n, d) { return d === 0 ? "0.0" : ((n / d) * 100).toFixed(1); }
 
-function buildAgeDist(pts, denom) {
-  const map = {};
-  pts.forEach(p => { const g = Object.keys(AGE_GROUPS).find(k => AGE_GROUPS[k](p.age)) || "Other"; map[g] = (map[g] || 0) + 1; });
-  return Object.entries(map).map(([label, value]) => ({ label, value, pct: pct(value, denom) }));
-}
-function buildGenderDist(pts, denom) {
-  const map = {};
-  pts.forEach(p => { map[p.gender] = (map[p.gender] || 0) + 1; });
-  return Object.entries(map).map(([label, value]) => ({ label, value, pct: pct(value, denom) })).sort((a, b) => b.value - a.value);
-}
+// function buildAgeDist(pts, denom) {
+//   const map = {};
+//   pts.forEach(p => { const g = Object.keys(AGE_GROUPS).find(k => AGE_GROUPS[k](p.age)) || "Other"; map[g] = (map[g] || 0) + 1; });
+//   return Object.entries(map).map(([label, value]) => ({ label, value, pct: pct(value, denom) }));
+// }
+// function buildGenderDist(pts, denom) {
+//   const map = {};
+//   pts.forEach(p => { map[p.gender] = (map[p.gender] || 0) + 1; });
+//   return Object.entries(map).map(([label, value]) => ({ label, value, pct: pct(value, denom) })).sort((a, b) => b.value - a.value);
+// }
 
 function Chip({ label, teal }) { return <span style={S.chip(teal)}>{label}</span>; }
 function DChips({ arr }) { return <>{arr.map((c, i) => <Chip key={i} label={c} teal={false} />)}</>; }
@@ -307,19 +338,19 @@ function ExpandPanel({ patients, showSymptoms = false, useAPI = false, fetchFn, 
       ...p,
       conditions: p.diseases
         ? p.diseases
-          .replace(/\n/g, ",")   
+          .replace(/\n/g, ",")
           .split("},").map(d => {
-          const match = d.match(/name:\s*([^,}]+)/);
-          return match ? match[1].trim() : "";
-        }).filter(Boolean)
+            const match = d.match(/name:\s*([^,}]+)/);
+            return match ? match[1].trim() : "";
+          }).filter(Boolean)
         : [],
       meds: Array.isArray(p.medications)
         ? p.medications.map(m => m.name).filter(Boolean)
         : [],
     }));
-console.log(res.patients);
+    console.log(res.patients);
     setApiPatients(formatted);
-    setTotal(res.total || count || 0);
+    setTotal(res?.matched_patients ?? res?.total ?? res?.total_patients ?? count ?? 0);
     setLoading(false);
   };
 
@@ -1069,7 +1100,7 @@ function DiseaseMedication({ diseases, medicines }) {
         age_group: ageGroup !== "All" ? ageGroup : undefined,
         gender: gender !== "All" ? genderMap[gender] : undefined,
         singleOnly,
-  combinedOnly,
+        combinedOnly,
       });
 
       setStats(res);
@@ -1091,7 +1122,7 @@ function DiseaseMedication({ diseases, medicines }) {
         page,
         limit: rowsPerPage,
         singleOnly,
-  combinedOnly,
+        combinedOnly,
       });
 
       if (res) {
@@ -1169,12 +1200,12 @@ function DiseaseMedication({ diseases, medicines }) {
       : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
 
   const filteredSummaryData = useMemo(() => {
-  if (!summaryData) return [];
+    if (!summaryData) return [];
 
-  return summaryData.filter(
-    item => !excludeMeds.includes(item.medicine_name)
-  );
-}, [summaryData, excludeMeds]);
+    return summaryData.filter(
+      item => !excludeMeds.includes(item.medicine_name)
+    );
+  }, [summaryData, excludeMeds]);
 
   return (
     <div>
@@ -1334,18 +1365,18 @@ function DiseaseMedication({ diseases, medicines }) {
         </div>
         <div style={{ marginTop: 14 }}>
           <ExpandPanel
-  useAPI={true}
-  fetchFn={fetchDiseaseMedicationDetails}
-  fetchParams={{
-    doctor_id,
-    age_group: ageGroup === "All" ? undefined : ageGroup,
-    gender: gender === "All" ? undefined : genderMap[gender],
-    diseases: selDiseases,
-    singleOnly,
-    combinedOnly
-  }}
-  count={stats?.matched_patients || 0}
-/>
+            useAPI={true}
+            fetchFn={fetchDiseaseMedicationDetails}
+            fetchParams={{
+              doctor_id,
+              age_group: ageGroup === "All" ? undefined : ageGroup,
+              gender: gender === "All" ? undefined : genderMap[gender],
+              diseases: selDiseases,
+              singleOnly,
+              combinedOnly
+            }}
+            count={stats?.matched_patients || 0}
+          />
         </div>
       </div>
     </div>
@@ -1360,30 +1391,149 @@ function MedicationDemo({ medicines }) {
   const [selMeds, setSelMeds] = useState([]);
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [summaryPage, setSummaryPage] = useState(1);
+  const [summaryRowsPerPage, setSummaryRowsPerPage] = useState(10);
+  const [patientsData, setPatientsData] = useState(null);
+  const [summaryData, setSummaryData] = useState([]);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+
+  const doctor_id = sessionStorage.getItem("doctor_id");
 
   const toggleM = m => setSelMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
-  const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
-    if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
-    if (gender !== "All" && p.gender !== gender) return false;
-    return true;
-  }), [ageGroup, gender]);
+  useEffect(() => {
+    const loadSummary = async () => {
+      setSummaryLoading(true);
+      const res = await fetchMedicationFull({
+        doctor_id,
+        medication: selMeds,
+        age_group: ageGroup !== "All" ? ageGroup : undefined,
+        gender: gender !== "All" ? genderMap[gender] : undefined,
+        summary_page: summaryPage,
+        summary_limit: summaryRowsPerPage,
+      });
+
+      if (res) setSummaryData(res.summary || []);
+      setSummaryLoading(false);
+    };
+
+    loadSummary();
+  }, [doctor_id, selMeds, ageGroup, gender, summaryPage, summaryRowsPerPage]);
+
+  useEffect(() => {
+    const loadPatients = async () => {
+      setLoading(true);
+
+      const res = await fetchMedicationFull({
+        doctor_id,
+        medication: selMeds,
+        age_group: ageGroup !== "All" ? ageGroup : undefined,
+        gender: gender !== "All" ? genderMap[gender] : undefined,
+        patient_page: page,
+        patient_limit: rowsPerPage,
+      });
+
+      if (res) setPatientsData(res);
+      setLoading(false);
+    };
+
+    loadPatients();
+  }, [doctor_id, selMeds, ageGroup, gender, page, rowsPerPage]);
+
+  // const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
+  //   if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
+  //   if (gender !== "All" && p.gender !== gender) return false;
+  //   return true;
+  // }), [ageGroup, gender]);
 
   const patients = useMemo(() => {
-    if (selMeds.length === 0) return basePool;
-    return basePool.filter(p => selMeds.some(m => p.meds.includes(m)));
-  }, [basePool, selMeds]);
+    if (!patientsData?.details) return [];
+
+    return patientsData.details.map(p => ({
+      id: p.user_id,
+      name: p.name,
+      age: p.age,
+      gender: p.gender || "Not Specified",
+
+      conditions: Array.isArray(p.diseases)
+        ? p.diseases.map(d => d.name || "").filter(Boolean)
+        : [],
+
+      meds: Array.isArray(p.medications)
+        ? p.medications.map(m => m.name).filter(Boolean)
+        : [],
+    }));
+  }, [patientsData]);
+
+  const totalPatients = patientsData?.total_patients || 0;
+  const matchedPatients = patientsData?.matched_patients || 0;
+  const percentage = patientsData?.percentage || "0.00%";
+  const totalMedications = patientsData?.selected_medication_count || 0;
 
   const medDist = useMemo(() => {
-    const map = {};
-    basePool.forEach(p => p.meds.forEach(m => {
-      if (!selMeds.length || selMeds.includes(m)) map[m] = (map[m] || 0) + 1;
-    }));
-    return Object.entries(map).map(([k, v]) => ({ label: k, value: v, pct: pct(v, basePool.length) })).sort((a, b) => b.value - a.value);
-  }, [basePool, selMeds]);
+    if (!summaryData) return [];
 
-  const ageDist = useMemo(() => buildAgeDist(patients, patients.length), [patients]);
-  const genderDist = useMemo(() => buildGenderDist(patients, patients.length), [patients]);
+    return summaryData.map(item => ({
+      label: item.medicine_name,
+      value: item.patient_count,
+      pct: parseFloat(item.percentage),
+    }));
+  }, [summaryData]);
+
+  const demographics = patientsData?.demographics || [];
+const ageDist = useMemo(() => {
+  if (!demographics.length) return [];
+
+  const map = {
+    "0-18": 0,
+    "19-30": 0,
+    "31-45": 0,
+    "46+": 0,
+  };
+
+  demographics.forEach(d => {
+    const label = getAgeGroupLabel(d.age_group);
+    if (map[label] !== undefined) {
+      map[label] += d.count;
+    }
+  });
+
+  return Object.entries(map).map(([label, value]) => ({
+    label,
+    value,
+    pct: ((value / matchedPatients) * 100).toFixed(1),
+  }));
+}, [demographics, matchedPatients]);
+
+const genderDist = useMemo(() => {
+  if (!demographics.length) return [];
+
+  const map = {
+    Male: 0,
+    Female: 0,
+    Other: 0,
+    "Not Specified": 0,
+  };
+
+  demographics.forEach(d => {
+    const g = normalizeGender(d.gender);
+    map[g] += d.count;
+  });
+
+  return Object.entries(map).map(([label, value]) => ({
+    label,
+    value,
+    pct: ((value / matchedPatients) * 100).toFixed(1),
+  }));
+}, [demographics, matchedPatients]);
+
+  useEffect(() => {
+    setPage(1);
+    setSummaryPage(1);
+  }, [selMeds, ageGroup, gender]);
 
   return (
     <div>
@@ -1401,27 +1551,77 @@ function MedicationDemo({ medicines }) {
       </div>
 
       <div style={S.statRow}>
-        <StatCard label="Matched Patients" value={patients.length} sub={`${pct(patients.length, basePool.length)}% of group`} />
-        <StatCard label="Group Size" value={basePool.length} sub={`${pct(basePool.length, TOTAL)}% of all patients`} />
-        <StatCard label="Meds Selected" value={selMeds.length || "All"} />
+        {loading ? (
+          <>
+            <div style={S.statCard}>
+              <div style={S.statLbl}>Matched Patients</div>
+              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+                <CircularProgress size={24} />
+              </div>
+            </div>
+
+            <div style={S.statCard}>
+              <div style={S.statLbl}>Total Patients</div>
+              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+                <CircularProgress size={24} />
+              </div>
+            </div>
+
+            <div style={S.statCard}>
+              <div style={S.statLbl}>Selected Medications</div>
+              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+                <CircularProgress size={24} />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <StatCard label="Matched Patients" value={matchedPatients} sub={`${percentage} of all patients`} />
+            <StatCard label="Total Patients" value={totalPatients} />
+            <StatCard label="Selected Medications" value={totalMedications} />
+          </>
+        )}
       </div>
 
       <div style={S.grid2}>
         <div style={S.card}>
-          <p style={S.cardTitle}>Medication Distribution <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of {basePool.length} in group</span></p>
-          <div style={S.barWrap}>{medDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={basePool.length} pctVal={d.pct} />)}</div>
+          <p style={S.cardTitle}>Medication Distribution <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of {matchedPatients} matched patients</span></p>
+          {summaryLoading ? (
+            <LoadingPlaceholder />
+          ) : (
+            <div style={S.barWrap}>{medDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={matchedPatients} pctVal={d.pct} />)}</div>
+          )}
+          <CustomPagination
+            count={patientsData?.summary_total || 0}
+            page={summaryPage}
+            rowsPerPage={summaryRowsPerPage}
+            onPageChange={(newPage) => setSummaryPage(newPage)}
+            onRowsPerPageChange={(val) => {
+              setSummaryRowsPerPage(val);
+              setSummaryPage(1);
+            }}
+            hideRowsPerPage={true}
+          />
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {ageDist.length > 0 && (
             <div style={S.card}>
               <p style={S.cardTitle}>Age Breakdown <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of matched</span></p>
-              <div style={S.barWrap}>{ageDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={patients.length} pctVal={d.pct} />)}</div>
+              {loading ? (
+                <LoadingPlaceholder />
+              ) : (
+                <div style={S.barWrap}>{ageDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={patients.length} pctVal={d.pct} />)}</div>
+              )}
             </div>
           )}
           {genderDist.length > 0 && (
             <div style={S.card}>
               <p style={S.cardTitle}>Sex Breakdown <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of matched</span></p>
-              <div style={S.barWrap}>{genderDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={patients.length} pctVal={d.pct} color={GCOLORS[d.label]} />)}</div>
+              {loading ? (
+                <LoadingPlaceholder />
+              ) : (
+                <div style={S.barWrap}>{genderDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={patients.length} pctVal={d.pct} color={GCOLORS[d.label]} />)}</div>
+              )}
             </div>
           )}
         </div>
@@ -1429,16 +1629,31 @@ function MedicationDemo({ medicines }) {
 
       <div style={S.card}>
         <p style={S.cardTitle}>Patient Table</p>
-        <DataTable
-          cols={[
-            { key: "name", label: "Patient Name", sortable: true, },
-            { key: "age", label: "Age", sortable: true, },
-            { key: "gender", label: "Gender", sortable: true, render: r => <span style={S.badge(r.gender)}>{r.gender}</span> },
-            { key: "conditions", label: "Diseases", sortable: true, render: r => <DChips arr={r.conditions} /> },
-            { key: "meds", label: "Medications", sortable: true, render: r => <MChips arr={r.meds} /> },
-          ]}
-          rows={patients}
-          empty="No patients match the selected filters"
+        {loading ? (
+          <LoadingPlaceholder />
+        ) : (
+          <DataTable
+            cols={[
+              { key: "name", label: "Patient Name", sortable: true, },
+              { key: "age", label: "Age", sortable: true, },
+              { key: "gender", label: "Gender", sortable: true, render: r => <span style={S.badge(r.gender)}>{r.gender}</span> },
+              { key: "conditions", label: "Diseases", sortable: true, render: r => <DChips arr={r.conditions} /> },
+              { key: "meds", label: "Medications", sortable: true, render: r => <MChips arr={r.meds} /> },
+            ]}
+            rows={patients}
+            empty="No patients match the selected filters"
+          />
+        )}
+        <CustomPagination
+          count={patientsData?.patient_total || 0}
+          page={page}
+          rowsPerPage={rowsPerPage}
+          onPageChange={(newPage) => setPage(newPage)}
+          onRowsPerPageChange={(val) => {
+            setRowsPerPage(val);
+            setPage(1);
+          }}
+          hideRowsPerPage={true}
         />
       </div>
     </div>
@@ -1454,11 +1669,46 @@ function MedicationDisease({ medicines, diseases }) {
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
   const [comboOnly, setComboOnly] = useState(false);
-  const [excludeDis, setExcludeDis] = useState([]);
+  const [excludeDisease, setExcludeDisease] = useState([]);
   const [singleOnly, setSingleOnly] = useState(false);
+  const [apiData, setApiData] = useState(null);
+const [loadingStats, setLoadingStats] = useState(false);
+
+const [page, setPage] = useState(1);
+const [rowsPerPage, setRowsPerPage] = useState(10);
+
+const doctor_id = sessionStorage.getItem("doctor_id");
 
   const toggleM = m => setSelMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
-  const toggleExclude = d => setExcludeDis(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
+  const toggleExclude = d =>
+  setExcludeDisease(prev =>
+    prev.includes(d)
+      ? prev.filter(x => x !== d)
+      : [...prev, d]
+  );
+
+useEffect(() => {
+  const loadData = async () => {
+     setLoadingStats(true);
+
+    const res = await fetchMedicationDiseaseDashboard({
+      doctor_id,
+      medication: selMeds.length ? selMeds : undefined,
+      age_group: ageGroup !== "All" ? ageGroup : undefined,
+      gender: gender !== "All" ? genderMap[gender] : undefined,
+      exclude_disease: excludeDisease,
+      singleOnly: singleOnly,
+      combinedOnly: comboOnly,
+      page,
+      limit: rowsPerPage,
+    });
+
+    setApiData(res);
+    setLoadingStats(false);
+  };
+
+  loadData();
+}, [doctor_id, selMeds, ageGroup, gender, excludeDisease, singleOnly, comboOnly, page, rowsPerPage]);
 
   const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
     if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
@@ -1466,60 +1716,52 @@ function MedicationDisease({ medicines, diseases }) {
     return true;
   }), [ageGroup, gender]);
 
-  const patients = useMemo(() => {
-    let r = basePool;
+//   const patients = useMemo(() => {
+//   if (!apiData?.patients) return [];
 
-    if (selMeds.length > 0) {
-
-      // ✅ SINGLE EXACT
-      if (selMeds.length === 1 && singleOnly) {
-        r = r.filter(p =>
-          p.meds.length === 1 &&
-          p.meds.includes(selMeds[0])
-        );
-      }
-
-      // ✅ MULTI EXACT
-      else if (comboOnly && selMeds.length >= 2) {
-        r = r.filter(p => {
-          const hasAll = selMeds.every(m => p.meds.includes(m));
-          const exactCount = p.meds.length === selMeds.length;
-          return hasAll && exactCount;
-        });
-      }
-
-      // ✅ DEFAULT
-      else {
-        r = r.filter(p =>
-          selMeds.some(m => p.meds.includes(m))
-        );
-      }
-    }
-
-    return r;
-  }, [basePool, selMeds, comboOnly, singleOnly]);
+//   return apiData.patients.map(p => ({
+//     id: p.user_id,
+//     name: p.name,
+//     age: p.age,
+//     gender: p.gender || "Not Specified",
+//     conditions: p.diseases
+//       ? [...p.diseases.matchAll(/name:\s*([^,}]+)/g)].map(m => m[1])
+//       : [],
+//     meds: Array.isArray(p.medications)
+//       ? p.medications.map(m => m.name)
+//       : [],
+//   }));
+// }, [apiData]);
 
   useEffect(() => {
     setSingleOnly(false);
     setComboOnly(false);
   }, [selMeds]);
 
-  const diseaseDist = useMemo(() => {
-    const map = {};
-    patients.forEach(p => p.conditions.forEach(c => {
-      if (!excludeDis.includes(c)) map[c] = (map[c] || 0) + 1;
-    }));
-    return Object.entries(map).map(([label, value]) => ({
-      label, value,
-      pctOfMatched: pct(value, patients.length),
-      pctOfAll: pct(value, TOTAL),
-    })).sort((a, b) => b.value - a.value);
-  }, [patients, excludeDis]);
+const diseaseDist = useMemo(() => {
+  if (!apiData?.disease_distribution) return [];
+
+  return apiData.disease_distribution.map(d => ({
+    label: d.disease,
+    value: d.patient_count,
+    pctOfMatched: d.percent_matched,
+    pctOfAll: d.percent_total,
+  }));
+}, [apiData]);
 
   const allDisInResult =
     diseases?.length > 0
       ? diseases.map(d => d.label)
       : [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
+
+      const totalPatients = apiData?.total_patients || 0;
+const matchedPatients = apiData?.matched_patients || 0;
+// const uniqueDiseases = apiData?.unique_diseases || 0;
+// const topDisease = apiData?.top_disease || "-";
+
+useEffect(() => {
+  setPage(1);
+}, [selMeds, ageGroup, gender, excludeDisease, singleOnly, comboOnly]);
 
   return (
     <div>
@@ -1557,7 +1799,7 @@ function MedicationDisease({ medicines, diseases }) {
             <div>
               <TagSearch
                 all={allDisInResult}
-                selected={excludeDis}
+                selected={excludeDisease}
                 onToggle={toggleExclude}
                 searchPlaceholder="Search diseases to exclude…"
               />
@@ -1567,15 +1809,40 @@ function MedicationDisease({ medicines, diseases }) {
       </div>
 
       <div style={S.statRow}>
-        <StatCard label="Matched Patients" value={patients.length} sub={`${pct(patients.length, TOTAL)}% of all patients`} />
-        <StatCard label="Unique Diseases" value={diseaseDist.length} />
-        <StatCard label="Top Disease" value={diseaseDist[0]?.label || "—"} sub={diseaseDist[0] ? `${diseaseDist[0].pctOfMatched}% of matched` : ""} />
+       {loadingStats ? (
+    <>
+      <div style={S.statCard}>
+        <div style={S.statLbl}>Matched Patients</div>
+        <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+          <CircularProgress size={24} />
+        </div>
+      </div>
+      <div style={S.statCard}>
+        <div style={S.statLbl}>Total Patients</div>
+        <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+          <CircularProgress size={24} />
+        </div>
+      </div>
+      <div style={S.statCard}>
+        <div style={S.statLbl}>Top Disease</div>
+        <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+          <CircularProgress size={24} />
+        </div>
+      </div>
+    </>
+  ) : (
+    <>
+        <StatCard label="Matched Patients" value={apiData?.matched_patients || 0} sub={`${pct(matchedPatients, totalPatients)}% of all patients`} />
+        <StatCard label="Unique Diseases" value={apiData?.total_patients || 0}  />
+        <StatCard label="Top Disease" value={apiData?.top_disease || "—"}  />
+        </>
+  )}
       </div>
 
       <div style={S.card}>
         <p style={S.cardTitle}>
           Disease Distribution
-          <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8 }} className="d-flex align-items-center justfiy-content-between">among {patients.length} matched patients
+          <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8 }} className="d-flex align-items-center justfiy-content-between">among {matchedPatients} matched patients
             <ExportButton
               data={diseaseDist}
               fileName="Medication_Distribution"
@@ -1583,17 +1850,23 @@ function MedicationDisease({ medicines, diseases }) {
                 "S. No.": i + 1,
                 "Medication": r.label,
                 [`Patients Count (${basePool.length})`]: r.value,
-                "% of Group": r.pct,
+                "% of Matched": r.pctOfMatched,
+                "% of All Patients": r.pctOfAll,
               })}
             />
           </span>
         </p>
-        {diseaseDist.length === 0
-          ? <div style={S.noData}>Select a medication to see disease data</div>
-          : <DataTable
+        {loadingStats ? (
+  <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "40px" }}>
+    <CircularProgress size={32} />
+  </div>
+) : diseaseDist.length === 0 ? (
+  <div style={S.noData}>Select a medication to see disease data</div>
+) : (
+          <DataTable
             cols={[
               { key: "label", label: "Disease", sortable: true, render: r => <Chip label={r.label} teal={false} /> },
-              { key: "value", label: "# Patients", sortable: true, render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.value}</span> },
+              { key: "value", label: "Patients", sortable: true, render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.value}</span> },
               { key: "pctOfMatched", label: "% of Matched", sortable: true, render: r => <span style={{ fontWeight: 600 }}>{r.pctOfMatched}%</span> },
               { key: "pctOfAll", label: "% of All Patients", sortable: true, render: r => <span style={{ color: "#94a3b8" }}>{r.pctOfAll}%</span> },
               {
@@ -1606,8 +1879,32 @@ function MedicationDisease({ medicines, diseases }) {
             ]}
             rows={diseaseDist}
           />
-        }
-        <div style={{ marginTop: 14 }}><ExpandPanel patients={patients} /></div>
+          )}
+        <CustomPagination
+  count={apiData?.matched_patients || 0}
+  page={page}
+  rowsPerPage={rowsPerPage}
+  onPageChange={(newPage) => setPage(newPage)}
+  onRowsPerPageChange={(val) => {
+    setRowsPerPage(val);
+    setPage(1);
+  }}
+  hideRowsPerPage={true}
+/>
+        <div style={{ marginTop: 14 }}>
+          <ExpandPanel
+  useAPI={true}
+  fetchFn={fetchMedicationDiseaseDashboard}
+  fetchParams={{
+    doctor_id,
+    medication: selMeds,
+    age_group: ageGroup === "All" ? undefined : ageGroup,
+    gender: gender === "All" ? undefined : genderMap[gender],
+    exclude_disease: excludeDisease,
+  }}
+  count={matchedPatients}
+/>
+        </div>
       </div>
     </div>
   );
