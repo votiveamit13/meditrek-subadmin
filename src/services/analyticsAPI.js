@@ -124,13 +124,13 @@ export const fetchDiseaseDashboard = async ({ doctor_id, disease, age_group, gen
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
-          doctor_id, 
-          disease: disease || [], 
-          age_group, 
-          gender, 
-          page, 
-          limit 
+        body: JSON.stringify({
+          doctor_id,
+          disease: disease || [],
+          age_group,
+          gender,
+          page,
+          limit
         }),
       }
     );
@@ -167,7 +167,7 @@ export const fetchDiseaseMedicationStats = async ({
           age_group,
           gender,
           singleOnly,
-  combinedOnly,
+          combinedOnly,
         }),
       }
     );
@@ -206,7 +206,7 @@ export const fetchDiseaseMedicationSummary = async ({
           page,
           limit,
           singleOnly,
-  combinedOnly,
+          combinedOnly,
         }),
       }
     );
@@ -263,5 +263,90 @@ export const fetchDiseaseMedicationDetails = async ({
   } catch (err) {
     console.error(err);
     return { total: 0, patients: [] };
+  }
+};
+
+export const fetchMedicationFull = async ({
+  doctor_id,
+  medication,
+  diseases,
+  age_group,
+  gender,
+  search,
+  summary_page = 1,
+  summary_limit = 10,
+  patient_page = 1,
+  patient_limit = 10,
+}) => {
+  try {
+    const res = await fetch(
+      `${Base_Url}subadmin-medication-full`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          doctor_id,
+          medication: medication || [],
+          diseases: diseases || [],
+          age_group,
+          gender,
+          search,
+          summary_page,
+          summary_limit,
+          patient_page,
+          patient_limit,
+        }),
+      }
+    );
+
+    const data = await res.json();
+
+    return data.success ? data : null;
+  } catch (err) {
+    console.error("Medication Full API Error:", err);
+    return null;
+  }
+};
+
+export const fetchMedicationDiseaseDashboard = async ({
+  doctor_id,
+  medication,
+  age_group,
+  gender,
+  exclude_disease,
+  singleOnly = false,
+  combinedOnly = false,
+  page = 1,
+  limit = 10,
+}) => {
+  try {
+    const res = await fetch(
+      `${Base_Url}medication-disease-dashboard`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          doctor_id,
+          medication: medication || [],
+          age_group,
+          gender,
+          exclude_disease: exclude_disease || [],
+          singleOnly,
+          combinedOnly,
+          page,
+          limit,
+        }),
+      }
+    );
+
+    const data = await res.json();
+    return data.success ? data : null;
+  } catch (err) {
+    console.error("MedicationDisease API Error:", err);
+    return null;
   }
 };

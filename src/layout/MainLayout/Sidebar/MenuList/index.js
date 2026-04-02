@@ -58,15 +58,15 @@ const menu = [
 
 const bottomMenu = [
   {
-    title: "Contact Us",
+    title: "Contact Us More Info",
     icon: <ContactSupportIcon />,
-    url: APP_PREFIX_PATH + "/contact-us"
-  },
-  {
-    title: "More Info",
-    icon: <DescriptionIcon />,
-    url: APP_PREFIX_PATH + "/more-info"
+    // url: APP_PREFIX_PATH + "/manage-contact-us"
   }
+  // {
+  //   title: "More Info",
+  //   icon: <DescriptionIcon />,
+  //   url: APP_PREFIX_PATH + "/more-info"
+  // }
 ];
 
 const MenuList = ({ collapsed }) => {
