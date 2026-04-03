@@ -2,6 +2,7 @@ import { Base_Url } from "../config";
 
 let diseaseCache = {};
 let medicineCache = {};
+let symptomCache = {};
 
 export const fetchDiseases = async (doctor_id) => {
   if (diseaseCache[doctor_id]) return diseaseCache[doctor_id];
@@ -41,6 +42,49 @@ export const fetchMedicines = async (doctor_id) => {
   }
 
   return [];
+};
+
+export const fetchSymptoms = async (doctor_id) => {
+  if (symptomCache[doctor_id]) return symptomCache[doctor_id];
+
+  try {
+    const res = await fetch(`${Base_Url}report-symptoms?doctor_id=${doctor_id}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await res.json();
+
+    if (data.success && data.data) {
+      // Extract unique symptoms from all medicines
+      const symptomsSet = new Set();
+      
+      data.data.forEach(medicine => {
+        if (medicine.symptoms && Array.isArray(medicine.symptoms)) {
+          medicine.symptoms.forEach(symptom => {
+            if (symptom.symptom_name) {
+              symptomsSet.add(symptom.symptom_name);
+            }
+          });
+        }
+      });
+      
+      const formatted = Array.from(symptomsSet).map(symptomName => ({
+        label: symptomName,
+        value: symptomName,
+      }));
+      
+      symptomCache[doctor_id] = formatted;
+      return formatted;
+    }
+
+    return [];
+  } catch (error) {
+    console.error("Error fetching symptoms:", error);
+    return [];
+  }
 };
 
 export const fetchDemographics = async ({ doctor_id } = {}) => {

@@ -3,7 +3,7 @@ import TagSearch from "./Analytics/TagSearch";
 import AgeRangeFilter from "./Analytics/AgeRangeFilter";
 import GenderFilter from "./Analytics/GenderFilter";
 import ExportButton from "component/common/ExportButton";
-import { fetchDemographicDetails, fetchDemographics, fetchDiseaseDashboard, fetchDiseaseMedicationStats, fetchDiseaseMedicationSummary, fetchDiseases, fetchMedicines, fetchDiseaseMedicationDetails, fetchMedicationFull, fetchMedicationDiseaseDashboard, fetchMedicationReportedHealth, fetchCustomPatientTable } from "services/analyticsAPI";
+import { fetchDemographicDetails, fetchDemographics, fetchDiseaseDashboard, fetchDiseaseMedicationStats, fetchDiseaseMedicationSummary, fetchDiseases, fetchMedicines, fetchDiseaseMedicationDetails, fetchMedicationFull, fetchMedicationDiseaseDashboard, fetchMedicationReportedHealth, fetchCustomPatientTable, fetchSymptoms } from "services/analyticsAPI";
 import CustomPagination from "component/common/Pagination";
 import { CircularProgress } from "@mui/material";
 
@@ -2154,7 +2154,7 @@ const FIELD_DEFS = [
   { key: "reportedHealth", label: "Reported Health", isArr: true },
 ];
 
-function CustomizeTable({ diseases, medicines }) {
+function CustomizeTable({ diseases, medicines, symptoms }) {
   const allDiseases =
     diseases?.length > 0
       ? diseases.map(d => d.label)
@@ -2165,7 +2165,13 @@ function CustomizeTable({ diseases, medicines }) {
       ? medicines.map(m => m.label)
       : [];
 
-  const [selFields, setSelFields] = useState(["name", "age", "gender", "conditions", "meds"]);
+  // Use the symptoms prop passed from parent instead of local state
+  const allSymptoms =
+    symptoms?.length > 0
+      ? symptoms.map(s => s.label)
+      : [];
+
+  const [selFields, setSelFields] = useState(["name", "age", "gender", "conditions", "meds", "reportedHealth"]);
   const [filterDis, setFilterDis] = useState([]);
   const [filterMed, setFilterMed] = useState([]);
   const [filterSymptoms, setFilterSymptoms] = useState([]);
@@ -2175,7 +2181,6 @@ function CustomizeTable({ diseases, medicines }) {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
   const [apiData, setApiData] = useState(null);
-  const [allSymptoms, setAllSymptoms] = useState([]);
 
   const doctor_id = sessionStorage.getItem("doctor_id");
 
@@ -2202,19 +2207,6 @@ function CustomizeTable({ diseases, medicines }) {
         });
         
         setApiData(res);
-        
-        // Extract unique symptoms from the response if we have data
-        if (res.patients && res.patients.length > 0) {
-          const symptomsSet = new Set();
-          res.patients.forEach(patient => {
-            if (patient.reported_symptoms && Array.isArray(patient.reported_symptoms)) {
-              patient.reported_symptoms.forEach(symptom => {
-                if (symptom) symptomsSet.add(symptom);
-              });
-            }
-          });
-          setAllSymptoms(Array.from(symptomsSet).sort());
-        }
       } catch (error) {
         console.error("Error loading custom table data:", error);
         setApiData(null);
@@ -2349,7 +2341,7 @@ function CustomizeTable({ diseases, medicines }) {
               all={allSymptoms} 
               selected={filterSymptoms} 
               onToggle={toggleH} 
-              searchPlaceholder="Filter by symptom…" 
+              searchPlaceholder="Filter by symptom…"
             />
           </div>
           <div style={{ flex: 1, minWidth: 140 }}>
@@ -2440,6 +2432,7 @@ export default function Analytics() {
   const View = VIEWS[active];
   const [diseases, setDiseases] = useState([]);
   const [medicines, setMedicines] = useState([]);
+  const [symptoms, setSymptoms] = useState([]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -2447,9 +2440,11 @@ export default function Analytics() {
 
       const d = await fetchDiseases(doctor_id);
       const m = await fetchMedicines(doctor_id);
+      const s = await fetchSymptoms(doctor_id);
 
       setDiseases(d);
       setMedicines(m);
+      setSymptoms(s);
     };
 
     loadData();
@@ -2482,7 +2477,7 @@ export default function Analytics() {
       </nav>
 
       <main style={S.main}>
-        {View && <View diseases={diseases} medicines={medicines} />}
+        {View && <View diseases={diseases} medicines={medicines} symptoms={symptoms} />}
       </main>
     </div>
   );
