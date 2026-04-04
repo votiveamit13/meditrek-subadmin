@@ -1,7 +1,7 @@
 {
   "name": "meditrek-sub_admin",
   "version": "2.1.0",
-  "homepage": "/meditrek/sub_admin",
+  "homepage": "/meditrek/HCP_Panel/meditrek/Access/login/Meditrek_access",
   "private": true,
   "dependencies": {
     "@emotion/react": "^11.11.3",
@@ -15,6 +15,8 @@
     "@testing-library/jest-dom": "^6.4.1",
     "@testing-library/react": "^14.2.1",
     "@testing-library/user-event": "^14.5.2",
+    "ajv": "6.12.6",
+    "ajv-keywords": "3.5.2",
     "apexcharts": "^3.45.2",
     "axios": "^1.7.2",
     "base-64": "^1.0.0",
