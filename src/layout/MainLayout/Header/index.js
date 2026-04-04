@@ -134,6 +134,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import ProfileSection from "./ProfileSection";
 import logo from "assets/images/logo1.png";
 import { APP_PREFIX_PATH, Base_Url } from "../../../config";
+import RefreshIcon from "@mui/icons-material/Refresh";
 
 const Header = ({ drawerOpen, drawerToggle }) => {
   const [isFullscreen, setIsFullscreen] = React.useState(false);
@@ -190,6 +191,11 @@ const Header = ({ drawerOpen, drawerToggle }) => {
       setIsFullscreen(false);
     }
   };
+
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
   return (
     <div
       style={{
@@ -328,6 +334,13 @@ const Header = ({ drawerOpen, drawerToggle }) => {
           ) : (
             <FullscreenIcon style={{ color: "#6c757d" }} />
           )}
+        </IconButton>
+
+        <IconButton
+          onClick={handleRefresh}
+          style={{ background: "#f5f7fa" }}
+        >
+          <RefreshIcon style={{ color: "#6c757d" }} />
         </IconButton>
 
         <ProfileSection />
