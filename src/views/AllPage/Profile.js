@@ -330,7 +330,8 @@ const Profile = () => {
             icon: 'success'
           }).then(() => {
             sessionStorage.clear();
-            navigate('/meditrek/sub_admin/login');
+            // navigate('/meditrek/sub_admin/login');
+            navigate('/meditrek/HCP_Panel/meditrek/Access/login/Meditrek_access/login');
           });
         } else {
           Swal.fire('Error!', response.data.msg || 'Failed to delete account', 'error');
