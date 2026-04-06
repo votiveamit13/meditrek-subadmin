@@ -18,7 +18,7 @@ import {
 
 import PersonTwoToneIcon from "@mui/icons-material/PersonTwoTone";
 import MeetingRoomTwoToneIcon from "@mui/icons-material/MeetingRoomTwoTone";
-
+import SettingsTwoToneIcon from "@mui/icons-material/SettingsTwoTone";
 import User4 from "assets/images/users/avatar-4.jpg";
 import { APP_PREFIX_PATH, Base_Url, IMAGE_PATH } from "../../../../config";
 
@@ -36,6 +36,10 @@ const ProfileSection = () => {
 
   const handleProfileClick = () => {
     navigate(APP_PREFIX_PATH + "/profile");
+  };
+
+    const handleSettingsClick = () => {
+    navigate(APP_PREFIX_PATH + "/settings");
   };
 
   const handleLogoutClick = () => {
@@ -120,7 +124,7 @@ const ProfileSection = () => {
         <Avatar
           src={
             userDetails?.image
-              ? `${IMAGE_PATH}${userDetails.image}?${new Date().getTime()}`
+              ? `${IMAGE_PATH}${userDetails.image}`
               : User4
           }
           sx={{ width: 36, height: 36 }}
@@ -192,16 +196,22 @@ const ProfileSection = () => {
                     </Box>
                   </Box>
 
-                  {/* MENU */}
-                  <List sx={{ py: 1 }}>
-                    <ListItemButton onClick={handleProfileClick}>
+                  <List>
+                    <ListItemButton onClick={handleProfileClick} sx={{py: 1}}>
                       <ListItemIcon>
                         <PersonTwoToneIcon sx={{ color: "#1ddec4" }} />
                       </ListItemIcon>
                       <ListItemText primary="Profile" />
                     </ListItemButton>
 
-                    <ListItemButton onClick={handleLogoutClick}>
+                    <ListItemButton onClick={handleSettingsClick} sx={{py: 1}}>
+                      <ListItemIcon>
+                        <SettingsTwoToneIcon sx={{ color: "#1ddec4" }} />
+                      </ListItemIcon>
+                      <ListItemText primary="Settings" />
+                    </ListItemButton>
+
+                    <ListItemButton onClick={handleLogoutClick} sx={{py: 1}}>
                       <ListItemIcon>
                         <MeetingRoomTwoToneIcon sx={{ color: "#ff6b6b" }} />
                       </ListItemIcon>

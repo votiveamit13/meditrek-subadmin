@@ -62,12 +62,16 @@ function ViewPatient() {
   const dropdownRef = useRef(null);
   const [sortConfig, setSortConfig] = useState(null);
 
-  const handleSort = (key) => {
-  setSortConfig((prev) => ({
-    key,
-    direction:
-      prev.key === key && prev.direction === "asc" ? "desc" : "asc"
-  }));
+const handleSort = (key) => {
+  setSortConfig((prev) => {
+    if (!prev) {
+      return { key, direction: "asc" };
+    }
+    return {
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc"
+    };
+  });
 };
 
 
