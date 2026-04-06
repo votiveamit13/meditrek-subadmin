@@ -356,11 +356,11 @@ function ExpandPanel({ patients, showSymptoms = false, useAPI = false, fetchFn, 
         ? p.medications.map(m => m.name).filter(Boolean)
         : [],
 
-        reportedHealth: p.symptoms
-    ? p.symptoms.split(",").map(s => ({
-        symptom: s.trim()
-      }))
-    : []
+      reportedHealth: p.symptoms
+        ? p.symptoms.split(",").map(s => ({
+          symptom: s.trim()
+        }))
+        : []
     }));
     console.log(res.patients);
     setApiPatients(formatted);
@@ -483,54 +483,54 @@ function Demographics() {
 
   const ageGroupCount = useMemo(() => {
     const map = {
-    "0-18": 0,
-    "19-30": 0,
-    "31-44": 0,
-    "45-64": 0,
-    "65-74": 0,
-    "75-84": 0,
-    "85+": 0,
-  };
+      "0-18": 0,
+      "19-30": 0,
+      "31-44": 0,
+      "45-64": 0,
+      "65-74": 0,
+      "75-84": 0,
+      "85+": 0,
+    };
 
     pool.forEach(item => {
-    if (map[item.age_group] !== undefined) {
-      map[item.age_group] += item.count;
-    }
-  });
+      if (map[item.age_group] !== undefined) {
+        map[item.age_group] += item.count;
+      }
+    });
 
-  return Object.entries(map).map(([label, value]) => ({
-    label,
-    value,
-    pct: pct(value, total),
-  }));
-}, [pool, total]);
+    return Object.entries(map).map(([label, value]) => ({
+      label,
+      value,
+      pct: pct(value, total),
+    }));
+  }, [pool, total]);
 
-const ageDist = useMemo(() => {
-  // ✅ Step 1: Define ALL groups
-  const map = {
-    "0-18": 0,
-    "19-30": 0,
-    "31-44": 0,
-    "45-64": 0,
-    "65-74": 0,
-    "75-84": 0,
-    "85+": 0,
-  };
+  const ageDist = useMemo(() => {
+    // ✅ Step 1: Define ALL groups
+    const map = {
+      "0-18": 0,
+      "19-30": 0,
+      "31-44": 0,
+      "45-64": 0,
+      "65-74": 0,
+      "75-84": 0,
+      "85+": 0,
+    };
 
-  // ✅ Step 2: Fill API data
-  pool.forEach(item => {
-    if (map[item.age_group] !== undefined) {
-      map[item.age_group] += item.count;
-    }
-  });
+    // ✅ Step 2: Fill API data
+    pool.forEach(item => {
+      if (map[item.age_group] !== undefined) {
+        map[item.age_group] += item.count;
+      }
+    });
 
-  // ✅ Step 3: Return ALL groups (even 0)
-  return Object.entries(map).map(([label, value]) => ({
-    label,
-    value,
-    pct: pct(value, total),
-  }));
-}, [pool, total]);
+    // ✅ Step 3: Return ALL groups (even 0)
+    return Object.entries(map).map(([label, value]) => ({
+      label,
+      value,
+      pct: pct(value, total),
+    }));
+  }, [pool, total]);
   const genderDist = useMemo(() => {
     const genders = ["Male", "Female", "Other", "Not Specified"];
     const map = {
@@ -1442,6 +1442,8 @@ function MedicationDemo({ medicines }) {
   const [patientsData, setPatientsData] = useState(null);
   const [summaryData, setSummaryData] = useState([]);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [combinedOnly, setCombined] = useState(false);
+  const [singleOnly, setSingleOnly] = useState(false);
 
   const doctor_id = sessionStorage.getItem("doctor_id");
 
@@ -1457,6 +1459,8 @@ function MedicationDemo({ medicines }) {
         gender: gender !== "All" ? genderMap[gender] : undefined,
         summary_page: summaryPage,
         summary_limit: summaryRowsPerPage,
+        singleOnly,
+  combinedOnly,
       });
 
       if (res) setSummaryData(res.summary || []);
@@ -1464,7 +1468,7 @@ function MedicationDemo({ medicines }) {
     };
 
     loadSummary();
-  }, [doctor_id, selMeds, ageGroup, gender, summaryPage, summaryRowsPerPage]);
+  }, [doctor_id, selMeds, ageGroup, gender, summaryPage, summaryRowsPerPage, singleOnly, combinedOnly]);
 
   useEffect(() => {
     const loadPatients = async () => {
@@ -1477,6 +1481,8 @@ function MedicationDemo({ medicines }) {
         gender: gender !== "All" ? genderMap[gender] : undefined,
         patient_page: page,
         patient_limit: rowsPerPage,
+        singleOnly,
+  combinedOnly,
       });
 
       if (res) setPatientsData(res);
@@ -1484,7 +1490,7 @@ function MedicationDemo({ medicines }) {
     };
 
     loadPatients();
-  }, [doctor_id, selMeds, ageGroup, gender, page, rowsPerPage]);
+  }, [doctor_id, selMeds, ageGroup, gender, page, rowsPerPage, singleOnly, combinedOnly]);
 
   // const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
   //   if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
@@ -1591,6 +1597,37 @@ function MedicationDemo({ medicines }) {
           <div style={{ flex: 1, minWidth: 160 }}><AgeRangeFilter value={ageGroup} onChange={setAgeGroup} /></div>
           <div style={{ flex: 1, minWidth: 160 }}><GenderFilter value={gender} onChange={setGender} /></div>
         </div>
+        {selMeds.length >= 2 && (
+          <label style={{ ...S.checkLabel(combinedOnly) }}>
+            <input
+              type="checkbox"
+              checked={combinedOnly}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setCombined(checked);
+                if (checked) setSingleOnly(false);
+              }}
+              style={{ accentColor: ACCENT }}
+            />
+            Combined — patients must have ALL selected medications
+          </label>
+        )}
+
+        {selMeds.length === 1 && (
+          <label style={S.checkLabel(singleOnly)}>
+            <input
+              type="checkbox"
+              checked={singleOnly}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setSingleOnly(checked);
+                if (checked) setCombined(false);
+              }}
+              style={{ accentColor: ACCENT }}
+            />
+            Only patients with this medication
+          </label>
+        )}
       </div>
 
       <div style={S.statRow}>
@@ -2006,7 +2043,7 @@ function MedicationHealth({ medicines }) {
       // Update the specific medication's patient data
       setApiData(prev => {
         if (!prev) return prev;
-        
+
         const updatedData = {
           ...prev,
           data: prev.data.map(item => {
@@ -2014,7 +2051,7 @@ function MedicationHealth({ medicines }) {
               const newPatients = res.data.find(
                 newItem => newItem.medication.name === medicationName
               )?.patients || [];
-              
+
               return {
                 ...item,
                 patients: [...item.patients, ...newPatients],
@@ -2045,12 +2082,12 @@ function MedicationHealth({ medicines }) {
         <div style={S.filterBar}>
           <div style={S.filterRow}>
             <div style={{ flex: 1, minWidth: 240 }}>
-              <TagSearch 
-                label="Drug name(s)" 
-                all={allMeds} 
-                selected={selMeds} 
-                onToggle={toggleM} 
-                searchPlaceholder="Filter by drug name…" 
+              <TagSearch
+                label="Drug name(s)"
+                all={allMeds}
+                selected={selMeds}
+                onToggle={toggleM}
+                searchPlaceholder="Filter by drug name…"
               />
             </div>
           </div>
@@ -2077,12 +2114,12 @@ function MedicationHealth({ medicines }) {
       <div style={S.filterBar}>
         <div style={S.filterRow}>
           <div style={{ flex: 1, minWidth: 240 }}>
-            <TagSearch 
-              label="Drug name(s)" 
-              all={allMeds} 
-              selected={selMeds} 
-              onToggle={toggleM} 
-              searchPlaceholder="Filter by drug name…" 
+            <TagSearch
+              label="Drug name(s)"
+              all={allMeds}
+              selected={selMeds}
+              onToggle={toggleM}
+              searchPlaceholder="Filter by drug name…"
             />
           </div>
         </div>
@@ -2120,7 +2157,7 @@ function MedicationHealth({ medicines }) {
               <div key={idx} style={S.card}>
                 <p style={S.cardTitle}>
                   <span>
-                    <Chip label={item.medication.name} teal={true} /> 
+                    <Chip label={item.medication.name} teal={true} />
                     <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 400, marginLeft: 6 }}>
                       {item.total_patients} patients ({item.percentage} of total)
                     </span>
@@ -2128,13 +2165,13 @@ function MedicationHealth({ medicines }) {
                 </p>
                 <div style={S.barWrap}>
                   {(item.symptoms || []).map((o, i) => (
-                    <HBar 
-                      key={i} 
-                      label={o.symptom} 
-                      value={o.count} 
-                      total={item.total_patients} 
+                    <HBar
+                      key={i}
+                      label={o.symptom}
+                      value={o.count}
+                      total={item.total_patients}
                       pctVal={o.count / item.total_patients * 100}
-                      color="#f59e0b" 
+                      color="#f59e0b"
                     />
                   ))}
                   {(!item.symptoms || item.symptoms.length === 0) && (
@@ -2161,7 +2198,7 @@ function MedicationHealth({ medicines }) {
               </div>
             );
           })}
-          
+
           <div style={{ marginTop: 14, display: "flex", justifyContent: "center" }}>
             <CustomPagination
               count={totalCount}
@@ -2195,7 +2232,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
     diseases?.length > 0
       ? diseases.map(d => d.label)
       : [];
-  
+
   const allMeds =
     medicines?.length > 0
       ? medicines.map(m => m.label)
@@ -2229,7 +2266,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      
+
       try {
         const res = await fetchCustomPatientTable({
           doctor_id,
@@ -2241,7 +2278,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
           page,
           limit: rowsPerPage,
         });
-        
+
         setApiData(res);
       } catch (error) {
         console.error("Error loading custom table data:", error);
@@ -2250,12 +2287,12 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
         setLoading(false);
       }
     };
-    
+
     // Debounce the API call to avoid too many requests
     const timeoutId = setTimeout(() => {
       loadData();
     }, 300);
-    
+
     return () => clearTimeout(timeoutId);
   }, [doctor_id, gender, ageGroup, filterDis, filterMed, filterSymptoms, page, rowsPerPage]);
 
@@ -2267,17 +2304,17 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
   // Extract disease names from the diseases string
   const extractDiseaseNames = (diseasesStr) => {
     if (!diseasesStr) return [];
-    
+
     // Handle both string and array formats
     if (Array.isArray(diseasesStr)) {
       return diseasesStr;
     }
-    
+
     const matches = [...diseasesStr.matchAll(/name:\s*([^,}]+)/g)];
     if (matches.length > 0) {
       return matches.map(m => m[1].trim());
     }
-    
+
     // If no matches found with the pattern, return as is or split by comma
     return diseasesStr.split(',').map(d => d.trim()).filter(Boolean);
   };
@@ -2285,13 +2322,13 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
   // Transform API patients to match the expected format
   const patients = useMemo(() => {
     if (!apiData?.patients) return [];
-    
+
     return apiData.patients.map(patient => ({
       name: patient.name || "N/A",
       age: patient.age || 0,
       gender: patient.gender || "Not Specified",
       conditions: extractDiseaseNames(patient.diseases),
-      meds: Array.isArray(patient.medications) 
+      meds: Array.isArray(patient.medications)
         ? patient.medications.map(m => m.name).filter(Boolean)
         : [],
       reportedHealth: Array.isArray(patient.reported_symptoms) && patient.reported_symptoms.length > 0
@@ -2301,31 +2338,31 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
   }, [apiData]);
 
   const cols = FIELD_DEFS.filter(f => selFields.includes(f.key)).map(f => ({
-    key: f.key, 
-    label: f.label, 
+    key: f.key,
+    label: f.label,
     sortable: true,
     render: f.isArr
       ? (r => {
-          const arr = r[f.key];
-          if (!arr || arr.length === 0) return <span style={{ color: "#94a3b8" }}>—</span>;
-          return f.teal ? <MChips arr={arr} /> : <DChips arr={arr} />;
-        })
-      : f.key === "gender" 
+        const arr = r[f.key];
+        if (!arr || arr.length === 0) return <span style={{ color: "#94a3b8" }}>—</span>;
+        return f.teal ? <MChips arr={arr} /> : <DChips arr={arr} />;
+      })
+      : f.key === "gender"
         ? (r => <span style={S.badge(r.gender)}>{r.gender}</span>)
-        : f.key === "reportedHealth" 
+        : f.key === "reportedHealth"
           ? (r => {
-              // Handle reportedHealth - it could be array of strings or array of objects
-              let symptomsArray = [];
-              if (Array.isArray(r.reportedHealth)) {
-                symptomsArray = r.reportedHealth.map(item => {
-                  if (typeof item === "string") return item;
-                  if (typeof item === "object" && item !== null) return item.symptom || "";
-                  return "";
-                }).filter(Boolean);
-              }
-              if (symptomsArray.length === 0) return <span style={{ color: "#94a3b8" }}>—</span>;
-              return <DChips arr={symptomsArray} />;
-            })
+            // Handle reportedHealth - it could be array of strings or array of objects
+            let symptomsArray = [];
+            if (Array.isArray(r.reportedHealth)) {
+              symptomsArray = r.reportedHealth.map(item => {
+                if (typeof item === "string") return item;
+                if (typeof item === "object" && item !== null) return item.symptom || "";
+                return "";
+              }).filter(Boolean);
+            }
+            if (symptomsArray.length === 0) return <span style={{ color: "#94a3b8" }}>—</span>;
+            return <DChips arr={symptomsArray} />;
+          })
           : null
   }));
 
@@ -2350,33 +2387,33 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
           </div>
         </div>
         <div style={{ borderTop: "1px solid #eaecf2", margin: "12px 0" }} />
-        
+
         {/* Filters */}
         <div style={{ ...S.filterRow, alignItems: "flex-start" }}>
           <div style={{ flex: 1, minWidth: 160 }}>
-            <TagSearch 
-              label="Disease" 
-              all={allDiseases} 
-              selected={filterDis} 
-              onToggle={toggleD} 
-              searchPlaceholder="Filter by disease…" 
+            <TagSearch
+              label="Disease"
+              all={allDiseases}
+              selected={filterDis}
+              onToggle={toggleD}
+              searchPlaceholder="Filter by disease…"
             />
           </div>
           <div style={{ flex: 1, minWidth: 160 }}>
-            <TagSearch 
-              label="Medication" 
-              all={allMeds} 
-              selected={filterMed} 
-              onToggle={toggleM} 
-              searchPlaceholder="Filter by medication…" 
+            <TagSearch
+              label="Medication"
+              all={allMeds}
+              selected={filterMed}
+              onToggle={toggleM}
+              searchPlaceholder="Filter by medication…"
             />
           </div>
           <div style={{ flex: 1, minWidth: 160 }}>
-            <TagSearch 
-              label="Reported Symptoms" 
-              all={allSymptoms} 
-              selected={filterSymptoms} 
-              onToggle={toggleH} 
+            <TagSearch
+              label="Reported Symptoms"
+              all={allSymptoms}
+              selected={filterSymptoms}
+              onToggle={toggleH}
               searchPlaceholder="Filter by symptom…"
             />
           </div>
@@ -2390,15 +2427,15 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
       </div>
 
       <div style={S.statRow}>
-        <StatCard 
-          label="Matching Patients" 
-          value={apiData?.matched_patients || 0} 
-          sub={`${apiData?.matched_patients ? ((apiData.matched_patients / (apiData.total || 1)) * 100).toFixed(1) : 0}% of total patients`} 
+        <StatCard
+          label="Matching Patients"
+          value={apiData?.matched_patients || 0}
+          sub={`${apiData?.matched_patients ? ((apiData.matched_patients / (apiData.total || 1)) * 100).toFixed(1) : 0}% of total patients`}
         />
         <StatCard label="Total Patients" value={apiData?.total || 0} />
-        <StatCard 
-          label="Active Filters" 
-          value={filterDis.length + filterMed.length + filterSymptoms.length + (ageGroup !== "All" ? 1 : 0) + (gender !== "All" ? 1 : 0)} 
+        <StatCard
+          label="Active Filters"
+          value={filterDis.length + filterMed.length + filterSymptoms.length + (ageGroup !== "All" ? 1 : 0) + (gender !== "All" ? 1 : 0)}
         />
       </div>
 
@@ -2409,10 +2446,10 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
           <div style={S.noData}>Select at least one column to display</div>
         ) : (
           <>
-            <DataTable 
-              cols={cols} 
-              rows={patients} 
-              empty="No patients match the selected filters" 
+            <DataTable
+              cols={cols}
+              rows={patients}
+              empty="No patients match the selected filters"
             />
             <div style={{ marginTop: 14 }}>
               <CustomPagination

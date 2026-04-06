@@ -60,7 +60,7 @@ export const fetchSymptoms = async (doctor_id) => {
     if (data.success && data.data) {
       // Extract unique symptoms from all medicines
       const symptomsSet = new Set();
-      
+
       data.data.forEach(medicine => {
         if (medicine.symptoms && Array.isArray(medicine.symptoms)) {
           medicine.symptoms.forEach(symptom => {
@@ -70,12 +70,12 @@ export const fetchSymptoms = async (doctor_id) => {
           });
         }
       });
-      
+
       const formatted = Array.from(symptomsSet).map(symptomName => ({
         label: symptomName,
         value: symptomName,
       }));
-      
+
       symptomCache[doctor_id] = formatted;
       return formatted;
     }
@@ -321,6 +321,8 @@ export const fetchMedicationFull = async ({
   summary_limit = 10,
   patient_page = 1,
   patient_limit = 10,
+  singleOnly = false,
+  combinedOnly = false,
 }) => {
   try {
     const res = await fetch(
@@ -341,6 +343,8 @@ export const fetchMedicationFull = async ({
           summary_limit,
           patient_page,
           patient_limit,
+          singleOnly,
+          combinedOnly,
         }),
       }
     );
