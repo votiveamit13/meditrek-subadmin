@@ -72,18 +72,25 @@ const ALL_PATIENTS = [
 ];
 
 const AGE_GROUPS = {
-  "0-18": a => a <= 18,
+  "0-18": a => a >= 0 && a <= 18,
   "19-30": a => a >= 19 && a <= 30,
-  "31-45": a => a >= 31 && a <= 45,
-  "46+": a => a >= 46,
+  "31-44": a => a >= 31 && a <= 44,
+  "45-64": a => a >= 45 && a <= 64,
+  "65-74": a => a >= 65 && a <= 74,
+  "75-84": a => a >= 75 && a <= 84,
+  "85+": a => a >= 85,
 };
 
 const getAgeGroupLabel = (age) => {
   if (typeof age === "string") return age;
+
   if (age <= 18) return "0-18";
   if (age <= 30) return "19-30";
-  if (age <= 45) return "31-45";
-  return "46+";
+  if (age <= 44) return "31-44";
+  if (age <= 64) return "45-64";
+  if (age <= 74) return "65-74";
+  if (age <= 84) return "75-84";
+  return "85+";
 };
 
 const normalizeGender = (g) => {
@@ -475,22 +482,55 @@ function Demographics() {
   }, [pool]);
 
   const ageGroupCount = useMemo(() => {
-    return new Set(data.map(item => item.age_group)).size;
-  }, [data]);
-
-  const ageDist = useMemo(() => {
-    const map = {};
+    const map = {
+    "0-18": 0,
+    "19-30": 0,
+    "31-44": 0,
+    "45-64": 0,
+    "65-74": 0,
+    "75-84": 0,
+    "85+": 0,
+  };
 
     pool.forEach(item => {
-      map[item.age_group] = (map[item.age_group] || 0) + item.count;
-    });
+    if (map[item.age_group] !== undefined) {
+      map[item.age_group] += item.count;
+    }
+  });
 
-    return Object.entries(map).map(([label, value]) => ({
-      label,
-      value,
-      pct: pct(value, total),
-    }));
-  }, [pool, total]);
+  return Object.entries(map).map(([label, value]) => ({
+    label,
+    value,
+    pct: pct(value, total),
+  }));
+}, [pool, total]);
+
+const ageDist = useMemo(() => {
+  // ✅ Step 1: Define ALL groups
+  const map = {
+    "0-18": 0,
+    "19-30": 0,
+    "31-44": 0,
+    "45-64": 0,
+    "65-74": 0,
+    "75-84": 0,
+    "85+": 0,
+  };
+
+  // ✅ Step 2: Fill API data
+  pool.forEach(item => {
+    if (map[item.age_group] !== undefined) {
+      map[item.age_group] += item.count;
+    }
+  });
+
+  // ✅ Step 3: Return ALL groups (even 0)
+  return Object.entries(map).map(([label, value]) => ({
+    label,
+    value,
+    pct: pct(value, total),
+  }));
+}, [pool, total]);
   const genderDist = useMemo(() => {
     const genders = ["Male", "Female", "Other", "Not Specified"];
     const map = {
@@ -513,13 +553,11 @@ function Demographics() {
     }));
   }, [pool, total]);
 
-  /* cross table: age group × gender */
   const crossData = useMemo(() => {
     const genders = ["Male", "Female", "Other", "Not Specified"];
 
     const map = {};
 
-    // init
     Object.keys(AGE_GROUPS).forEach(age => {
       map[age] = {
         age,
@@ -531,7 +569,6 @@ function Demographics() {
       };
     });
 
-    // fill from API
     pool.forEach(item => {
       if (!map[item.age_group]) return;
 
@@ -539,7 +576,6 @@ function Demographics() {
       map[item.age_group].total += item.count;
     });
 
-    // add %
     return Object.values(map).map(row => {
       const newRow = { ...row };
 
@@ -595,7 +631,7 @@ function Demographics() {
           <>
             <StatCard label="Patients in View" value={patientsInView} sub={`${pct(patientsInView, total)}% of all patients`} />
             <StatCard label="Total Patients" value={total} />
-            <StatCard label="Age Groups" value={ageGroupCount} />
+            <StatCard label="Age Groups" value={ageGroupCount.length} />
           </>
         )}
       </div>

@@ -506,6 +506,7 @@ function SharedTabularData() {
   const [filterPatients, setFilterPatients]           = useState([]);
   const [exportSelectedOnly, setExportSelectedOnly]   = useState(false);
   const [tableFilterActive, setTableFilterActive]     = useState(false);
+  
 
   const [allData, setAllData] = useState({
     medication: [], adverseReaction: [], measurement: [], compliance: []

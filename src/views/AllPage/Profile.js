@@ -12,13 +12,13 @@ import Visibility from '@mui/icons-material/Visibility';
 import VisibilityOff from '@mui/icons-material/VisibilityOff';
 import Swal from 'sweetalert2';
 import DeleteIcon from '@mui/icons-material/Delete';
-import { useNavigate } from 'react-router-dom';
+// import { useNavigate } from 'react-router-dom';
 import { FadeLoader } from 'react-spinners';
 import { useEffect, useState } from 'react';
 
 const Profile = () => {
   // const theme = useTheme();
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const [content, setContent] = useState(0);
   const [activeButton, setActiveButton] = useState('profile');
   const [userDetails, setUserDetails] = useState([]);
@@ -270,78 +270,78 @@ const Profile = () => {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    const token = sessionStorage.getItem('token');
-    const doctorId = userDetails.doctor_id;
+  // const handleDeleteAccount = async () => {
+  //   const token = sessionStorage.getItem('token');
+  //   const doctorId = userDetails.doctor_id;
 
-    try {
-      const { value: reason } = await Swal.fire({
-        title: 'Delete Your Account?',
-        html: `
-          <p>This action cannot be undone. All your data will be permanently deleted.</p>
-          <textarea 
-            id="deleteReason" 
-            class="swal2-textarea" 
-            placeholder="Please tell us why you're leaving..." 
-            style="width: 80%; margin-top: 10px; padding: 5px;"
-            required
-          ></textarea>
-        `,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: 'Yes, delete my account',
-        cancelButtonText: 'Cancel',
-        reverseButtons: true,
-        focusConfirm: false,
-        customClass: {
-          container: 'swal2-zindex',
-          popup: 'swal2-height'
-        },
-        preConfirm: () => {
-          const reason = document.getElementById('deleteReason').value;
-          if (!reason) {
-            Swal.showValidationMessage('Please provide a reason for deleting your account');
-          }
-          return reason;
-        }
-      });
+  //   try {
+  //     const { value: reason } = await Swal.fire({
+  //       title: 'Delete Your Account?',
+  //       html: `
+  //         <p>This action cannot be undone. All your data will be permanently deleted.</p>
+  //         <textarea 
+  //           id="deleteReason" 
+  //           class="swal2-textarea" 
+  //           placeholder="Please tell us why you're leaving..." 
+  //           style="width: 80%; margin-top: 10px; padding: 5px;"
+  //           required
+  //         ></textarea>
+  //       `,
+  //       icon: 'warning',
+  //       showCancelButton: true,
+  //       confirmButtonColor: '#d33',
+  //       cancelButtonColor: '#3085d6',
+  //       confirmButtonText: 'Yes, delete my account',
+  //       cancelButtonText: 'Cancel',
+  //       reverseButtons: true,
+  //       focusConfirm: false,
+  //       customClass: {
+  //         container: 'swal2-zindex',
+  //         popup: 'swal2-height'
+  //       },
+  //       preConfirm: () => {
+  //         const reason = document.getElementById('deleteReason').value;
+  //         if (!reason) {
+  //           Swal.showValidationMessage('Please provide a reason for deleting your account');
+  //         }
+  //         return reason;
+  //       }
+  //     });
 
-      if (reason) {
-        const response = await axios.post(
-          `${Base_Url}delete_account`,
-          {
-            doctor_id: doctorId,
-            delete_reason: reason
-          },
-          {
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`
-            }
-          }
-        );
+  //     if (reason) {
+  //       const response = await axios.post(
+  //         `${Base_Url}delete_account`,
+  //         {
+  //           doctor_id: doctorId,
+  //           delete_reason: reason
+  //         },
+  //         {
+  //           headers: {
+  //             'Content-Type': 'application/json',
+  //             Authorization: `Bearer ${token}`
+  //           }
+  //         }
+  //       );
 
-        if (response.data.success) {
-          Swal.fire({
-            title: 'Account Deleted',
-            text: 'Your account has been successfully deleted.',
-            icon: 'success'
-          }).then(() => {
-            sessionStorage.clear();
-            // navigate('/meditrek/sub_admin/login');
-            navigate('/meditrek/HCP_Panel/meditrek/Access/login/Meditrek_access/login');
-          });
-        } else {
-          Swal.fire('Error!', response.data.msg || 'Failed to delete account', 'error');
-        }
-      }
-    } catch (error) {
-      console.error('Error deleting account:', error);
-      Swal.fire('Error!', 'Failed to delete account', 'error');
-    }
-  };
+  //       if (response.data.success) {
+  //         Swal.fire({
+  //           title: 'Account Deleted',
+  //           text: 'Your account has been successfully deleted.',
+  //           icon: 'success'
+  //         }).then(() => {
+  //           sessionStorage.clear();
+  //           // navigate('/meditrek/sub_admin/login');
+  //           navigate('/meditrek/HCP_Panel/meditrek/Access/login/Meditrek_access/login');
+  //         });
+  //       } else {
+  //         Swal.fire('Error!', response.data.msg || 'Failed to delete account', 'error');
+  //       }
+  //     }
+  //   } catch (error) {
+  //     console.error('Error deleting account:', error);
+  //     Swal.fire('Error!', 'Failed to delete account', 'error');
+  //   }
+  // };
 
   if (loading) {
     return (
@@ -810,7 +810,7 @@ const Profile = () => {
       )}
 
       {/* Delete Account Card */}
-      <Card className="border-0 shadow-lg rounded-4 mt-4">
+      {/* <Card className="border-0 shadow-lg rounded-4 mt-4">
         <Card.Body className="p-4 text-center">
           <Button
             variant="danger"
@@ -830,7 +830,7 @@ const Profile = () => {
             ⚠️ Warning: This action cannot be undone. All your data will be permanently deleted.
           </p>
         </Card.Body>
-      </Card>
+      </Card> */}
     </>
   );
 };
