@@ -219,12 +219,41 @@ const STYLES = `
   }
   .std-tab-btn:not(.active) .std-tab-badge { background: #f3f4f6; color: #9ca3af; }
 
+  /* Measurement Sub Tabs */
+  .std-measurement-subtabs {
+    display: flex; gap: 4px; margin-bottom: 20px;
+    background: #fff; border-radius: 12px; padding: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    overflow-x: auto;
+  }
+  .std-subtab-btn {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    border: none; border-radius: 8px;
+    font-size: 12px; font-weight: 500;
+    font-family: 'DM Sans', sans-serif;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    background: transparent;
+    color: #6b7280;
+  }
+  .std-subtab-btn:hover { background: #f0fdfb; color: #0f766e; }
+  .std-subtab-btn.active {
+    background: #14b8a6;
+    color: #fff;
+    box-shadow: 0 2px 6px rgba(20,184,166,0.3);
+  }
+
   /* Stats bar */
-  .std-stats-bar { display: flex; gap: 12px; margin-bottom: 16px; }
+  .std-stats-bar {
+    display: flex; gap: 12px; margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
   .std-stat {
     background: #fff; border-radius: 12px; padding: 14px 20px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.05); flex: 1;
     display: flex; flex-direction: column; gap: 4px;
+    min-width: 100px;
   }
   .std-stat-val {
     font-size: 24px; font-weight: 700; color: #111827;
@@ -242,6 +271,8 @@ const STYLES = `
   .std-table-header {
     padding: 18px 24px 14px; display: flex; align-items: center;
     justify-content: space-between; border-bottom: 1px solid #f3f4f6;
+    flex-wrap: wrap;
+    gap: 12px;
   }
   .std-table-title { font-size: 15px; font-weight: 600; color: #111827; margin: 0; }
   .std-table-meta { font-size: 12px; color: #9ca3af; margin-top: 2px; }
@@ -392,6 +423,16 @@ const DownloadIcon = () => (
   </svg>
 );
 
+// ─── Measurement Types ─────────────────────────────────────────────────────────
+const MEASUREMENT_SUB_TABS = [
+  { label: "Blood Pressure", value: "bp", type: 0 },
+  { label: "Fasting Glucose", value: "fasting", type: 1 },
+  { label: "PPBGS", value: "ppbgs", type: 2 },
+  { label: "Weight", value: "weight", type: 3 },
+  { label: "Temp", value: "temp", type: 4 },
+  { label: "Symptom", value: "symptom", type: 5 }
+];
+
 // ─── Tab config ───────────────────────────────────────────────────────────────
 const TABS = [
   { key: 'medication',      label: 'Medication',      icon: '💊' },
@@ -402,7 +443,7 @@ const TABS = [
 
 const TAB_COLUMNS = {
   medication: [
-    { label: '#',           key: 'sr',              render: (_, i) => i + 1 },
+    { label: 'Sr No.',           key: 'sr',              render: (_, i) => i + 1 },
     { label: 'Patient',     key: 'patient_name' },
     { label: 'Age',         key: 'dob',             render: r => calculateAge(r.dob) !== 'NA' ? `${calculateAge(r.dob)} yrs` : 'NA' },
     { label: 'Medicine',    key: 'medicine_name' },
@@ -413,7 +454,7 @@ const TAB_COLUMNS = {
     { label: 'Date',        key: 'createtime',      render: r => fmt(r.createtime) },
   ],
   adverseReaction: [
-    { label: '#',              key: 'sr',                   render: (_, i) => i + 1 },
+    { label: 'Sr. No.',              key: 'sr',                   render: (_, i) => i + 1 },
     { label: 'Patient',        key: 'patient_name' },
     { label: 'Medicine',       key: 'medicine_name' },
     { label: 'Dosage',         key: 'dosage' },
@@ -423,22 +464,55 @@ const TAB_COLUMNS = {
     { label: 'Med Start Date', key: 'medication_start_date', render: r => fmt(r.medication_start_date) },
     { label: 'Reaction Date',  key: 'reaction_date',         render: r => fmt(r.reaction_date) },
   ],
-  measurement: [
-    { label: '#',            key: 'sr',             render: (_, i) => i + 1 },
+  // Base measurement columns - will be filtered by sub-tab
+  measurement_bp: [
+    { label: 'Sr. No.',            key: 'sr',             render: (_, i) => i + 1 },
     { label: 'Patient',      key: 'patient_name' },
-    { label: 'Systolic BP',  key: 'systolic_bp',    render: r => r.systolic_bp    || '-' },
-    { label: 'Diastolic BP', key: 'diastolic_bp',   render: r => r.diastolic_bp   || '-' },
-    { label: 'Pulse',        key: 'pulse',          render: r => r.pulse          || '-' },
-    { label: 'Weight',       key: 'weight',         render: r => r.weight         ? `${r.weight} KG`          : '-' },
-    { label: 'PPBGS',        key: 'ppbgs',          render: r => r.ppbgs          ? `${r.ppbgs} mg/dl`        : '-' },
-    { label: 'Glucose',      key: 'fasting_glucose',render: r => r.fasting_glucose? `${r.fasting_glucose} mg/dl` : '-' },
-    { label: 'Temp',         key: 'temperature',    render: r => r.temperature    ? `${r.temperature} °C`     : '-' },
-    { label: 'Symptom',      key: 'symptom',        render: r => r.symptom        || '-' },
-    { label: 'Range',        key: 'symptom_range',  render: r => r.symptom_range  || '-' },
     { label: 'Date',         key: 'date',           render: r => fmt(r.date) },
+    { label: 'Time',         key: 'time',           render: r => r.time || '-' },
+    { label: 'Systolic BP',  key: 'systolic_bp',    render: r => r.systolic_bp || '-' },
+    { label: 'Diastolic BP', key: 'diastolic_bp',   render: r => r.diastolic_bp || '-' },
+    { label: 'Pulse',        key: 'pulse',          render: r => r.pulse || '-' },
+  ],
+  measurement_fasting: [
+    { label: 'Sr. No.',            key: 'sr',             render: (_, i) => i + 1 },
+    { label: 'Patient',      key: 'patient_name' },
+    { label: 'Date',         key: 'date',           render: r => fmt(r.date) },
+    { label: 'Time',         key: 'time',           render: r => r.time || '-' },
+    { label: 'Fasting Glucose', key: 'fasting_glucose', render: r => r.fasting_glucose ? `${r.fasting_glucose} mg/dl` : '-' },
+  ],
+  measurement_ppbgs: [
+    { label: 'Sr. No.',            key: 'sr',             render: (_, i) => i + 1 },
+    { label: 'Patient',      key: 'patient_name' },
+    { label: 'Date',         key: 'date',           render: r => fmt(r.date) },
+    { label: 'Time',         key: 'time',           render: r => r.time || '-' },
+    { label: 'PPBGS',        key: 'ppbgs',          render: r => r.ppbgs ? `${r.ppbgs} mg/dl` : '-' },
+  ],
+  measurement_weight: [
+    { label: 'Sr. No.',            key: 'sr',             render: (_, i) => i + 1 },
+    { label: 'Patient',      key: 'patient_name' },
+    { label: 'Date',         key: 'date',           render: r => fmt(r.date) },
+    { label: 'Time',         key: 'time',           render: r => r.time || '-' },
+    { label: 'Weight',       key: 'weight',         render: r => r.weight ? `${r.weight} KG` : '-' },
+  ],
+  measurement_temp: [
+    { label: 'Sr. No.',            key: 'sr',             render: (_, i) => i + 1 },
+    { label: 'Patient',      key: 'patient_name' },
+    { label: 'Date',         key: 'date',           render: r => fmt(r.date) },
+    { label: 'Time',         key: 'time',           render: r => r.time || '-' },
+    { label: 'Temperature',  key: 'temperature',    render: r => r.temperature ? `${r.temperature} °C` : '-' },
+  ],
+  measurement_symptom: [
+    { label: 'Sr. No.',            key: 'sr',             render: (_, i) => i + 1 },
+    { label: 'Patient',      key: 'patient_name' },
+    { label: 'Date',         key: 'date',           render: r => fmt(r.date) },
+    { label: 'Time',         key: 'time',           render: r => r.time || '-' },
+    { label: 'Symptom Name', key: 'symptomname',    render: r => r.symptomname || '-' },
+    { label: 'Symptom Score',key: 'symptom',        render: r => r.symptom || '-' },
+    { label: 'Severity',     key: 'symptom_range',  render: r => r.symptom_range || '-' },
   ],
   compliance: [
-    { label: '#',       key: 'sr',           render: (_, i) => i + 1 },
+    { label: 'Sr. No.',       key: 'sr',           render: (_, i) => i + 1 },
     { label: 'Patient', key: 'patient_name', render: r => r.patient_name || r.name || '-' },
     { label: 'Medicine',key: 'medicine_name' },
     {
@@ -453,48 +527,118 @@ const TAB_COLUMNS = {
   ],
 };
 
-const buildExcelRows = (tab, data) => {
+// Get columns based on measurement sub-tab
+const getMeasurementColumns = (measurementType) => {
+  switch (measurementType) {
+    case 'bp': return TAB_COLUMNS.measurement_bp;
+    case 'fasting': return TAB_COLUMNS.measurement_fasting;
+    case 'ppbgs': return TAB_COLUMNS.measurement_ppbgs;
+    case 'weight': return TAB_COLUMNS.measurement_weight;
+    case 'temp': return TAB_COLUMNS.measurement_temp;
+    case 'symptom': return TAB_COLUMNS.measurement_symptom;
+    default: return TAB_COLUMNS.measurement_bp;
+  }
+};
+
+// Filter measurements by type
+const filterMeasurementsByType = (measurements, typeValue) => {
+  return measurements.filter(m => m.type === typeValue);
+};
+
+const buildExcelRows = (tab, data, measurementType = null) => {
   switch (tab) {
     case 'medication':
       return data.map((item, i) => ({
-        'S. No': i + 1, 'Patient Name': item.patient_name || '-',
+        'S. No': i + 1, 
+        'Patient Name': item.patient_name || '-',
         'Age': calculateAge(item.dob) !== 'NA' ? `${calculateAge(item.dob)} years` : 'NA',
-        'Medicine': item.medicine_name || '-', 'Dosage': item.dosage || '-',
+        'Medicine': item.medicine_name || '-', 
+        'Dosage': item.dosage || '-',
         'Schedule': item.schedule == 0 ? 'Daily' : 'Weekly',
-        'Remind When': item.remind_quantity || '1', 'Instruction': item.instruction || '-',
+        'Remind When': item.remind_quantity || '1', 
+        'Instruction': item.instruction || '-',
         'Created Date': fmt(item.createtime),
       }));
+      
     case 'adverseReaction':
       return data.map((item, i) => ({
-        'S. No': i + 1, 'Patient Name': item.patient_name || '-',
-        'Medicine': item.medicine_name || '-', 'Dosage': item.dosage || '-',
-        'Medicine Type': item.category_name || '-', 'Symptom': item.symptom_name || '-',
+        'S. No': i + 1, 
+        'Patient Name': item.patient_name || '-',
+        'Medicine': item.medicine_name || '-', 
+        'Dosage': item.dosage || '-',
+        'Medicine Type': item.category_name || '-', 
+        'Symptom': item.symptom_name || '-',
         'Description': item.instruction || '-',
-        'Med Start Date': fmt(item.medication_start_date), 'Reaction Date': fmt(item.reaction_date),
+        'Med Start Date': fmt(item.medication_start_date), 
+        'Reaction Date': fmt(item.reaction_date),
       }));
-    case 'measurement':
-      return data.map((item, i) => ({
-        'S. No': i + 1, 'Patient Name': item.patient_name || '-',
-        'Systolic BP': item.systolic_bp || '-', 'Diastolic BP': item.diastolic_bp || '-',
-        'Pulse': item.pulse || '-',
-        'Weight': item.weight ? `${item.weight} KG` : '-',
-        'PPBGS': item.ppbgs ? `${item.ppbgs} mg/dl` : '-',
-        'Glucose': item.fasting_glucose ? `${item.fasting_glucose} mg/dl` : '-',
-        'Temperature': item.temperature ? `${item.temperature} °C` : '-',
-        'Symptom': item.symptom || '-', 'Range': item.symptom_range || '-',
-        'Date': fmt(item.date),
-      }));
+      
+    case 'measurement': {
+      // For measurements, use the filtered data that's already passed
+      // Removed unused variable 'typeLabel'
+      return data.map((item, i) => {
+        const baseRow = { 
+          'S. No': i + 1, 
+          'Patient Name': item.patient_name || '-', 
+          'Date': fmt(item.date), 
+          'Time': item.time || '-' 
+        };
+        switch (measurementType) {
+          case 'bp':
+            return { 
+              ...baseRow, 
+              'Systolic BP': item.systolic_bp || '-', 
+              'Diastolic BP': item.diastolic_bp || '-', 
+              'Pulse': item.pulse || '-' 
+            };
+          case 'fasting':
+            return { 
+              ...baseRow, 
+              'Fasting Glucose': item.fasting_glucose ? `${item.fasting_glucose} mg/dl` : '-' 
+            };
+          case 'ppbgs':
+            return { 
+              ...baseRow, 
+              'PPBGS': item.ppbgs ? `${item.ppbgs} mg/dl` : '-' 
+            };
+          case 'weight':
+            return { 
+              ...baseRow, 
+              'Weight': item.weight ? `${item.weight} KG` : '-' 
+            };
+          case 'temp':
+            return { 
+              ...baseRow, 
+              'Temperature': item.temperature ? `${item.temperature} °C` : '-' 
+            };
+          case 'symptom':
+            return { 
+              ...baseRow, 
+              'Symptom Name': item.symptomname || '-', 
+              'Symptom Score': item.symptom || '-', 
+              'Severity': item.symptom_range || '-' 
+            };
+          default:
+            return baseRow;
+        }
+      });
+    }
+    
     case 'compliance':
       return data.map((item, i) => ({
-        'S. No': i + 1, 'Patient Name': item.patient_name || item.name || '-',
+        'S. No': i + 1, 
+        'Patient Name': item.patient_name || item.name || '-',
         'Medicine': item.medicine_name || '-',
         'Status': item.taken_status == 1 ? 'Taken' : item.taken_status == 0 ? 'Not Taken' : 'NA',
         'Date': fmt(item.updatetime),
       }));
-    default: return [];
+      
+    default: 
+      return [];
   }
 };
 
+// ─── Main ─────────────────────────────────────────────────────────────────────
 // ─── Main ─────────────────────────────────────────────────────────────────────
 function SharedTabularData() {
   const [from_date, setFromDate]             = useState('');
@@ -507,6 +651,8 @@ function SharedTabularData() {
   const [exportSelectedOnly, setExportSelectedOnly]   = useState(false);
   const [tableFilterActive, setTableFilterActive]     = useState(false);
   
+  // New state for measurement sub-tab
+  const [measurementSubTab, setMeasurementSubTab] = useState('bp');
 
   const [allData, setAllData] = useState({
     medication: [], adverseReaction: [], measurement: [], compliance: []
@@ -516,6 +662,14 @@ function SharedTabularData() {
   const [activeTab, setActiveTab]   = useState('medication');
   const [pages, setPages]           = useState({ medication: 1, adverseReaction: 1, measurement: 1, compliance: 1 });
   const [rowsPerPage, setRowsPerPage] = useState(10);
+
+  // Store total counts for each tab to prevent recalculation on tab switch
+  const [tabTotals, setTabTotals] = useState({
+    medication: 0,
+    adverseReaction: 0,
+    measurement: 0,
+    compliance: 0
+  });
 
   const doctorId = sessionStorage.getItem('doctor_id');
 
@@ -540,42 +694,91 @@ function SharedTabularData() {
     axios.get(`${Base_Url}get_shared_tabular?from_date=${from_date}&to_date=${to_date}&doctor_id=${doctorId}`)
       .then(res => {
         if (res.data.success) {
+          const medicationData = res.data.medication || [];
+          const adverseData = res.data.adverseReaction || [];
+          const measurementData = res.data.measurement || [];
+          const complianceData = res.data.compliance || [];
+
           setAllData({
-            medication:      res.data.medication      || [],
-            adverseReaction: res.data.adverseReaction || [],
-            measurement:     res.data.measurement     || [],
-            compliance:      res.data.compliance      || [],
+            medication: medicationData,
+            adverseReaction: adverseData,
+            measurement: measurementData,
+            compliance: complianceData,
+          });
+
+          // Store actual totals for each tab
+          setTabTotals({
+            medication: medicationData.length,
+            adverseReaction: adverseData.length,
+            measurement: measurementData.length,
+            compliance: complianceData.length
           });
         } else {
           setAllData({ medication: [], adverseReaction: [], measurement: [], compliance: [] });
+          setTabTotals({ medication: 0, adverseReaction: 0, measurement: 0, compliance: 0 });
         }
         setDataLoaded(true);
         setPages({ medication: 1, adverseReaction: 1, measurement: 1, compliance: 1 });
       })
       .catch(() => {
         setAllData({ medication: [], adverseReaction: [], measurement: [], compliance: [] });
+        setTabTotals({ medication: 0, adverseReaction: 0, measurement: 0, compliance: 0 });
         setDataLoaded(true);
       })
       .finally(() => setLoading(false));
   };
 
   const getDisplayData = (tab) => {
+    if (tab === 'measurement') {
+      // Filter measurements by selected sub-tab type
+      const subTabType = MEASUREMENT_SUB_TABS.find(t => t.value === measurementSubTab)?.type;
+      const filteredByType = filterMeasurementsByType(allData.measurement, subTabType);
+      
+      if (tableFilterActive && filterPatients.length > 0) {
+        return filteredByType.filter(item => filterPatients.includes(String(item.user_id)));
+      }
+      return filteredByType;
+    }
+    
     const raw = allData[tab];
-    if (tableFilterActive && filterPatients.length > 0)
+    if (tableFilterActive && filterPatients.length > 0) {
       return raw.filter(item => filterPatients.includes(String(item.user_id)));
+    }
     return raw;
   };
 
   const getExportData = (tab) => {
+    if (tab === 'measurement') {
+      const subTabType = MEASUREMENT_SUB_TABS.find(t => t.value === measurementSubTab)?.type;
+      const filteredByType = filterMeasurementsByType(allData.measurement, subTabType);
+      
+      if (exportSelectedOnly && filterPatients.length > 0) {
+        return filteredByType.filter(item => filterPatients.includes(String(item.user_id)));
+      }
+      return filteredByType;
+    }
+    
     const raw = allData[tab];
-    if (exportSelectedOnly && filterPatients.length > 0)
+    if (exportSelectedOnly && filterPatients.length > 0) {
       return raw.filter(item => filterPatients.includes(String(item.user_id)));
+    }
     return raw;
   };
 
   const exportToExcel = (tab) => {
-    const rows = buildExcelRows(tab, getExportData(tab));
-    const tabLabel = TABS.find(t => t.key === tab)?.label || tab;
+    const exportData = getExportData(tab);
+    let rows = [];
+    
+    if (tab === 'measurement') {
+      rows = buildExcelRows(tab, exportData, measurementSubTab);
+    } else {
+      rows = buildExcelRows(tab, exportData);
+    }
+    
+    const tabLabel = tab === 'measurement' 
+      ? `${MEASUREMENT_SUB_TABS.find(t => t.value === measurementSubTab)?.label || 'Measurements'}`
+      : TABS.find(t => t.key === tab)?.label || tab;
+    
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, tabLabel);
@@ -583,10 +786,52 @@ function SharedTabularData() {
     saveAs(new Blob([buffer]), `${tabLabel}_Report.xlsx`);
   };
 
-  const patientMap     = Object.fromEntries(patients.map(p => [String(p.user_id), p.name]));
-  const activeDisplay  = getDisplayData(activeTab);
-  const uniquePatients = new Set(allData[activeTab].map(d => d.user_id)).size;
-  const activeTabMeta  = TABS.find(t => t.key === activeTab);
+  const patientMap = Object.fromEntries(patients.map(p => [String(p.user_id), p.name]));
+  const activeDisplay = getDisplayData(activeTab);
+  
+  // For measurement tab, get unique patients from filtered measurement data
+  const getUniquePatients = () => {
+    if (activeTab === 'measurement') {
+      const subTabType = MEASUREMENT_SUB_TABS.find(t => t.value === measurementSubTab)?.type;
+      const filteredByType = filterMeasurementsByType(allData.measurement, subTabType);
+      const filtered = tableFilterActive && filterPatients.length > 0
+        ? filteredByType.filter(item => filterPatients.includes(String(item.user_id)))
+        : filteredByType;
+      return new Set(filtered.map(d => d.user_id)).size;
+    }
+    return new Set(activeDisplay.map(d => d.user_id)).size;
+  };
+  
+  // Use stored tab totals instead of recalculating
+  // const getTotalRecordsForTab = (tab) => {
+  //   if (tab === 'measurement') {
+  //     const subTabType = MEASUREMENT_SUB_TABS.find(t => t.value === measurementSubTab)?.type;
+  //     return filterMeasurementsByType(allData.measurement, subTabType).length;
+  //   }
+  //   return tabTotals[tab];
+  // };
+
+  const uniquePatients = getUniquePatients();
+  // For active tab display, use activeDisplay length
+  const activeTabRecordCount = activeDisplay.length;
+  // For tab badges, use stored totals
+  const getTabBadgeCount = (tabKey) => {
+    if (tabKey === 'measurement') {
+      const subTabType = MEASUREMENT_SUB_TABS.find(t => t.value === measurementSubTab)?.type;
+      return filterMeasurementsByType(allData.measurement, subTabType).length;
+    }
+    return tabTotals[tabKey];
+  };
+
+  const activeTabMeta = TABS.find(t => t.key === activeTab);
+
+  // Get the appropriate columns for the current tab
+  const getCurrentColumns = () => {
+    if (activeTab === 'measurement') {
+      return getMeasurementColumns(measurementSubTab);
+    }
+    return TAB_COLUMNS[activeTab];
+  };
 
   return (
     <>
@@ -676,15 +921,34 @@ function SharedTabularData() {
                 >
                   <span>{t.icon}</span>
                   {t.label}
-                  <span className="std-tab-badge">{allData[t.key].length}</span>
+                  <span className="std-tab-badge">{getTabBadgeCount(t.key)}</span>
                 </button>
               ))}
             </div>
 
+            {/* Measurement Sub Tabs - Only show when measurement tab is active */}
+            {activeTab === 'measurement' && (
+              <div className="std-measurement-subtabs">
+                {MEASUREMENT_SUB_TABS.map(subTab => (
+                  <button
+                    key={subTab.value}
+                    type="button"
+                    className={`std-subtab-btn${measurementSubTab === subTab.value ? ' active' : ''}`}
+                    onClick={() => {
+                      setMeasurementSubTab(subTab.value);
+                      setPages(p => ({ ...p, measurement: 1 }));
+                    }}
+                  >
+                    {subTab.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Stats */}
             <div className="std-stats-bar">
               <div className="std-stat accent">
-                <div className="std-stat-val">{activeDisplay.length}</div>
+                <div className="std-stat-val">{activeTabRecordCount}</div>
                 <div className="std-stat-lbl">Records shown</div>
               </div>
               <div className="std-stat">
@@ -692,7 +956,7 @@ function SharedTabularData() {
                 <div className="std-stat-lbl">Patients</div>
               </div>
               <div className="std-stat">
-                <div className="std-stat-val">{allData[activeTab].length}</div>
+                <div className="std-stat-val">{getTabBadgeCount(activeTab)}</div>
                 <div className="std-stat-lbl">Total records</div>
               </div>
               {filterPatients.length > 0 && (
@@ -703,13 +967,28 @@ function SharedTabularData() {
               )}
             </div>
 
+            {/* Show message when no data for adverse reaction */}
+            {activeTab === 'adverseReaction' && allData.adverseReaction.length === 0 && (
+              <div className="std-empty">
+                <div className="std-empty-icon">⚠️</div>
+                <p>No adverse reactions found for the selected date range</p>
+                <p style={{ fontSize: "12px", marginTop: "8px" }}>
+                  Try selecting a different date range or check if any adverse reactions were recorded.
+                </p>
+              </div>
+            )}
+
             {/* Table */}
             <div className="std-table-card">
               {loading && <div className="std-overlay"><div className="std-spinner" /></div>}
 
               <div className="std-table-header">
                 <div>
-                  <p className="std-table-title">{activeTabMeta?.icon} {activeTabMeta?.label}</p>
+                  <p className="std-table-title">
+                    {activeTab === 'measurement' 
+                      ? `📏 ${MEASUREMENT_SUB_TABS.find(t => t.value === measurementSubTab)?.label}`
+                      : `${activeTabMeta?.icon} ${activeTabMeta?.label}`}
+                  </p>
                   {(from_date || to_date) && (
                     <p className="std-table-meta">
                       {from_date && `From ${fmt(from_date)}`}
@@ -728,14 +1007,14 @@ function SharedTabularData() {
               </div>
 
               <div className="std-table-body">
-                {activeDisplay.length === 0 ? (
+                {activeDisplay.length === 0 && activeTab !== 'adverseReaction' ? (
                   <div className="std-empty">
                     <div className="std-empty-icon">🗂</div>
                     <p>No records match the current filters</p>
                   </div>
-                ) : (
+                ) : activeDisplay.length > 0 ? (
                   <CustomTable
-                    columns={TAB_COLUMNS[activeTab]}
+                    columns={getCurrentColumns()}
                     data={activeDisplay}
                     currentPage={pages[activeTab]}
                     rowsPerPage={rowsPerPage}
@@ -745,7 +1024,7 @@ function SharedTabularData() {
                       setPages(p => ({ ...p, [activeTab]: 1 }));
                     }}
                   />
-                )}
+                ) : null}
               </div>
             </div>
           </>
