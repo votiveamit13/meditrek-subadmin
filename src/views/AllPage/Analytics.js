@@ -861,15 +861,11 @@ function DiseaseDemo({ diseases }) {
       ? filteredPatients.length
       : allPatientsData?.matched_patients ?? 0;
 
-  const diseaseDist = useMemo(() => {
-    const source =
-      (singleOnly || combinedOnly)
-        ? filteredPatients
-        : ALL_PATIENTS_DATA;
-
+const diseaseDist = useMemo(() => {
+  if (singleOnly || combinedOnly) {
     const map = {};
 
-    source.forEach(p => {
+    filteredPatients.forEach(p => {
       if (!p.conditions.length) {
         map["No Disease"] = (map["No Disease"] || 0) + 1;
       } else {
@@ -882,9 +878,22 @@ function DiseaseDemo({ diseases }) {
     return Object.entries(map).map(([label, value]) => ({
       label,
       value,
-      pct: pct(value, source.length),
+      pct: pct(value, filteredPatients.length),
     }));
-  }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly]);
+  }
+
+  // ✅ CLEAN BACKEND LABEL HERE
+  return (allPatientsData?.disease_distribution || []).map(d => {
+    const names = extractDiseaseNames(d.name);
+
+    return {
+      label: names.length ? names.join(", ") : "No Disease",
+      value: d.count,
+      pct: d.percentage
+    };
+  });
+
+}, [filteredPatients, allPatientsData, singleOnly, combinedOnly]);
 
   const ageDist = useMemo(() => {
     const source =
@@ -2238,7 +2247,6 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
       ? medicines.map(m => m.label)
       : [];
 
-  // Use the symptoms prop passed from parent instead of local state
   const allSymptoms =
     symptoms?.length > 0
       ? symptoms.map(s => s.label)
@@ -2254,6 +2262,10 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
   const [apiData, setApiData] = useState(null);
+  const [singleOnlyDisease, setSingleOnlyDisease] = useState(false);
+  const [combinedOnlyDisease, setCombinedOnlyDisease] = useState(false);
+  const [singleOnlyMed, setSingleOnlyMed] = useState(false);
+  const [combinedOnlyMed, setCombinedOnlyMed] = useState(false);
 
   const doctor_id = sessionStorage.getItem("doctor_id");
 
@@ -2262,12 +2274,50 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
   const toggleM = m => setFilterMed(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
   const toggleH = h => setFilterSymptoms(prev => prev.includes(h) ? prev.filter(x => x !== h) : [...prev, h]);
 
+   useEffect(() => {
+    if (filterDis.length !== 1 && singleOnlyDisease) {
+      setSingleOnlyDisease(false);
+    }
+    if (filterDis.length < 2 && combinedOnlyDisease) {
+      setCombinedOnlyDisease(false);
+    }
+  }, [filterDis, singleOnlyDisease, combinedOnlyDisease]);
+
+    useEffect(() => {
+    if (filterMed.length !== 1 && singleOnlyMed) {
+      setSingleOnlyMed(false);
+    }
+    if (filterMed.length < 2 && combinedOnlyMed) {
+      setCombinedOnlyMed(false);
+    }
+  }, [filterMed, singleOnlyMed, combinedOnlyMed]);
+
   // Fetch data from API
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
 
       try {
+
+         let diseaseSingleOnly = false;
+        let diseaseCombinedOnly = false;
+        
+        if (filterDis.length === 1 && singleOnlyDisease) {
+          diseaseSingleOnly = true;
+        } else if (filterDis.length >= 2 && combinedOnlyDisease) {
+          diseaseCombinedOnly = true;
+        }
+        
+        // Determine which combination filter to use for medications
+        let medSingleOnly = false;
+        let medCombinedOnly = false;
+        
+        if (filterMed.length === 1 && singleOnlyMed) {
+          medSingleOnly = true;
+        } else if (filterMed.length >= 2 && combinedOnlyMed) {
+          medCombinedOnly = true;
+        }
+
         const res = await fetchCustomPatientTable({
           doctor_id,
           gender: gender !== "All" ? genderMap[gender] : undefined,
@@ -2277,6 +2327,8 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
           symptoms: filterSymptoms,
           page,
           limit: rowsPerPage,
+           singleOnly: diseaseSingleOnly || medSingleOnly,
+          combinedOnly: diseaseCombinedOnly || medCombinedOnly,
         });
 
         setApiData(res);
@@ -2294,12 +2346,12 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [doctor_id, gender, ageGroup, filterDis, filterMed, filterSymptoms, page, rowsPerPage]);
+  }, [doctor_id, gender, ageGroup, filterDis, filterMed, filterSymptoms, page, rowsPerPage, singleOnlyDisease, combinedOnlyDisease, singleOnlyMed, combinedOnlyMed]);
 
   // Reset page when filters change
-  useEffect(() => {
+   useEffect(() => {
     setPage(1);
-  }, [gender, ageGroup, filterDis, filterMed, filterSymptoms]);
+  }, [gender, ageGroup, filterDis, filterMed, filterSymptoms, singleOnlyDisease, combinedOnlyDisease, singleOnlyMed, combinedOnlyMed]);
 
   // Extract disease names from the diseases string
   const extractDiseaseNames = (diseasesStr) => {
@@ -2398,6 +2450,36 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
               onToggle={toggleD}
               searchPlaceholder="Filter by disease…"
             />
+           {filterDis.length >= 2 && (
+              <label style={{ ...S.checkLabel(combinedOnlyDisease), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+                <input 
+                  type="checkbox" 
+                  checked={combinedOnlyDisease} 
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    setCombinedOnlyDisease(checked);
+                    if (checked) setSingleOnlyDisease(false);
+                  }} 
+                  style={{ accentColor: ACCENT }} 
+                />
+                Combined diseases only (patients with ALL selected diseases)
+              </label>
+            )}
+            {filterDis.length === 1 && (
+              <label style={{ ...S.checkLabel(singleOnlyDisease), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+                <input 
+                  type="checkbox" 
+                  checked={singleOnlyDisease} 
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    setSingleOnlyDisease(checked);
+                    if (checked) setCombinedOnlyDisease(false);
+                  }} 
+                  style={{ accentColor: ACCENT }} 
+                />
+                Only patients with this disease
+              </label>
+            )}
           </div>
           <div style={{ flex: 1, minWidth: 160 }}>
             <TagSearch
@@ -2407,6 +2489,36 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
               onToggle={toggleM}
               searchPlaceholder="Filter by medication…"
             />
+         {filterMed.length >= 2 && (
+              <label style={{ ...S.checkLabel(combinedOnlyMed), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+                <input 
+                  type="checkbox" 
+                  checked={combinedOnlyMed} 
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    setCombinedOnlyMed(checked);
+                    if (checked) setSingleOnlyMed(false);
+                  }} 
+                  style={{ accentColor: ACCENT }} 
+                />
+                Combined medications only (patients taking ALL selected medications)
+              </label>
+            )}
+            {filterMed.length === 1 && (
+              <label style={{ ...S.checkLabel(singleOnlyMed), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+                <input 
+                  type="checkbox" 
+                  checked={singleOnlyMed} 
+                  onChange={e => {
+                    const checked = e.target.checked;
+                    setSingleOnlyMed(checked);
+                    if (checked) setCombinedOnlyMed(false);
+                  }} 
+                  style={{ accentColor: ACCENT }} 
+                />
+                Only patients with this medication
+              </label>
+            )}
           </div>
           <div style={{ flex: 1, minWidth: 160 }}>
             <TagSearch

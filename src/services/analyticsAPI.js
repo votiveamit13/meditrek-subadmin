@@ -442,6 +442,8 @@ export const fetchCustomPatientTable = async ({
   symptoms,
   page = 1,
   limit = 10,
+  singleOnly = false,
+  combinedOnly = false,
 }) => {
   try {
     const res = await fetch(
@@ -460,6 +462,8 @@ export const fetchCustomPatientTable = async ({
           symptoms: symptoms || [],
           page,
           limit,
+          singleOnly,
+          combinedOnly,
         }),
       }
     );
