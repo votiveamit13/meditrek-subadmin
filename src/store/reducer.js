@@ -1,13 +1,11 @@
-// third party
 import { combineReducers } from 'redux';
 
-// project import
 import customizationReducer from './customizationReducer';
-
-// ==============================|| REDUCER ||============================== //
+import timezoneReducer from './timezoneSlice';
 
 const reducer = combineReducers({
-  customization: customizationReducer
+  customization: customizationReducer,
+  timezone: timezoneReducer
 });
 
 export default reducer;

@@ -22,6 +22,8 @@ import MeasurementChart from 'component/my-patient/MeasurementChart';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import AdverseCardView from 'component/my-patient/ReportHealth';
 import DocumentCardView from 'component/my-patient/DocumentCardView';
+import { useSelector } from 'react-redux';
+import dayjs from 'utils/dayjs';
 
 function ViewPatient() {
   const [user_data, setUserDetails] = React.useState([]);
@@ -61,6 +63,7 @@ function ViewPatient() {
   const [filteredPatients, setFilteredPatients] = useState([]);
   const dropdownRef = useRef(null);
   const [sortConfig, setSortConfig] = useState(null);
+  const timezone = useSelector((state) => state.timezone.value);
 
 const handleSort = (key) => {
   setSortConfig((prev) => {
@@ -446,10 +449,12 @@ const handleAddNote = async () => {
     const newNote = {
       id: Date.now(),
       sr_no: notes.length + 1,
-      description: noteDescription,
-      createtime: new Date().toLocaleString()
+      description: noteDescription
     };
-
+console.log("RAW:", notes[0]?.createtime);
+console.log("UTC parse:", dayjs.utc(note.createtime).format());
+console.log("With TZ:", dayjs.utc(note.createtime).tz(timezone).format());
+console.log("Device TZ:", timezone);
     setNotes((prev) => [newNote, ...prev]);
 
     await fetchNotes();
@@ -1329,7 +1334,12 @@ const chartPageData = [...paginatedData].reverse();
 
                           <div className="d-flex justify-content-between align-items-center mt-2">
                             <small style={{ color: "#9ca3af", fontSize: "12px" }}>
-                              {note.createtime}
+                             {(() => {
+    // Parse the UTC time and convert to local
+    const utcTime = dayjs.utc(note.createtime);
+    const localTime = utcTime.local();
+    return localTime.format("DD-MM-YYYY hh:mm A");
+  })()}
                             </small>
 
                             <div className="d-flex gap-2">
