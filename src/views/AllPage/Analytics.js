@@ -146,9 +146,9 @@ const S = {
   grid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 18 },
 
   /* table */
-  tWrap: { overflowX: "auto", borderRadius: 10, border: "1px solid #eaecf2" },
-  th: { padding: "10px 13px", fontSize: 11, fontWeight: 700, color: "#6b7280", background: "#f8f9fc", borderBottom: "1px solid #eaecf2", whiteSpace: "nowrap", letterSpacing: .3 },
-  td: { padding: "10px 13px", fontSize: 12, color: "#374151", borderBottom: "1px solid #f4f6fb" },
+  tWrap: { overflowX: "hidden", borderRadius: 10, border: "1px solid #eaecf2" },
+  th: { padding: "10px 13px", fontSize: 11, fontWeight: 700, color: "#6b7280", background: "#f8f9fc", borderBottom: "1px solid #eaecf2", wordBreak: "break-word", letterSpacing: .3 },
+  td: { padding: "10px 13px", fontSize: 12, color: "#374151", borderBottom: "1px solid #f4f6fb", wordBreak: "break-word", whiteSpace: "normal" },
 
   /* chips */
   chip: t => ({
@@ -259,7 +259,7 @@ function DataTable({ cols, rows, empty = "No data found" }) {
   }, [rows, sortConfig]);
   return (
     <div style={S.tWrap}>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
         <thead>
           <tr>
             {cols.map(c => (
@@ -409,6 +409,18 @@ function ExpandPanel({ patients, showSymptoms = false, useAPI = false, fetchFn, 
                       render: r => (
                         <DChips arr={r.reportedHealth.map(x => x.symptom)} />
                       )
+                    },
+                    {
+                      key: "medication_start_date",
+                      label: "Medication Start Date",
+                      sortable: true,
+                      render: r => <span style={{ fontSize: 12, color: "#374151" }}>{r.medication_start_date || "—"}</span>
+                    },
+                    {
+                      key: "reaction_date",
+                      label: "Reaction Date",
+                      sortable: true,
+                      render: r => <span style={{ fontSize: 12, color: "#374151" }}>{r.reaction_date || "—"}</span>
                     }
                   ] : [])
                 ]}
@@ -861,39 +873,39 @@ function DiseaseDemo({ diseases }) {
       ? filteredPatients.length
       : allPatientsData?.matched_patients ?? 0;
 
-const diseaseDist = useMemo(() => {
-  if (singleOnly || combinedOnly) {
-    const map = {};
+  const diseaseDist = useMemo(() => {
+    if (singleOnly || combinedOnly) {
+      const map = {};
 
-    filteredPatients.forEach(p => {
-      if (!p.conditions.length) {
-        map["No Disease"] = (map["No Disease"] || 0) + 1;
-      } else {
-        p.conditions.forEach(d => {
-          map[d] = (map[d] || 0) + 1;
-        });
-      }
+      filteredPatients.forEach(p => {
+        if (!p.conditions.length) {
+          map["No Disease"] = (map["No Disease"] || 0) + 1;
+        } else {
+          p.conditions.forEach(d => {
+            map[d] = (map[d] || 0) + 1;
+          });
+        }
+      });
+
+      return Object.entries(map).map(([label, value]) => ({
+        label,
+        value,
+        pct: pct(value, filteredPatients.length),
+      }));
+    }
+
+    // ✅ CLEAN BACKEND LABEL HERE
+    return (allPatientsData?.disease_distribution || []).map(d => {
+      const names = extractDiseaseNames(d.name);
+
+      return {
+        label: names.length ? names.join(", ") : "No Disease",
+        value: d.count,
+        pct: d.percentage
+      };
     });
 
-    return Object.entries(map).map(([label, value]) => ({
-      label,
-      value,
-      pct: pct(value, filteredPatients.length),
-    }));
-  }
-
-  // ✅ CLEAN BACKEND LABEL HERE
-  return (allPatientsData?.disease_distribution || []).map(d => {
-    const names = extractDiseaseNames(d.name);
-
-    return {
-      label: names.length ? names.join(", ") : "No Disease",
-      value: d.count,
-      pct: d.percentage
-    };
-  });
-
-}, [filteredPatients, allPatientsData, singleOnly, combinedOnly]);
+  }, [filteredPatients, allPatientsData, singleOnly, combinedOnly]);
 
   const ageDist = useMemo(() => {
     const source =
@@ -1469,7 +1481,7 @@ function MedicationDemo({ medicines }) {
         summary_page: summaryPage,
         summary_limit: summaryRowsPerPage,
         singleOnly,
-  combinedOnly,
+        combinedOnly,
       });
 
       if (res) setSummaryData(res.summary || []);
@@ -1491,7 +1503,7 @@ function MedicationDemo({ medicines }) {
         patient_page: page,
         patient_limit: rowsPerPage,
         singleOnly,
-  combinedOnly,
+        combinedOnly,
       });
 
       if (res) setPatientsData(res);
@@ -2014,7 +2026,7 @@ function MedicationHealth({ medicines }) {
 
   const toggleM = m => setSelMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
-useEffect(() => {
+  useEffect(() => {
     const loadAllMeds = async () => {
       const res = await fetchMedicationReportedHealth({
         doctor_id,
@@ -2091,7 +2103,7 @@ useEffect(() => {
     setPage(1);
   }, [selMeds]);
 
-    const allMeds = allMedNames.length > 0
+  const allMeds = allMedNames.length > 0
     ? allMedNames
     : (medicines?.length > 0 ? medicines.map(m => m.label) : []);
 
@@ -2162,18 +2174,28 @@ useEffect(() => {
               return matches.map(m => m[1].trim());
             };
 
-            // Transform patients for ExpandPanel
+            const formatDate = (dateStr) => {
+              if (!dateStr) return "—";
+              const d = new Date(dateStr);
+              const day = String(d.getDate()).padStart(2, "0");
+              const month = String(d.getMonth() + 1).padStart(2, "0");
+              const year = d.getFullYear();
+              return `${day}-${month}-${year}`;
+            };
+
             const formattedPatients = (item.patients || []).map(p => ({
               id: p.user_id,
               name: p.patient_name,
               age: p.age,
               gender: "Not Specified",
               conditions: extractDiseaseNames(p.diseases),
-              meds: [item.medication.name],
+              meds: (p.all_medications || []).map(m => m.name),
               reportedHealth: p.symptoms ? p.symptoms.split(", ").map(symptom => ({
-                drug: item.medication.name,
+                drug: p.reacted_medication?.name || item.medication.name,
                 symptom: symptom
-              })) : []
+              })) : [],
+              medication_start_date: formatDate(p.medication_start_date),
+              reaction_date: formatDate(p.reaction_date),
             }));
 
             return (
@@ -2205,7 +2227,7 @@ useEffect(() => {
                   <ExpandPanel
                     patients={formattedPatients}
                     showSymptoms={true}
-                    useAPI={false} // Using local patients since API returns paginated patients per medication
+                    useAPI={false}
                   />
                   {item.total_patients_in_medication > item.patients?.length && (
                     <div style={{ marginTop: 10, textAlign: "center" }}>
@@ -2288,7 +2310,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
   const toggleM = m => setFilterMed(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
   const toggleH = h => setFilterSymptoms(prev => prev.includes(h) ? prev.filter(x => x !== h) : [...prev, h]);
 
-   useEffect(() => {
+  useEffect(() => {
     if (filterDis.length !== 1 && singleOnlyDisease) {
       setSingleOnlyDisease(false);
     }
@@ -2297,7 +2319,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
     }
   }, [filterDis, singleOnlyDisease, combinedOnlyDisease]);
 
-    useEffect(() => {
+  useEffect(() => {
     if (filterMed.length !== 1 && singleOnlyMed) {
       setSingleOnlyMed(false);
     }
@@ -2313,19 +2335,19 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
 
       try {
 
-         let diseaseSingleOnly = false;
+        let diseaseSingleOnly = false;
         let diseaseCombinedOnly = false;
-        
+
         if (filterDis.length === 1 && singleOnlyDisease) {
           diseaseSingleOnly = true;
         } else if (filterDis.length >= 2 && combinedOnlyDisease) {
           diseaseCombinedOnly = true;
         }
-        
+
         // Determine which combination filter to use for medications
         let medSingleOnly = false;
         let medCombinedOnly = false;
-        
+
         if (filterMed.length === 1 && singleOnlyMed) {
           medSingleOnly = true;
         } else if (filterMed.length >= 2 && combinedOnlyMed) {
@@ -2341,7 +2363,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
           symptoms: filterSymptoms,
           page,
           limit: rowsPerPage,
-           singleOnly: diseaseSingleOnly || medSingleOnly,
+          singleOnly: diseaseSingleOnly || medSingleOnly,
           combinedOnly: diseaseCombinedOnly || medCombinedOnly,
         });
 
@@ -2363,7 +2385,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
   }, [doctor_id, gender, ageGroup, filterDis, filterMed, filterSymptoms, page, rowsPerPage, singleOnlyDisease, combinedOnlyDisease, singleOnlyMed, combinedOnlyMed]);
 
   // Reset page when filters change
-   useEffect(() => {
+  useEffect(() => {
     setPage(1);
   }, [gender, ageGroup, filterDis, filterMed, filterSymptoms, singleOnlyDisease, combinedOnlyDisease, singleOnlyMed, combinedOnlyMed]);
 
@@ -2464,32 +2486,32 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
               onToggle={toggleD}
               searchPlaceholder="Filter by disease…"
             />
-           {filterDis.length >= 2 && (
+            {filterDis.length >= 2 && (
               <label style={{ ...S.checkLabel(combinedOnlyDisease), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
-                <input 
-                  type="checkbox" 
-                  checked={combinedOnlyDisease} 
+                <input
+                  type="checkbox"
+                  checked={combinedOnlyDisease}
                   onChange={e => {
                     const checked = e.target.checked;
                     setCombinedOnlyDisease(checked);
                     if (checked) setSingleOnlyDisease(false);
-                  }} 
-                  style={{ accentColor: ACCENT }} 
+                  }}
+                  style={{ accentColor: ACCENT }}
                 />
                 Combined diseases only (patients with ALL selected diseases)
               </label>
             )}
             {filterDis.length === 1 && (
               <label style={{ ...S.checkLabel(singleOnlyDisease), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
-                <input 
-                  type="checkbox" 
-                  checked={singleOnlyDisease} 
+                <input
+                  type="checkbox"
+                  checked={singleOnlyDisease}
                   onChange={e => {
                     const checked = e.target.checked;
                     setSingleOnlyDisease(checked);
                     if (checked) setCombinedOnlyDisease(false);
-                  }} 
-                  style={{ accentColor: ACCENT }} 
+                  }}
+                  style={{ accentColor: ACCENT }}
                 />
                 Only patients with this disease
               </label>
@@ -2503,32 +2525,32 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
               onToggle={toggleM}
               searchPlaceholder="Filter by medication…"
             />
-         {filterMed.length >= 2 && (
+            {filterMed.length >= 2 && (
               <label style={{ ...S.checkLabel(combinedOnlyMed), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
-                <input 
-                  type="checkbox" 
-                  checked={combinedOnlyMed} 
+                <input
+                  type="checkbox"
+                  checked={combinedOnlyMed}
                   onChange={e => {
                     const checked = e.target.checked;
                     setCombinedOnlyMed(checked);
                     if (checked) setSingleOnlyMed(false);
-                  }} 
-                  style={{ accentColor: ACCENT }} 
+                  }}
+                  style={{ accentColor: ACCENT }}
                 />
                 Combined medications only (patients taking ALL selected medications)
               </label>
             )}
             {filterMed.length === 1 && (
               <label style={{ ...S.checkLabel(singleOnlyMed), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
-                <input 
-                  type="checkbox" 
-                  checked={singleOnlyMed} 
+                <input
+                  type="checkbox"
+                  checked={singleOnlyMed}
                   onChange={e => {
                     const checked = e.target.checked;
                     setSingleOnlyMed(checked);
                     if (checked) setCombinedOnlyMed(false);
-                  }} 
-                  style={{ accentColor: ACCENT }} 
+                  }}
+                  style={{ accentColor: ACCENT }}
                 />
                 Only patients with this medication
               </label>
