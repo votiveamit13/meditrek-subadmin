@@ -78,19 +78,19 @@ const handleSort = (key) => {
 };
 
 
-const parseDateTime = (str) => {
-  if (!str) return 0;
+// const parseDateTime = (str) => {
+//   if (!str) return 0;
 
-  const [date, time, modifier] = str.split(" ");
-  const [day, month, year] = date.split("-");
+//   const [date, time, modifier] = str.split(" ");
+//   const [day, month, year] = date.split("-");
 
-  let [hours, minutes] = time.split(":").map(Number);
+//   let [hours, minutes] = time.split(":").map(Number);
 
-  if (modifier === "PM" && hours !== 12) hours += 12;
-  if (modifier === "AM" && hours === 12) hours = 0;
+//   if (modifier === "PM" && hours !== 12) hours += 12;
+//   if (modifier === "AM" && hours === 12) hours = 0;
 
-  return new Date(year, month - 1, day, hours, minutes).getTime();
-};
+//   return new Date(year, month - 1, day, hours, minutes).getTime();
+// };
 
   const [rowsPerPage, setRowsPerPage] = useState(10);
   // const { user_id } = useParams();
@@ -451,10 +451,6 @@ const handleAddNote = async () => {
       sr_no: notes.length + 1,
       description: noteDescription
     };
-console.log("RAW:", notes[0]?.createtime);
-console.log("UTC parse:", dayjs.utc(note.createtime).format());
-console.log("With TZ:", dayjs.utc(note.createtime).tz(timezone).format());
-console.log("Device TZ:", timezone);
     setNotes((prev) => [newNote, ...prev]);
 
     await fetchNotes();
@@ -613,7 +609,7 @@ console.log("Device TZ:", timezone);
     }) || [];
 
     const sortedMedication = [...filterMedicationData].sort(
-  (a, b) => parseDateTime(b.updatetime) - parseDateTime(a.updatetime)
+  (a, b) => new Date(b.updatetime) - new Date(a.updatetime)
 );
 
   const filterAdverseData =
@@ -1035,7 +1031,11 @@ const exportReportsToExcel = () => {
     {
       label: "Date of Registry",
       key: "updatetime",
-      sortable: true
+      sortable: true,
+  render: (row) =>
+    row.updatetime
+      ? dayjs.utc(row.updatetime).tz(timezone).format("DD-MM-YYYY hh:mm A")
+      : "-"
     }
   ];
   const tableProps = {
@@ -1334,12 +1334,7 @@ const chartPageData = [...paginatedData].reverse();
 
                           <div className="d-flex justify-content-between align-items-center mt-2">
                             <small style={{ color: "#9ca3af", fontSize: "12px" }}>
-                             {(() => {
-    // Parse the UTC time and convert to local
-    const utcTime = dayjs.utc(note.createtime);
-    const localTime = utcTime.local();
-    return localTime.format("DD-MM-YYYY hh:mm A");
-  })()}
+                             {dayjs.utc(note.createtime).tz(timezone).format("DD-MM-YYYY hh:mm A")}
                             </small>
 
                             <div className="d-flex gap-2">
