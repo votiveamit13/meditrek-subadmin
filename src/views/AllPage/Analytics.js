@@ -2002,12 +2002,9 @@ function MedicationDisease({ medicines, diseases }) {
 }
 
 function MedicationHealth({ medicines }) {
-  const allMeds =
-    medicines?.length > 0
-      ? medicines.map(m => m.label)
-      : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
   const [selMeds, setSelMeds] = useState([]);
   const [apiData, setApiData] = useState(null);
+  const [allMedNames, setAllMedNames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -2017,6 +2014,26 @@ function MedicationHealth({ medicines }) {
 
   const toggleM = m => setSelMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
+useEffect(() => {
+    const loadAllMeds = async () => {
+      const res = await fetchMedicationReportedHealth({
+        doctor_id,
+        page: 1,
+        limit: 1000, // get all medications for dropdown
+        patient_page: 1,
+        patient_limit: 1,
+      });
+
+      if (res?.data) {
+        const names = res.data.map(item => item.medication.name);
+        setAllMedNames(names);
+      }
+    };
+
+    loadAllMeds();
+  }, [doctor_id]);
+
+  // On filter/page change: fetch filtered data
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -2026,7 +2043,7 @@ function MedicationHealth({ medicines }) {
         medication: selMeds.length ? selMeds : undefined,
         page,
         limit: rowsPerPage,
-        patient_page: 1, // Reset patient page when changing medication page
+        patient_page: 1,
         patient_limit: 5,
       });
 
@@ -2037,7 +2054,6 @@ function MedicationHealth({ medicines }) {
     loadData();
   }, [doctor_id, selMeds, page, rowsPerPage]);
 
-  // Function to load more patients for a specific medication
   const loadMorePatients = async (medicationName, currentPatientPage) => {
     const res = await fetchMedicationReportedHealth({
       doctor_id,
@@ -2049,18 +2065,15 @@ function MedicationHealth({ medicines }) {
     });
 
     if (res?.data) {
-      // Update the specific medication's patient data
       setApiData(prev => {
         if (!prev) return prev;
-
-        const updatedData = {
+        return {
           ...prev,
           data: prev.data.map(item => {
             if (item.medication.name === medicationName) {
               const newPatients = res.data.find(
                 newItem => newItem.medication.name === medicationName
               )?.patients || [];
-
               return {
                 ...item,
                 patients: [...item.patients, ...newPatients],
@@ -2070,16 +2083,17 @@ function MedicationHealth({ medicines }) {
             return item;
           })
         };
-        return updatedData;
       });
     }
   };
 
-  // Reset filters when medications change
   useEffect(() => {
     setPage(1);
-    // setPatientPages({});
   }, [selMeds]);
+
+    const allMeds = allMedNames.length > 0
+    ? allMedNames
+    : (medicines?.length > 0 ? medicines.map(m => m.label) : []);
 
   if (loading && !apiData) {
     return (
