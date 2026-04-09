@@ -2,7 +2,7 @@ import { Base_Url } from "../config";
 
 let diseaseCache = {};
 let medicineCache = {};
-let symptomCache = {};
+export const symptomCache = {};
 
 export const fetchDiseases = async (doctor_id) => {
   if (diseaseCache[doctor_id]) return diseaseCache[doctor_id];
@@ -49,33 +49,20 @@ export const fetchSymptoms = async (doctor_id) => {
 
   try {
     const res = await fetch(`${Base_Url}report-symptoms?doctor_id=${doctor_id}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
     });
 
+    // ✅ ADD THESE
+    console.log("fetchSymptoms status:", res.status);
     const data = await res.json();
+    console.log("fetchSymptoms raw data:", data);  // ← most important
 
-    if (data.success && data.data) {
-      // Extract unique symptoms from all medicines
-      const symptomsSet = new Set();
-
-      data.data.forEach(medicine => {
-        if (medicine.symptoms && Array.isArray(medicine.symptoms)) {
-          medicine.symptoms.forEach(symptom => {
-            if (symptom.symptom_name) {
-              symptomsSet.add(symptom.symptom_name);
-            }
-          });
-        }
-      });
-
-      const formatted = Array.from(symptomsSet).map(symptomName => ({
-        label: symptomName,
-        value: symptomName,
+    if (data.success && Array.isArray(data.data)) {
+      const formatted = data.data.map(symptom => ({
+        label: symptom.symptom_name,
+        value: symptom.symptom_name,
       }));
-
       symptomCache[doctor_id] = formatted;
       return formatted;
     }

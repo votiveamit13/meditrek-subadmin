@@ -3,7 +3,7 @@ import TagSearch from "./Analytics/TagSearch";
 import AgeRangeFilter from "./Analytics/AgeRangeFilter";
 import GenderFilter from "./Analytics/GenderFilter";
 import ExportButton from "component/common/ExportButton";
-import { fetchDemographicDetails, fetchDemographics, fetchDiseaseDashboard, fetchDiseaseMedicationStats, fetchDiseaseMedicationSummary, fetchDiseases, fetchMedicines, fetchDiseaseMedicationDetails, fetchMedicationFull, fetchMedicationDiseaseDashboard, fetchMedicationReportedHealth, fetchCustomPatientTable, fetchSymptoms } from "services/analyticsAPI";
+import { fetchDemographicDetails, fetchDemographics, fetchDiseaseDashboard, fetchDiseaseMedicationStats, fetchDiseaseMedicationSummary, fetchDiseases, fetchMedicines, fetchDiseaseMedicationDetails, fetchMedicationFull, fetchMedicationDiseaseDashboard, fetchMedicationReportedHealth, fetchCustomPatientTable, fetchSymptoms, symptomCache } from "services/analyticsAPI";
 import CustomPagination from "component/common/Pagination";
 import { CircularProgress } from "@mui/material";
 
@@ -2656,20 +2656,27 @@ export default function Analytics() {
   const [symptoms, setSymptoms] = useState([]);
 
   useEffect(() => {
-    const loadData = async () => {
-      const doctor_id = sessionStorage.getItem("doctor_id");
+  const loadData = async () => {
+    const doctor_id = sessionStorage.getItem("doctor_id");
 
-      const d = await fetchDiseases(doctor_id);
-      const m = await fetchMedicines(doctor_id);
-      const s = await fetchSymptoms(doctor_id);
+    delete symptomCache[doctor_id];
 
-      setDiseases(d);
-      setMedicines(m);
-      setSymptoms(s);
-    };
+    const d = await fetchDiseases(doctor_id);
+    const m = await fetchMedicines(doctor_id);
+    const s = await fetchSymptoms(doctor_id);
 
-    loadData();
-  }, []);
+    // ✅ ADD THESE 3 LINES TEMPORARILY
+    console.log("doctor_id:", doctor_id);
+    console.log("symptoms raw response:", s);
+    console.log("symptomCache after fetch:", symptomCache);
+
+    setDiseases(d);
+    setMedicines(m);
+    setSymptoms(s);
+  };
+
+  loadData();
+}, []);
 
   return (
     <div style={S.wrap}>
