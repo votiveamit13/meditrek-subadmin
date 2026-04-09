@@ -672,6 +672,22 @@ const handleAddNote = async () => {
 
   // 16/03
 
+  useEffect(() => {
+  if (!selectedPatientId) return;
+
+  setNotes([]);
+  setMedication([]);
+  setMeasurement([]);
+  setAdversedata([]);
+  setReport([]);
+  setComplianceData([]);
+
+  setNotificationTitle("");
+  setNotificationMessage("");
+  setSelectedUsers([]);
+
+}, [selectedPatientId]);
+
   React.useEffect(() => {
     axios
       .get(`${Base_Url}get_all_patient`, {
