@@ -438,7 +438,7 @@ const TABS = [
   { key: 'medication',      label: 'Medication',      icon: '💊' },
   { key: 'adverseReaction', label: 'Adverse Reaction', icon: '⚠️' },
   { key: 'measurement',     label: 'Measurements',     icon: '📏' },
-  { key: 'compliance',      label: 'Compliance',       icon: '📋' },
+  // { key: 'compliance',      label: 'Compliance',       icon: '📋' },
 ];
 
 const TAB_COLUMNS = {
