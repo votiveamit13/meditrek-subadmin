@@ -23,8 +23,8 @@ import AgeChart from './Graph/AgeChart';
 import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import MedicationIcon from '@mui/icons-material/Medication';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import ScienceIcon from '@mui/icons-material/Science';
-import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
+// import ScienceIcon from '@mui/icons-material/Science';
+// import MonitorHeartIcon from '@mui/icons-material/MonitorHeart';
 import { Box } from '@mui/material';
 import LazyChartWrapper from 'component/LazyChartWrapper';
 // import { Card, CardContent } from '@mui/material';
@@ -38,14 +38,14 @@ const Default = () => {
   const [patient, setPatient] = useState(null);
 const [medication, setMedication] = useState(null);
 const [adverse, setAdverse] = useState(null);
-const [lab, setLab] = useState(null);
-const [measurement, setMeasurement] = useState(null);
+// const [lab, setLab] = useState(null);
+// const [measurement, setMeasurement] = useState(null);
 const [graphData, setGraphData] = useState(null);
 const [patientGrowth, setPatientGrowth] = useState(null);
 const [medicationGrowth, setMedicationGrowth] = useState(null);
 const [adverseGrowth, setAdverseGrowth] = useState(null);
-const [labGrowth, setLabGrowth] = useState(null);
-const [measurementGrowth, setMeasurementGrowth] = useState(null);
+// const [labGrowth, setLabGrowth] = useState(null);
+// const [measurementGrowth, setMeasurementGrowth] = useState(null);
 const [selectedYear, setSelectedYear] = useState("");
 const [graphLoading, setGraphLoading] = useState(false);
 
@@ -178,15 +178,7 @@ const fetchGraphData = async (year) => {
       setGraphData(response.data);
 
       // auto set latest year
-      const currentYear = new Date().getFullYear();
-
-if (!selectedYear && response.data.availableYears?.length) {
-  const matchedYear = response.data.availableYears.find(
-    y => y === currentYear
-  );
-
-  setSelectedYear(matchedYear || response.data.availableYears[0]);
-}
+      // const currentYear = new Date().getFullYear();
     }
   }  catch (error) {
     console.error("Graph API error:", error);
@@ -244,28 +236,28 @@ if (!selectedYear && response.data.availableYears?.length) {
 
           <Grid item xs={12} sm={6} md={4} lg={2.4}>
             {/* <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}> */}
-              <ReportCard primary={adverse} secondary="Adverse Reactions" growth={`${adverseGrowth}%`} color={theme.palette.warning.main} iconPrimary={WarningAmberIcon} loading={!patient} />
+              <ReportCard primary={adverse} secondary="Reported Health" growth={`${adverseGrowth}%`} color={theme.palette.warning.main} iconPrimary={WarningAmberIcon} loading={!patient} />
             {/* </Link> */}
           </Grid>
 
-          <Grid item xs={12} sm={6} md={4} lg={2.4}>
+          {/* <Grid item xs={12} sm={6} md={4} lg={2.4}> */}
             {/* <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}> */}
-              <ReportCard primary={lab} secondary="Files" growth={`${labGrowth}%`} color={theme.palette.warning.main} iconPrimary={ScienceIcon} loading={!patient} />
+              {/* <ReportCard primary={lab} secondary="Files" growth={`${labGrowth}%`} color={theme.palette.warning.main} iconPrimary={ScienceIcon} loading={!patient} /> */}
             {/* </Link> */}
-          </Grid>
+          {/* </Grid> */}
 
-          <Grid item xs={12} sm={6} md={4} lg={2.4}>
+          {/* <Grid item xs={12} sm={6} md={4} lg={2.4}> */}
             {/* <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}> */}
-              <ReportCard
+              {/* <ReportCard
                 primary={measurement}
                 secondary="Total Measurements"
                 growth={`${measurementGrowth}%`}
                 color={theme.palette.info.main}
                 iconPrimary={MonitorHeartIcon}
                 loading={!patient} 
-              />
+              /> */}
             {/* </Link> */}
-          </Grid>
+          {/* </Grid> */}
         </Grid>
 
         {/* <Grid

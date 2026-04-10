@@ -22,6 +22,8 @@ import MeasurementChart from 'component/my-patient/MeasurementChart';
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import AdverseCardView from 'component/my-patient/ReportHealth';
 import DocumentCardView from 'component/my-patient/DocumentCardView';
+import { useSelector } from 'react-redux';
+import dayjs from 'utils/dayjs';
 
 function ViewPatient() {
   const [user_data, setUserDetails] = React.useState([]);
@@ -61,29 +63,34 @@ function ViewPatient() {
   const [filteredPatients, setFilteredPatients] = useState([]);
   const dropdownRef = useRef(null);
   const [sortConfig, setSortConfig] = useState(null);
+  const timezone = useSelector((state) => state.timezone.value);
 
-  const handleSort = (key) => {
-  setSortConfig((prev) => ({
-    key,
-    direction:
-      prev.key === key && prev.direction === "asc" ? "desc" : "asc"
-  }));
+const handleSort = (key) => {
+  setSortConfig((prev) => {
+    if (!prev) {
+      return { key, direction: "asc" };
+    }
+    return {
+      key,
+      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc"
+    };
+  });
 };
 
 
-const parseDateTime = (str) => {
-  if (!str) return 0;
+// const parseDateTime = (str) => {
+//   if (!str) return 0;
 
-  const [date, time, modifier] = str.split(" ");
-  const [day, month, year] = date.split("-");
+//   const [date, time, modifier] = str.split(" ");
+//   const [day, month, year] = date.split("-");
 
-  let [hours, minutes] = time.split(":").map(Number);
+//   let [hours, minutes] = time.split(":").map(Number);
 
-  if (modifier === "PM" && hours !== 12) hours += 12;
-  if (modifier === "AM" && hours === 12) hours = 0;
+//   if (modifier === "PM" && hours !== 12) hours += 12;
+//   if (modifier === "AM" && hours === 12) hours = 0;
 
-  return new Date(year, month - 1, day, hours, minutes).getTime();
-};
+//   return new Date(year, month - 1, day, hours, minutes).getTime();
+// };
 
   const [rowsPerPage, setRowsPerPage] = useState(10);
   // const { user_id } = useParams();
@@ -442,10 +449,8 @@ const handleAddNote = async () => {
     const newNote = {
       id: Date.now(),
       sr_no: notes.length + 1,
-      description: noteDescription,
-      createtime: new Date().toLocaleString()
+      description: noteDescription
     };
-
     setNotes((prev) => [newNote, ...prev]);
 
     await fetchNotes();
@@ -604,7 +609,7 @@ const handleAddNote = async () => {
     }) || [];
 
     const sortedMedication = [...filterMedicationData].sort(
-  (a, b) => parseDateTime(b.updatetime) - parseDateTime(a.updatetime)
+  (a, b) => new Date(b.updatetime) - new Date(a.updatetime)
 );
 
   const filterAdverseData =
@@ -666,6 +671,22 @@ const handleAddNote = async () => {
   const totalCompliancePages = Math.ceil(filterComplianceData.length / rowsPerPage);
 
   // 16/03
+
+  useEffect(() => {
+  if (!selectedPatientId) return;
+
+  setNotes([]);
+  setMedication([]);
+  setMeasurement([]);
+  setAdversedata([]);
+  setReport([]);
+  setComplianceData([]);
+
+  setNotificationTitle("");
+  setNotificationMessage("");
+  setSelectedUsers([]);
+
+}, [selectedPatientId]);
 
   React.useEffect(() => {
     axios
@@ -1026,7 +1047,11 @@ const exportReportsToExcel = () => {
     {
       label: "Date of Registry",
       key: "updatetime",
-      sortable: true
+      sortable: true,
+  render: (row) =>
+    row.updatetime
+      ? dayjs.utc(row.updatetime).tz(timezone).format("DD-MM-YYYY hh:mm A")
+      : "-"
     }
   ];
   const tableProps = {
@@ -1325,7 +1350,7 @@ const chartPageData = [...paginatedData].reverse();
 
                           <div className="d-flex justify-content-between align-items-center mt-2">
                             <small style={{ color: "#9ca3af", fontSize: "12px" }}>
-                              {note.createtime}
+                             {dayjs.utc(note.createtime).tz(timezone).format("DD-MM-YYYY hh:mm A")}
                             </small>
 
                             <div className="d-flex gap-2">

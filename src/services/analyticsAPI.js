@@ -2,7 +2,7 @@ import { Base_Url } from "../config";
 
 let diseaseCache = {};
 let medicineCache = {};
-let symptomCache = {};
+export const symptomCache = {};
 
 export const fetchDiseases = async (doctor_id) => {
   if (diseaseCache[doctor_id]) return diseaseCache[doctor_id];
@@ -49,33 +49,20 @@ export const fetchSymptoms = async (doctor_id) => {
 
   try {
     const res = await fetch(`${Base_Url}report-symptoms?doctor_id=${doctor_id}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
     });
 
+    // ✅ ADD THESE
+    console.log("fetchSymptoms status:", res.status);
     const data = await res.json();
+    console.log("fetchSymptoms raw data:", data);  // ← most important
 
-    if (data.success && data.data) {
-      // Extract unique symptoms from all medicines
-      const symptomsSet = new Set();
-      
-      data.data.forEach(medicine => {
-        if (medicine.symptoms && Array.isArray(medicine.symptoms)) {
-          medicine.symptoms.forEach(symptom => {
-            if (symptom.symptom_name) {
-              symptomsSet.add(symptom.symptom_name);
-            }
-          });
-        }
-      });
-      
-      const formatted = Array.from(symptomsSet).map(symptomName => ({
-        label: symptomName,
-        value: symptomName,
+    if (data.success && Array.isArray(data.data)) {
+      const formatted = data.data.map(symptom => ({
+        label: symptom.symptom_name,
+        value: symptom.symptom_name,
       }));
-      
       symptomCache[doctor_id] = formatted;
       return formatted;
     }
@@ -321,6 +308,8 @@ export const fetchMedicationFull = async ({
   summary_limit = 10,
   patient_page = 1,
   patient_limit = 10,
+  singleOnly = false,
+  combinedOnly = false,
 }) => {
   try {
     const res = await fetch(
@@ -341,6 +330,8 @@ export const fetchMedicationFull = async ({
           summary_limit,
           patient_page,
           patient_limit,
+          singleOnly,
+          combinedOnly,
         }),
       }
     );
@@ -438,6 +429,9 @@ export const fetchCustomPatientTable = async ({
   symptoms,
   page = 1,
   limit = 10,
+  singleOnly = false,
+  combinedOnly = false,
+  includeExtra = false,
 }) => {
   try {
     const res = await fetch(
@@ -456,14 +450,35 @@ export const fetchCustomPatientTable = async ({
           symptoms: symptoms || [],
           page,
           limit,
+          singleOnly,
+          combinedOnly,
+          includeExtra,
         }),
       }
     );
 
     const data = await res.json();
-    return data.success ? data : { total: 0, patients: [] };
+    return data.success ? data : {
+      total: 0,
+      matched_patients: 0,
+      patients: [],
+      age_distribution: [],
+      gender_distribution: [],
+      disease_distribution: [],
+      medication_distribution: [],
+      symptom_distribution: [],
+    };
   } catch (err) {
     console.error("Custom Table API Error:", err);
-    return { total: 0, patients: [] };
+    return {
+      total: 0,
+      matched_patients: 0,
+      patients: [],
+      age_distribution: [],
+      gender_distribution: [],
+      disease_distribution: [],
+      medication_distribution: [],
+      symptom_distribution: [],
+    };
   }
 };

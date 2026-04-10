@@ -122,6 +122,7 @@ export default function PatientTrendChart({ data,
                 marginRight: "20px"
               }}
             >
+              <option value="">All Years</option>
               {availableYears?.map(year => (
     <option key={year} value={year}>
       {year}

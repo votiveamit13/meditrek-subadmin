@@ -53,12 +53,12 @@ const menu = [
     title: "New Insights",
     icon: <SignalCellularAltIcon />,
     url: APP_PREFIX_PATH + "/new-insights"
-  }
+  },
 ];
 
 const bottomMenu = [
   {
-    title: "Contact Us More Info",
+    title: "Contact Us",
     icon: <ContactSupportIcon />,
     url: APP_PREFIX_PATH + "/manage-contact-us"
   }

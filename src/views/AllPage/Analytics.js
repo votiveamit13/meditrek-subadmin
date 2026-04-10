@@ -3,7 +3,7 @@ import TagSearch from "./Analytics/TagSearch";
 import AgeRangeFilter from "./Analytics/AgeRangeFilter";
 import GenderFilter from "./Analytics/GenderFilter";
 import ExportButton from "component/common/ExportButton";
-import { fetchDemographicDetails, fetchDemographics, fetchDiseaseDashboard, fetchDiseaseMedicationStats, fetchDiseaseMedicationSummary, fetchDiseases, fetchMedicines, fetchDiseaseMedicationDetails, fetchMedicationFull, fetchMedicationDiseaseDashboard, fetchMedicationReportedHealth, fetchCustomPatientTable, fetchSymptoms } from "services/analyticsAPI";
+import { fetchDemographicDetails, fetchDemographics, fetchDiseaseDashboard, fetchDiseaseMedicationStats, fetchDiseaseMedicationSummary, fetchDiseases, fetchMedicines, fetchDiseaseMedicationDetails, fetchMedicationFull, fetchMedicationDiseaseDashboard, fetchMedicationReportedHealth, fetchCustomPatientTable, fetchSymptoms, symptomCache } from "services/analyticsAPI";
 import CustomPagination from "component/common/Pagination";
 import { CircularProgress } from "@mui/material";
 
@@ -72,19 +72,26 @@ const ALL_PATIENTS = [
 ];
 
 const AGE_GROUPS = {
-  "0-18": a => a <= 18,
+  "0-18": a => a >= 0 && a <= 18,
   "19-30": a => a >= 19 && a <= 30,
-  "31-45": a => a >= 31 && a <= 45,
-  "46+": a => a >= 46,
+  "31-44": a => a >= 31 && a <= 44,
+  "45-64": a => a >= 45 && a <= 64,
+  "65-74": a => a >= 65 && a <= 74,
+  "75-84": a => a >= 75 && a <= 84,
+  "85+": a => a >= 85,
 };
 
-const getAgeGroupLabel = (age) => {
-  if (typeof age === "string") return age;
-  if (age <= 18) return "0-18";
-  if (age <= 30) return "19-30";
-  if (age <= 45) return "31-45";
-  return "46+";
-};
+// const getAgeGroupLabel = (age) => {
+//   if (typeof age === "string") return age;
+
+//   if (age <= 18) return "0-18";
+//   if (age <= 30) return "19-30";
+//   if (age <= 44) return "31-44";
+//   if (age <= 64) return "45-64";
+//   if (age <= 74) return "65-74";
+//   if (age <= 84) return "75-84";
+//   return "85+";
+// };
 
 const normalizeGender = (g) => {
   if (!g) return "Not Specified";
@@ -139,9 +146,9 @@ const S = {
   grid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 18 },
 
   /* table */
-  tWrap: { overflowX: "auto", borderRadius: 10, border: "1px solid #eaecf2" },
-  th: { padding: "10px 13px", fontSize: 11, fontWeight: 700, color: "#6b7280", background: "#f8f9fc", borderBottom: "1px solid #eaecf2", whiteSpace: "nowrap", letterSpacing: .3 },
-  td: { padding: "10px 13px", fontSize: 12, color: "#374151", borderBottom: "1px solid #f4f6fb" },
+  tWrap: { overflowX: "hidden", borderRadius: 10, border: "1px solid #eaecf2" },
+  th: { padding: "10px 13px", fontSize: 11, fontWeight: 700, color: "#6b7280", background: "#f8f9fc", borderBottom: "1px solid #eaecf2", wordBreak: "break-word", letterSpacing: .3 },
+  td: { padding: "10px 13px", fontSize: 12, color: "#374151", borderBottom: "1px solid #f4f6fb", wordBreak: "break-word", whiteSpace: "normal" },
 
   /* chips */
   chip: t => ({
@@ -202,12 +209,23 @@ function Chip({ label, teal }) { return <span style={S.chip(teal)}>{label}</span
 function DChips({ arr }) { return <>{arr.map((c, i) => <Chip key={i} label={c} teal={false} />)}</>; }
 function MChips({ arr }) { return <>{arr.map((m, i) => <Chip key={i} label={m} teal={true} />)}</>; }
 
-function StatCard({ label, value, sub, accent }) {
+function StatCard({ label, value, sub, accent, highlightSub }) {
   return (
     <div style={S.statCard}>
       <div style={S.statLbl}>{label}</div>
       <div style={{ ...S.statVal, color: accent || ACCENT }}>{value}</div>
-      {sub && <div style={S.statSub}>{sub}</div>}
+      {sub && (
+        <div
+          style={{
+            ...S.statSub,
+            fontSize: highlightSub ? 14 : 11,
+            fontWeight: highlightSub ? 600 : 400,
+            color: highlightSub ? "#f59e0b" : "#b0b8c9",
+          }}
+        >
+          {sub}
+        </div>
+      )}
     </div>
   );
 }
@@ -252,7 +270,7 @@ function DataTable({ cols, rows, empty = "No data found" }) {
   }, [rows, sortConfig]);
   return (
     <div style={S.tWrap}>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
         <thead>
           <tr>
             {cols.map(c => (
@@ -349,11 +367,11 @@ function ExpandPanel({ patients, showSymptoms = false, useAPI = false, fetchFn, 
         ? p.medications.map(m => m.name).filter(Boolean)
         : [],
 
-        reportedHealth: p.symptoms
-    ? p.symptoms.split(",").map(s => ({
-        symptom: s.trim()
-      }))
-    : []
+      reportedHealth: p.symptoms
+        ? p.symptoms.split(",").map(s => ({
+          symptom: s.trim()
+        }))
+        : []
     }));
     console.log(res.patients);
     setApiPatients(formatted);
@@ -402,6 +420,18 @@ function ExpandPanel({ patients, showSymptoms = false, useAPI = false, fetchFn, 
                       render: r => (
                         <DChips arr={r.reportedHealth.map(x => x.symptom)} />
                       )
+                    },
+                    {
+                      key: "medication_start_date",
+                      label: "Medication Start Date",
+                      sortable: true,
+                      render: r => <span style={{ fontSize: 12, color: "#374151" }}>{r.medication_start_date || "—"}</span>
+                    },
+                    {
+                      key: "reaction_date",
+                      label: "Reaction Date",
+                      sortable: true,
+                      render: r => <span style={{ fontSize: 12, color: "#374151" }}>{r.reaction_date || "—"}</span>
                     }
                   ] : [])
                 ]}
@@ -475,14 +505,20 @@ function Demographics() {
   }, [pool]);
 
   const ageGroupCount = useMemo(() => {
-    return new Set(data.map(item => item.age_group)).size;
-  }, [data]);
-
-  const ageDist = useMemo(() => {
-    const map = {};
+    const map = {
+      "0-18": 0,
+      "19-30": 0,
+      "31-44": 0,
+      "45-64": 0,
+      "65-74": 0,
+      "75-84": 0,
+      "85+": 0,
+    };
 
     pool.forEach(item => {
-      map[item.age_group] = (map[item.age_group] || 0) + item.count;
+      if (map[item.age_group] !== undefined) {
+        map[item.age_group] += item.count;
+      }
     });
 
     return Object.entries(map).map(([label, value]) => ({
@@ -491,59 +527,143 @@ function Demographics() {
       pct: pct(value, total),
     }));
   }, [pool, total]);
-  const genderDist = useMemo(() => {
-    const genders = ["Male", "Female", "Other", "Not Specified"];
-    const map = {
-      Male: 0,
-      Female: 0,
-      Other: 0,
-      "Not Specified": 0,
-    };
+
+  // const ageDist = useMemo(() => {
+  //   const map = {
+  //     "0-18": 0,
+  //     "19-30": 0,
+  //     "31-44": 0,
+  //     "45-64": 0,
+  //     "65-74": 0,
+  //     "75-84": 0,
+  //     "85+": 0,
+  //   };
+
+  //   pool.forEach(item => {
+  //     if (map[item.age_group] !== undefined) {
+  //       map[item.age_group] += item.count;
+  //     }
+  //   });
+
+  //   return Object.entries(map).map(([label, value]) => ({
+  //     label,
+  //     value,
+  //     pct: pct(value, total),
+  //   }));
+  // }, [pool, total]);
+  const ageDist = useMemo(() => {
+    const map = {};
 
     pool.forEach(item => {
-      if (map[item.gender] !== undefined) {
-        map[item.gender] += item.count;
+      if (!map[item.age_group]) {
+        map[item.age_group] = 0;
       }
+      map[item.age_group] += item.count;
     });
 
-    return genders.map(g => ({
-      label: g,
-      value: map[g],
-      pct: pct(map[g], total),
+    return Object.entries(map).map(([label, value]) => ({
+      label,
+      value,
+      pct: pct(value, total),
     }));
   }, [pool, total]);
 
-  /* cross table: age group × gender */
-  const crossData = useMemo(() => {
-    const genders = ["Male", "Female", "Other", "Not Specified"];
+  // const genderDist = useMemo(() => {
+  //   const genders = ["Male", "Female", "Other", "Not Specified"];
+  //   const map = {
+  //     Male: 0,
+  //     Female: 0,
+  //     Other: 0,
+  //     "Not Specified": 0,
+  //   };
 
+  //   pool.forEach(item => {
+  //     if (map[item.gender] !== undefined) {
+  //       map[item.gender] += item.count;
+  //     }
+  //   });
+
+  //   return genders.map(g => ({
+  //     label: g,
+  //     value: map[g],
+  //     pct: pct(map[g], total),
+  //   }));
+  // }, [pool, total]);
+  const genderDist = useMemo(() => {
     const map = {};
 
-    // init
-    Object.keys(AGE_GROUPS).forEach(age => {
-      map[age] = {
-        age,
-        Male: 0,
-        Female: 0,
-        Other: 0,
-        "Not Specified": 0,
-        total: 0,
-      };
+    pool.forEach(item => {
+      if (!map[item.gender]) {
+        map[item.gender] = 0;
+      }
+      map[item.gender] += item.count;
     });
 
-    // fill from API
+    return Object.entries(map).map(([label, value]) => ({
+      label,
+      value,
+      pct: pct(value, total),
+    }));
+  }, [pool, total]);
+
+  // const crossData = useMemo(() => {
+  //   const genders = ["Male", "Female", "Other", "Not Specified"];
+
+  //   const map = {};
+
+  //   Object.keys(AGE_GROUPS).forEach(age => {
+  //     map[age] = {
+  //       age,
+  //       Male: 0,
+  //       Female: 0,
+  //       Other: 0,
+  //       "Not Specified": 0,
+  //       total: 0,
+  //     };
+  //   });
+
+  //   pool.forEach(item => {
+  //     if (!map[item.age_group]) return;
+
+  //     map[item.age_group][item.gender] += item.count;
+  //     map[item.age_group].total += item.count;
+  //   });
+
+  //   return Object.values(map).map(row => {
+  //     const newRow = { ...row };
+
+  //     genders.forEach(g => {
+  //       newRow[g + "_pct"] = pct(row[g], total);
+  //     });
+
+  //     newRow.total_pct = pct(row.total, total);
+
+  //     return newRow;
+  //   });
+  // }, [pool, total]);
+  const crossData = useMemo(() => {
+    const map = {};
+
     pool.forEach(item => {
-      if (!map[item.age_group]) return;
+      if (!map[item.age_group]) {
+        map[item.age_group] = {
+          age: item.age_group,
+          Male: 0,
+          Female: 0,
+          Other: 0,
+          "Not Specified": 0,
+          total: 0,
+        };
+      }
 
       map[item.age_group][item.gender] += item.count;
       map[item.age_group].total += item.count;
     });
 
-    // add %
     return Object.values(map).map(row => {
       const newRow = { ...row };
 
-      genders.forEach(g => {
+      ["Male", "Female", "Other", "Not Specified"].forEach(g => {
         newRow[g + "_pct"] = pct(row[g], total);
       });
 
@@ -593,9 +713,9 @@ function Demographics() {
           </>
         ) : (
           <>
-            <StatCard label="Patients in View" value={patientsInView} sub={`${pct(patientsInView, total)}% of all patients`} />
+            <StatCard label="Patients in View" value={patientsInView} sub={`${pct(patientsInView, total)}% of all patients`} highlightSub />
             <StatCard label="Total Patients" value={total} />
-            <StatCard label="Age Groups" value={ageGroupCount} />
+            <StatCard label="Age Groups" value={ageGroupCount.length} />
           </>
         )}
       </div>
@@ -826,6 +946,63 @@ function DiseaseDemo({ diseases }) {
       : allPatientsData?.matched_patients ?? 0;
 
   const diseaseDist = useMemo(() => {
+    if (singleOnly || combinedOnly) {
+      const map = {};
+
+      filteredPatients.forEach(p => {
+        if (!p.conditions.length) {
+          map["No Disease"] = (map["No Disease"] || 0) + 1;
+        } else {
+          p.conditions.forEach(d => {
+            map[d] = (map[d] || 0) + 1;
+          });
+        }
+      });
+
+      return Object.entries(map).map(([label, value]) => ({
+        label,
+        value,
+        pct: pct(value, filteredPatients.length),
+      }));
+    }
+
+    return (allPatientsData?.disease_distribution || []).map(d => {
+      const names = extractDiseaseNames(d.name);
+
+      return {
+        label: names.length ? names.join(", ") : "No Disease",
+        value: d.count,
+        pct: d.percentage
+      };
+    });
+
+  }, [filteredPatients, allPatientsData, singleOnly, combinedOnly]);
+
+  // const ageDist = useMemo(() => {
+  //   const source =
+  //     (singleOnly || combinedOnly)
+  //       ? filteredPatients
+  //       : ALL_PATIENTS_DATA;
+
+  //   const map = {
+  //     "0-18": 0,
+  //     "19-30": 0,
+  //     "31-45": 0,
+  //     "46+": 0,
+  //   };
+
+  //   source.forEach(p => {
+  //     const group = Object.keys(AGE_GROUPS).find(k => AGE_GROUPS[k](p.age));
+  //     if (group) map[group]++;
+  //   });
+
+  //   return Object.entries(map).map(([age_group, count]) => ({
+  //     age_group,
+  //     count,
+  //     percentage: pct(count, source.length),
+  //   }));
+  // }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly]);
+  const ageDist = useMemo(() => {
     const source =
       (singleOnly || combinedOnly)
         ? filteredPatients
@@ -834,38 +1011,14 @@ function DiseaseDemo({ diseases }) {
     const map = {};
 
     source.forEach(p => {
-      if (!p.conditions.length) {
-        map["No Disease"] = (map["No Disease"] || 0) + 1;
-      } else {
-        p.conditions.forEach(d => {
-          map[d] = (map[d] || 0) + 1;
-        });
-      }
-    });
-
-    return Object.entries(map).map(([label, value]) => ({
-      label,
-      value,
-      pct: pct(value, source.length),
-    }));
-  }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly]);
-
-  const ageDist = useMemo(() => {
-    const source =
-      (singleOnly || combinedOnly)
-        ? filteredPatients
-        : ALL_PATIENTS_DATA;
-
-    const map = {
-      "0-18": 0,
-      "19-30": 0,
-      "31-45": 0,
-      "46+": 0,
-    };
-
-    source.forEach(p => {
       const group = Object.keys(AGE_GROUPS).find(k => AGE_GROUPS[k](p.age));
-      if (group) map[group]++;
+      if (!group) return;
+
+      if (!map[group]) {
+        map[group] = 0;
+      }
+
+      map[group]++;
     });
 
     return Object.entries(map).map(([age_group, count]) => ({
@@ -875,33 +1028,58 @@ function DiseaseDemo({ diseases }) {
     }));
   }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly]);
 
+  // const genderDist = useMemo(() => {
+  //   const source =
+  //     (singleOnly || combinedOnly)
+  //       ? filteredPatients
+  //       : ALL_PATIENTS_DATA;
+
+  //   const base = {
+  //     Male: 0,
+  //     Female: 0,
+  //     Other: 0,
+  //     "Not Specified": 0,
+  //   };
+
+  //   source.forEach(p => {
+  //     if (base[p.gender] !== undefined) {
+  //       base[p.gender]++;
+  //     } else {
+  //       base["Not Specified"]++;
+  //     }
+  //   });
+
+  //   return Object.entries(base).map(([gender, count]) => ({
+  //     gender,
+  //     count,
+  //     percentage: pct(count, source.length),
+  //   }));
+  // }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly]);
   const genderDist = useMemo(() => {
     const source =
       (singleOnly || combinedOnly)
         ? filteredPatients
         : ALL_PATIENTS_DATA;
 
-    const base = {
-      Male: 0,
-      Female: 0,
-      Other: 0,
-      "Not Specified": 0,
-    };
+    const map = {};
 
     source.forEach(p => {
-      if (base[p.gender] !== undefined) {
-        base[p.gender]++;
-      } else {
-        base["Not Specified"]++;
+      const g = p.gender || "Not Specified";
+
+      if (!map[g]) {
+        map[g] = 0;
       }
+
+      map[g]++;
     });
 
-    return Object.entries(base).map(([gender, count]) => ({
+    return Object.entries(map).map(([gender, count]) => ({
       gender,
       count,
       percentage: pct(count, source.length),
     }));
   }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly]);
+
 
   useEffect(() => {
     if (selDiseases.length !== 1 && singleOnly) {
@@ -972,11 +1150,13 @@ function DiseaseDemo({ diseases }) {
               label="Matched Patients"
               value={matchedCount}
               sub={`${pct(matchedCount, TOTAL_API)}% of group`}
+              highlightSub
             />
             <StatCard
               label="Group Size"
               value={TOTAL_API}
               sub={`${pct(basePool.length, TOTAL_API)}% of all patients`}
+              highlightSub
             />
             <StatCard
               label="Diseases Selected"
@@ -1285,14 +1465,14 @@ function DiseaseMedication({ diseases, medicines }) {
           </>
         ) : (
           <>
-            <StatCard label="Matched Patients" value={stats?.matched_patients || 0} sub={`${stats?.percentage}% of all patients`} />
+            <StatCard label="Matched Patients" value={stats?.matched_patients || 0} sub={`${stats?.percentage} of all patients`} highlightSub />
             <StatCard label="Total Patients" value={stats?.total_patients || 0} />
             <StatCard label="Top Drug" value={stats?.top_drug || "—"} />
           </>
         )}
       </div>
 
-      <div style={S.card}>
+      {/* <div style={S.card}>
         <p style={S.cardTitle}>
           Drug Distribution
 
@@ -1385,7 +1565,103 @@ function DiseaseMedication({ diseases, medicines }) {
             count={stats?.matched_patients || 0}
           />
         </div>
-      </div>
+      </div> */}
+
+<div style={S.card}>
+  <p style={S.cardTitle}>
+    Medication Distribution
+    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
+      among {stats?.matched_patients || 0} matched patients
+      <ExportButton
+        data={filteredSummaryData}
+        fileName="Medication_Distribution"
+        mapFn={(r, i) => ({
+          "S. No.": i + 1,
+          "Medication": r.medicine_name,
+          "Patients Count": r.patient_count,
+          "% of Matched": r.percent_matched,
+          "% of All Patients": r.percent_total,
+        })}
+      />
+    </span>
+  </p>
+  {loadingTable ? (
+    <LoadingPlaceholder />
+  ) : summaryData.length === 0 ? (
+    <div style={S.noData}>No data found</div>
+  ) : (
+    <DataTable
+      cols={[
+        {
+          key: "medicine_name",
+          label: "Medication",
+          sortable: true,
+          render: r => <Chip label={r.medicine_name} teal={true} />
+        },
+        {
+          key: "patient_count",
+          label: "Patients",
+          sortable: true,
+          render: r => (
+            <span style={{ fontWeight: 700, color: ACCENT }}>
+              {r.patient_count}
+            </span>
+          )
+        },
+        {
+          key: "percent_matched",
+          label: "% of Matched",
+          sortable: true,
+          render: r => <span>{r.percent_matched}%</span>
+        },
+        {
+          key: "percent_total",
+          label: "% of All Patients",
+          sortable: true,
+          render: r => <span style={{ color: "#94a3b8" }}>{r.percent_total}%</span>
+        },
+        {
+          key: "bar",
+          label: "",
+          render: r => (
+            <div style={{ ...S.barTrack, minWidth: 80 }}>
+              <div style={S.barFill(parseFloat(r.percent_matched))} />
+            </div>
+          )
+        }
+      ]}
+      rows={filteredSummaryData}
+    />
+  )}
+  <div style={{ marginTop: 14 }}>
+    <CustomPagination
+      count={filteredSummaryData.length}
+      page={page}
+      rowsPerPage={rowsPerPage}
+      onPageChange={(newPage) => setPage(newPage)}
+      onRowsPerPageChange={(val) => {
+        setRowsPerPage(val);
+        setPage(1);
+      }}
+      hideRowsPerPage={true}
+    />
+  </div>
+  <div style={{ marginTop: 14 }}>
+    <ExpandPanel
+      useAPI={true}
+      fetchFn={fetchDiseaseMedicationDetails}
+      fetchParams={{
+        doctor_id,
+        age_group: ageGroup === "All" ? undefined : ageGroup,
+        gender: gender === "All" ? undefined : genderMap[gender],
+        diseases: selDiseases,
+        singleOnly,
+        combinedOnly
+      }}
+      count={stats?.matched_patients || 0}
+    />
+  </div>
+</div>
     </div>
   );
 }
@@ -1406,6 +1682,8 @@ function MedicationDemo({ medicines }) {
   const [patientsData, setPatientsData] = useState(null);
   const [summaryData, setSummaryData] = useState([]);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [combinedOnly, setCombined] = useState(false);
+  const [singleOnly, setSingleOnly] = useState(false);
 
   const doctor_id = sessionStorage.getItem("doctor_id");
 
@@ -1421,6 +1699,8 @@ function MedicationDemo({ medicines }) {
         gender: gender !== "All" ? genderMap[gender] : undefined,
         summary_page: summaryPage,
         summary_limit: summaryRowsPerPage,
+        singleOnly,
+        combinedOnly,
       });
 
       if (res) setSummaryData(res.summary || []);
@@ -1428,7 +1708,7 @@ function MedicationDemo({ medicines }) {
     };
 
     loadSummary();
-  }, [doctor_id, selMeds, ageGroup, gender, summaryPage, summaryRowsPerPage]);
+  }, [doctor_id, selMeds, ageGroup, gender, summaryPage, summaryRowsPerPage, singleOnly, combinedOnly]);
 
   useEffect(() => {
     const loadPatients = async () => {
@@ -1441,6 +1721,8 @@ function MedicationDemo({ medicines }) {
         gender: gender !== "All" ? genderMap[gender] : undefined,
         patient_page: page,
         patient_limit: rowsPerPage,
+        singleOnly,
+        combinedOnly,
       });
 
       if (res) setPatientsData(res);
@@ -1448,7 +1730,7 @@ function MedicationDemo({ medicines }) {
     };
 
     loadPatients();
-  }, [doctor_id, selMeds, ageGroup, gender, page, rowsPerPage]);
+  }, [doctor_id, selMeds, ageGroup, gender, page, rowsPerPage, singleOnly, combinedOnly]);
 
   // const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
   //   if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
@@ -1491,21 +1773,36 @@ function MedicationDemo({ medicines }) {
   }, [summaryData]);
 
   const demographics = patientsData?.demographics || [];
+  // const ageDist = useMemo(() => {
+  //   if (!demographics.length) return [];
+
+  //   const map = {
+  //     "0-18": 0,
+  //     "19-30": 0,
+  //     "31-45": 0,
+  //     "46+": 0,
+  //   };
+
+  //   demographics.forEach(d => {
+  //     const label = getAgeGroupLabel(d.age_group);
+  //     if (map[label] !== undefined) {
+  //       map[label] += d.count;
+  //     }
+  //   });
+
+  //   return Object.entries(map).map(([label, value]) => ({
+  //     label,
+  //     value,
+  //     pct: ((value / matchedPatients) * 100).toFixed(1),
+  //   }));
+  // }, [demographics, matchedPatients]);
   const ageDist = useMemo(() => {
     if (!demographics.length) return [];
 
-    const map = {
-      "0-18": 0,
-      "19-30": 0,
-      "31-45": 0,
-      "46+": 0,
-    };
+    const map = {};
 
     demographics.forEach(d => {
-      const label = getAgeGroupLabel(d.age_group);
-      if (map[label] !== undefined) {
-        map[label] += d.count;
-      }
+      map[d.age_group] = (map[d.age_group] || 0) + d.count;
     });
 
     return Object.entries(map).map(([label, value]) => ({
@@ -1514,20 +1811,36 @@ function MedicationDemo({ medicines }) {
       pct: ((value / matchedPatients) * 100).toFixed(1),
     }));
   }, [demographics, matchedPatients]);
+  // const genderDist = useMemo(() => {
+  //   if (!demographics.length) return [];
 
+  //   const map = {
+  //     Male: 0,
+  //     Female: 0,
+  //     Other: 0,
+  //     "Not Specified": 0,
+  //   };
+
+  //   demographics.forEach(d => {
+  //     const g = normalizeGender(d.gender);
+  //     map[g] += d.count;
+  //   });
+
+  //   return Object.entries(map).map(([label, value]) => ({
+  //     label,
+  //     value,
+  //     pct: ((value / matchedPatients) * 100).toFixed(1),
+  //   }));
+  // }, [demographics, matchedPatients]);
   const genderDist = useMemo(() => {
     if (!demographics.length) return [];
 
-    const map = {
-      Male: 0,
-      Female: 0,
-      Other: 0,
-      "Not Specified": 0,
-    };
+    const map = {};
 
     demographics.forEach(d => {
       const g = normalizeGender(d.gender);
-      map[g] += d.count;
+
+      map[g] = (map[g] || 0) + d.count;
     });
 
     return Object.entries(map).map(([label, value]) => ({
@@ -1555,6 +1868,37 @@ function MedicationDemo({ medicines }) {
           <div style={{ flex: 1, minWidth: 160 }}><AgeRangeFilter value={ageGroup} onChange={setAgeGroup} /></div>
           <div style={{ flex: 1, minWidth: 160 }}><GenderFilter value={gender} onChange={setGender} /></div>
         </div>
+        {selMeds.length >= 2 && (
+          <label style={{ ...S.checkLabel(combinedOnly) }}>
+            <input
+              type="checkbox"
+              checked={combinedOnly}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setCombined(checked);
+                if (checked) setSingleOnly(false);
+              }}
+              style={{ accentColor: ACCENT }}
+            />
+            Combined — patients must have ALL selected medications
+          </label>
+        )}
+
+        {selMeds.length === 1 && (
+          <label style={S.checkLabel(singleOnly)}>
+            <input
+              type="checkbox"
+              checked={singleOnly}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setSingleOnly(checked);
+                if (checked) setCombined(false);
+              }}
+              style={{ accentColor: ACCENT }}
+            />
+            Only patients with this medication
+          </label>
+        )}
       </div>
 
       <div style={S.statRow}>
@@ -1583,7 +1927,7 @@ function MedicationDemo({ medicines }) {
           </>
         ) : (
           <>
-            <StatCard label="Matched Patients" value={matchedPatients} sub={`${percentage} of all patients`} />
+            <StatCard label="Matched Patients" value={matchedPatients} sub={`${percentage} of all patients`} highlightSub />
             <StatCard label="Total Patients" value={totalPatients} />
             <StatCard label="Selected Medications" value={totalMedications} />
           </>
@@ -1591,7 +1935,7 @@ function MedicationDemo({ medicines }) {
       </div>
 
       <div style={S.grid2}>
-        <div style={S.card}>
+        {/* <div style={S.card}>
           <p style={S.cardTitle}>Medication Distribution <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of {matchedPatients} matched patients</span></p>
           {summaryLoading ? (
             <LoadingPlaceholder />
@@ -1609,7 +1953,54 @@ function MedicationDemo({ medicines }) {
             }}
             hideRowsPerPage={true}
           />
-        </div>
+        </div> */}
+
+
+<div style={S.card}>
+  <p style={S.cardTitle}>
+    Drug Distribution
+    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex",
+alignItems: "end" }}>
+      among {matchedPatients} matched patients
+      <ExportButton
+        data={medDist}
+        fileName="Drug_Distribution"
+        mapFn={(r, i) => ({
+          "S. No.": i + 1,
+          "Drug": r.label,
+          "Patients Count": r.value,
+          "% of Matched": r.pct,
+        })}
+      />
+    </span>
+  </p>
+  {summaryLoading ? (
+    <LoadingPlaceholder />
+  ) : (
+    <div style={S.barWrap}>
+      {medDist.map((d, i) => (
+        <HBar 
+          key={i} 
+          label={d.label} 
+          value={d.value} 
+          total={matchedPatients} 
+          pctVal={d.pct} 
+        />
+      ))}
+    </div>
+  )}
+  <CustomPagination
+    count={patientsData?.summary_total || 0}
+    page={summaryPage}
+    rowsPerPage={summaryRowsPerPage}
+    onPageChange={(newPage) => setSummaryPage(newPage)}
+    onRowsPerPageChange={(val) => {
+      setSummaryRowsPerPage(val);
+      setSummaryPage(1);
+    }}
+    hideRowsPerPage={true}
+  />
+</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {ageDist.length > 0 && (
             <div style={S.card}>
@@ -1839,7 +2230,7 @@ function MedicationDisease({ medicines, diseases }) {
           </>
         ) : (
           <>
-            <StatCard label="Matched Patients" value={apiData?.matched_patients || 0} sub={`${pct(matchedPatients, totalPatients)}% of all patients`} />
+            <StatCard label="Matched Patients" value={apiData?.matched_patients || 0} sub={`${pct(matchedPatients, totalPatients)}% of all patients`} highlightSub />
             <StatCard label="Unique Diseases" value={apiData?.total_patients || 0} />
             <StatCard label="Top Disease" value={apiData?.top_disease || "—"} />
           </>
@@ -1920,12 +2311,9 @@ function MedicationDisease({ medicines, diseases }) {
 }
 
 function MedicationHealth({ medicines }) {
-  const allMeds =
-    medicines?.length > 0
-      ? medicines.map(m => m.label)
-      : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
   const [selMeds, setSelMeds] = useState([]);
   const [apiData, setApiData] = useState(null);
+  const [allMedNames, setAllMedNames] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
@@ -1936,6 +2324,26 @@ function MedicationHealth({ medicines }) {
   const toggleM = m => setSelMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
 
   useEffect(() => {
+    const loadAllMeds = async () => {
+      const res = await fetchMedicationReportedHealth({
+        doctor_id,
+        page: 1,
+        limit: 1000, // get all medications for dropdown
+        patient_page: 1,
+        patient_limit: 1,
+      });
+
+      if (res?.data) {
+        const names = res.data.map(item => item.medication.name);
+        setAllMedNames(names);
+      }
+    };
+
+    loadAllMeds();
+  }, [doctor_id]);
+
+  // On filter/page change: fetch filtered data
+  useEffect(() => {
     const loadData = async () => {
       setLoading(true);
 
@@ -1944,7 +2352,7 @@ function MedicationHealth({ medicines }) {
         medication: selMeds.length ? selMeds : undefined,
         page,
         limit: rowsPerPage,
-        patient_page: 1, // Reset patient page when changing medication page
+        patient_page: 1,
         patient_limit: 5,
       });
 
@@ -1955,7 +2363,6 @@ function MedicationHealth({ medicines }) {
     loadData();
   }, [doctor_id, selMeds, page, rowsPerPage]);
 
-  // Function to load more patients for a specific medication
   const loadMorePatients = async (medicationName, currentPatientPage) => {
     const res = await fetchMedicationReportedHealth({
       doctor_id,
@@ -1967,18 +2374,15 @@ function MedicationHealth({ medicines }) {
     });
 
     if (res?.data) {
-      // Update the specific medication's patient data
       setApiData(prev => {
         if (!prev) return prev;
-        
-        const updatedData = {
+        return {
           ...prev,
           data: prev.data.map(item => {
             if (item.medication.name === medicationName) {
               const newPatients = res.data.find(
                 newItem => newItem.medication.name === medicationName
               )?.patients || [];
-              
               return {
                 ...item,
                 patients: [...item.patients, ...newPatients],
@@ -1988,16 +2392,17 @@ function MedicationHealth({ medicines }) {
             return item;
           })
         };
-        return updatedData;
       });
     }
   };
 
-  // Reset filters when medications change
   useEffect(() => {
     setPage(1);
-    // setPatientPages({});
   }, [selMeds]);
+
+  const allMeds = allMedNames.length > 0
+    ? allMedNames
+    : (medicines?.length > 0 ? medicines.map(m => m.label) : []);
 
   if (loading && !apiData) {
     return (
@@ -2009,12 +2414,12 @@ function MedicationHealth({ medicines }) {
         <div style={S.filterBar}>
           <div style={S.filterRow}>
             <div style={{ flex: 1, minWidth: 240 }}>
-              <TagSearch 
-                label="Drug name(s)" 
-                all={allMeds} 
-                selected={selMeds} 
-                onToggle={toggleM} 
-                searchPlaceholder="Filter by drug name…" 
+              <TagSearch
+                label="Drug name(s)"
+                all={allMeds}
+                selected={selMeds}
+                onToggle={toggleM}
+                searchPlaceholder="Filter by drug name…"
               />
             </div>
           </div>
@@ -2041,12 +2446,12 @@ function MedicationHealth({ medicines }) {
       <div style={S.filterBar}>
         <div style={S.filterRow}>
           <div style={{ flex: 1, minWidth: 240 }}>
-            <TagSearch 
-              label="Drug name(s)" 
-              all={allMeds} 
-              selected={selMeds} 
-              onToggle={toggleM} 
-              searchPlaceholder="Filter by drug name…" 
+            <TagSearch
+              label="Drug name(s)"
+              all={allMeds}
+              selected={selMeds}
+              onToggle={toggleM}
+              searchPlaceholder="Filter by drug name…"
             />
           </div>
         </div>
@@ -2066,25 +2471,35 @@ function MedicationHealth({ medicines }) {
               return matches.map(m => m[1].trim());
             };
 
-            // Transform patients for ExpandPanel
+            const formatDate = (dateStr) => {
+              if (!dateStr) return "—";
+              const d = new Date(dateStr);
+              const day = String(d.getDate()).padStart(2, "0");
+              const month = String(d.getMonth() + 1).padStart(2, "0");
+              const year = d.getFullYear();
+              return `${day}-${month}-${year}`;
+            };
+
             const formattedPatients = (item.patients || []).map(p => ({
               id: p.user_id,
               name: p.patient_name,
               age: p.age,
               gender: "Not Specified",
               conditions: extractDiseaseNames(p.diseases),
-              meds: [item.medication.name],
+              meds: (p.all_medications || []).map(m => m.name),
               reportedHealth: p.symptoms ? p.symptoms.split(", ").map(symptom => ({
-                drug: item.medication.name,
+                drug: p.reacted_medication?.name || item.medication.name,
                 symptom: symptom
-              })) : []
+              })) : [],
+              medication_start_date: formatDate(p.medication_start_date),
+              reaction_date: formatDate(p.reaction_date),
             }));
 
             return (
               <div key={idx} style={S.card}>
                 <p style={S.cardTitle}>
                   <span>
-                    <Chip label={item.medication.name} teal={true} /> 
+                    <Chip label={item.medication.name} teal={true} />
                     <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 400, marginLeft: 6 }}>
                       {item.total_patients} patients ({item.percentage} of total)
                     </span>
@@ -2092,13 +2507,13 @@ function MedicationHealth({ medicines }) {
                 </p>
                 <div style={S.barWrap}>
                   {(item.symptoms || []).map((o, i) => (
-                    <HBar 
-                      key={i} 
-                      label={o.symptom} 
-                      value={o.count} 
-                      total={item.total_patients} 
+                    <HBar
+                      key={i}
+                      label={o.symptom}
+                      value={o.count}
+                      total={item.total_patients}
                       pctVal={o.count / item.total_patients * 100}
-                      color="#f59e0b" 
+                      color="#f59e0b"
                     />
                   ))}
                   {(!item.symptoms || item.symptoms.length === 0) && (
@@ -2109,7 +2524,7 @@ function MedicationHealth({ medicines }) {
                   <ExpandPanel
                     patients={formattedPatients}
                     showSymptoms={true}
-                    useAPI={false} // Using local patients since API returns paginated patients per medication
+                    useAPI={false}
                   />
                   {item.total_patients_in_medication > item.patients?.length && (
                     <div style={{ marginTop: 10, textAlign: "center" }}>
@@ -2125,7 +2540,7 @@ function MedicationHealth({ medicines }) {
               </div>
             );
           })}
-          
+
           <div style={{ marginTop: 14, display: "flex", justifyContent: "center" }}>
             <CustomPagination
               count={totalCount}
@@ -2155,32 +2570,36 @@ const FIELD_DEFS = [
 ];
 
 function CustomizeTable({ diseases, medicines, symptoms }) {
-  const allDiseases =
-    diseases?.length > 0
-      ? diseases.map(d => d.label)
-      : [];
-  
-  const allMeds =
-    medicines?.length > 0
-      ? medicines.map(m => m.label)
-      : [];
+  const allDiseases = diseases?.length > 0 ? diseases.map(d => d.label) : [];
+  const allMeds     = medicines?.length > 0 ? medicines.map(m => m.label) : [];
+  const allSymptoms = symptoms?.length  > 0 ? symptoms.map(s => s.label)  : [];
 
-  // Use the symptoms prop passed from parent instead of local state
-  const allSymptoms =
-    symptoms?.length > 0
-      ? symptoms.map(s => s.label)
-      : [];
+  const [selFields,          setSelFields]          = useState(["name", "age", "gender", "conditions", "meds", "reportedHealth"]);
+  const [filterDis,          setFilterDis]          = useState([]);
+  const [filterMed,          setFilterMed]          = useState([]);
+  const [filterSymptoms,     setFilterSymptoms]     = useState([]);
+  const [ageGroup,           setAgeGroup]           = useState("All");
+  const [gender,             setGender]             = useState("All");
+  const [page,               setPage]               = useState(1);
+  const [rowsPerPage,        setRowsPerPage]        = useState(10);
+  const [loading,            setLoading]            = useState(false);
+  const [apiData,            setApiData]            = useState(null);
 
-  const [selFields, setSelFields] = useState(["name", "age", "gender", "conditions", "meds", "reportedHealth"]);
-  const [filterDis, setFilterDis] = useState([]);
-  const [filterMed, setFilterMed] = useState([]);
-  const [filterSymptoms, setFilterSymptoms] = useState([]);
-  const [ageGroup, setAgeGroup] = useState("All");
-  const [gender, setGender] = useState("All");
-  const [page, setPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [loading, setLoading] = useState(false);
-  const [apiData, setApiData] = useState(null);
+  // ── Disease filter modes (mutually exclusive) ──
+  const [singleOnlyDisease,   setSingleOnlyDisease]   = useState(false);
+  const [combinedOnlyDisease, setCombinedOnlyDisease] = useState(false);
+  const [includeExtraDisease, setIncludeExtraDisease] = useState(false);
+
+  // ── Medication filter modes (mutually exclusive) ──
+  const [singleOnlyMed,   setSingleOnlyMed]   = useState(false);
+  const [combinedOnlyMed, setCombinedOnlyMed] = useState(false);
+  const [includeExtraMed, setIncludeExtraMed] = useState(false);
+
+  // ── Summary pagination ──
+  const [disPage,  setDisPage]  = useState(1);
+  const [medPage,  setMedPage]  = useState(1);
+  const [symPage,  setSymPage]  = useState(1);
+  const SUMMARY_PAGE_SIZE = 5;
 
   const doctor_id = sessionStorage.getItem("doctor_id");
 
@@ -2189,23 +2608,54 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
   const toggleM = m => setFilterMed(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
   const toggleH = h => setFilterSymptoms(prev => prev.includes(h) ? prev.filter(x => x !== h) : [...prev, h]);
 
-  // Fetch data from API
+  // ── Auto-reset disease modes when selection changes ──
+  useEffect(() => {
+    if (filterDis.length !== 1) setSingleOnlyDisease(false);
+    if (filterDis.length < 2)   { setCombinedOnlyDisease(false); setIncludeExtraDisease(false); }
+  }, [filterDis]);
+
+  // ── Auto-reset medication modes when selection changes ──
+  useEffect(() => {
+    if (filterMed.length !== 1) setSingleOnlyMed(false);
+    if (filterMed.length < 2)   { setCombinedOnlyMed(false); setIncludeExtraMed(false); }
+  }, [filterMed]);
+
+  // ── Reset summary pages on filter change ──
+  useEffect(() => {
+    setDisPage(1); setMedPage(1); setSymPage(1);
+  }, [filterDis, filterMed, filterSymptoms, ageGroup, gender,
+      singleOnlyDisease, combinedOnlyDisease, includeExtraDisease,
+      singleOnlyMed, combinedOnlyMed, includeExtraMed]);
+
+  // ── Main data fetch ──
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      
       try {
+        // Resolve disease mode
+        const diseaseSingleOnly   = filterDis.length === 1  && singleOnlyDisease;
+        const diseaseCombinedOnly = filterDis.length >= 2   && combinedOnlyDisease;
+        const diseaseIncludeExtra = filterDis.length >= 2   && includeExtraDisease;
+
+        // Resolve medication mode
+        const medSingleOnly   = filterMed.length === 1  && singleOnlyMed;
+        const medCombinedOnly = filterMed.length >= 2   && combinedOnlyMed;
+        const medIncludeExtra = filterMed.length >= 2   && includeExtraMed;
+
         const res = await fetchCustomPatientTable({
           doctor_id,
-          gender: gender !== "All" ? genderMap[gender] : undefined,
-          age_group: ageGroup !== "All" ? ageGroup : undefined,
-          disease: filterDis,
+          gender:    gender   !== "All" ? genderMap[gender]   : undefined,
+          age_group: ageGroup !== "All" ? ageGroup            : undefined,
+          disease:   filterDis,
           medication: filterMed,
-          symptoms: filterSymptoms,
+          symptoms:  filterSymptoms,
           page,
-          limit: rowsPerPage,
+          limit:     rowsPerPage,
+          singleOnly:   diseaseSingleOnly  || medSingleOnly,
+          combinedOnly: diseaseCombinedOnly || medCombinedOnly,
+          includeExtra: diseaseIncludeExtra || medIncludeExtra,
         });
-        
+
         setApiData(res);
       } catch (error) {
         console.error("Error loading custom table data:", error);
@@ -2214,59 +2664,68 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
         setLoading(false);
       }
     };
-    
-    // Debounce the API call to avoid too many requests
-    const timeoutId = setTimeout(() => {
-      loadData();
-    }, 300);
-    
-    return () => clearTimeout(timeoutId);
-  }, [doctor_id, gender, ageGroup, filterDis, filterMed, filterSymptoms, page, rowsPerPage]);
 
-  // Reset page when filters change
+    const timeoutId = setTimeout(loadData, 300);
+    return () => clearTimeout(timeoutId);
+  }, [
+    doctor_id, gender, ageGroup,
+    filterDis, filterMed, filterSymptoms,
+    page, rowsPerPage,
+    singleOnlyDisease, combinedOnlyDisease, includeExtraDisease,
+    singleOnlyMed, combinedOnlyMed, includeExtraMed,
+  ]);
+
+  // ── Reset to page 1 on filter change ──
   useEffect(() => {
     setPage(1);
-  }, [gender, ageGroup, filterDis, filterMed, filterSymptoms]);
+  }, [
+    gender, ageGroup, filterDis, filterMed, filterSymptoms,
+    singleOnlyDisease, combinedOnlyDisease, includeExtraDisease,
+    singleOnlyMed, combinedOnlyMed, includeExtraMed,
+  ]);
 
-  // Extract disease names from the diseases string
+  // ── Parse patients from API response ──
   const extractDiseaseNames = (diseasesStr) => {
     if (!diseasesStr) return [];
-    
-    // Handle both string and array formats
-    if (Array.isArray(diseasesStr)) {
-      return diseasesStr;
-    }
-    
+    if (Array.isArray(diseasesStr)) return diseasesStr;
     const matches = [...diseasesStr.matchAll(/name:\s*([^,}]+)/g)];
-    if (matches.length > 0) {
-      return matches.map(m => m[1].trim());
-    }
-    
-    // If no matches found with the pattern, return as is or split by comma
+    if (matches.length > 0) return matches.map(m => m[1].trim());
     return diseasesStr.split(',').map(d => d.trim()).filter(Boolean);
   };
 
-  // Transform API patients to match the expected format
   const patients = useMemo(() => {
     if (!apiData?.patients) return [];
-    
     return apiData.patients.map(patient => ({
-      name: patient.name || "N/A",
-      age: patient.age || 0,
+      name:   patient.name   || "N/A",
+      age:    patient.age    || 0,
       gender: patient.gender || "Not Specified",
       conditions: extractDiseaseNames(patient.diseases),
-      meds: Array.isArray(patient.medications) 
+      meds: Array.isArray(patient.medications)
         ? patient.medications.map(m => m.name).filter(Boolean)
         : [],
       reportedHealth: Array.isArray(patient.reported_symptoms) && patient.reported_symptoms.length > 0
-        ? patient.reported_symptoms // Return just the array of symptom strings
-        : []
+        ? patient.reported_symptoms
+        : [],
     }));
   }, [apiData]);
 
+  // ── Summary data from API ──
+  const matched        = apiData?.matched_patients       || 0;
+  const ageDist        = apiData?.age_distribution       || [];
+  const genderDist     = apiData?.gender_distribution    || [];
+  const allDiseaseDist = apiData?.disease_distribution   || [];
+  const allMedDist     = apiData?.medication_distribution || [];
+  const allSymptomDist = apiData?.symptom_distribution   || [];
+
+  // Client-side pagination for summary sections
+  const diseasePage  = allDiseaseDist.slice((disPage - 1) * SUMMARY_PAGE_SIZE, disPage * SUMMARY_PAGE_SIZE);
+  const medPageData  = allMedDist.slice((medPage - 1) * SUMMARY_PAGE_SIZE, medPage * SUMMARY_PAGE_SIZE);
+  const symPageData  = allSymptomDist.slice((symPage - 1) * SUMMARY_PAGE_SIZE, symPage * SUMMARY_PAGE_SIZE);
+
+  // ── Table columns ──
   const cols = FIELD_DEFS.filter(f => selFields.includes(f.key)).map(f => ({
-    key: f.key, 
-    label: f.label, 
+    key:      f.key,
+    label:    f.label,
     sortable: true,
     render: f.isArr
       ? (r => {
@@ -2274,23 +2733,20 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
           if (!arr || arr.length === 0) return <span style={{ color: "#94a3b8" }}>—</span>;
           return f.teal ? <MChips arr={arr} /> : <DChips arr={arr} />;
         })
-      : f.key === "gender" 
+      : f.key === "gender"
         ? (r => <span style={S.badge(r.gender)}>{r.gender}</span>)
-        : f.key === "reportedHealth" 
+        : f.key === "reportedHealth"
           ? (r => {
-              // Handle reportedHealth - it could be array of strings or array of objects
-              let symptomsArray = [];
-              if (Array.isArray(r.reportedHealth)) {
-                symptomsArray = r.reportedHealth.map(item => {
-                  if (typeof item === "string") return item;
-                  if (typeof item === "object" && item !== null) return item.symptom || "";
-                  return "";
-                }).filter(Boolean);
-              }
+              const symptomsArray = Array.isArray(r.reportedHealth)
+                ? r.reportedHealth.map(item =>
+                    typeof item === "string" ? item :
+                    (typeof item === "object" && item !== null ? item.symptom || "" : "")
+                  ).filter(Boolean)
+                : [];
               if (symptomsArray.length === 0) return <span style={{ color: "#94a3b8" }}>—</span>;
               return <DChips arr={symptomsArray} />;
             })
-          : null
+          : null,
   }));
 
   return (
@@ -2300,50 +2756,110 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
         <p style={S.pageSub}>Build your own lookup — choose columns and stack filters to find exactly who you need</p>
       </div>
 
+      {/* ── Filter Bar ── */}
       <div style={S.filterBar}>
-        {/* Column picker */}
         <div style={{ marginBottom: 14 }}>
           <span style={{ ...S.filterLabel, display: "block", marginBottom: 8 }}>Columns to display</span>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
             {FIELD_DEFS.map(f => (
               <label key={f.key} style={S.checkLabel(selFields.includes(f.key))}>
-                <input type="checkbox" checked={selFields.includes(f.key)} onChange={() => toggleF(f.key)} style={{ accentColor: ACCENT }} />
+                <input type="checkbox" checked={selFields.includes(f.key)}
+                  onChange={() => toggleF(f.key)} style={{ accentColor: ACCENT }} />
                 {f.label}
               </label>
             ))}
           </div>
         </div>
         <div style={{ borderTop: "1px solid #eaecf2", margin: "12px 0" }} />
-        
-        {/* Filters */}
+
         <div style={{ ...S.filterRow, alignItems: "flex-start" }}>
+
+          {/* Disease filter */}
           <div style={{ flex: 1, minWidth: 160 }}>
-            <TagSearch 
-              label="Disease" 
-              all={allDiseases} 
-              selected={filterDis} 
-              onToggle={toggleD} 
-              searchPlaceholder="Filter by disease…" 
-            />
+            <TagSearch label="Disease" all={allDiseases} selected={filterDis}
+              onToggle={toggleD} searchPlaceholder="Filter by disease…" />
+
+            {/* singleOnly — only when exactly 1 selected */}
+            {filterDis.length === 1 && (
+              <label style={{ ...S.checkLabel(singleOnlyDisease), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+                <input type="checkbox" checked={singleOnlyDisease}
+                  onChange={e => setSingleOnlyDisease(e.target.checked)}
+                  style={{ accentColor: ACCENT }} />
+                Only patients with this disease
+              </label>
+            )}
+
+            {/* combinedOnly + includeExtra — only when 2+ selected */}
+            {filterDis.length >= 2 && (
+              <>
+                <label style={{ ...S.checkLabel(combinedOnlyDisease), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+                  <input type="checkbox" checked={combinedOnlyDisease}
+                    onChange={e => {
+                      setCombinedOnlyDisease(e.target.checked);
+                      if (e.target.checked) setIncludeExtraDisease(false);
+                    }}
+                    style={{ accentColor: ACCENT }} />
+                  Patients with ONLY these diseases
+                </label>
+                <label style={{ ...S.checkLabel(includeExtraDisease), marginTop: 6, display: "flex", alignItems: "center", gap: 7 }}>
+                  <input type="checkbox" checked={includeExtraDisease}
+                    onChange={e => {
+                      setIncludeExtraDisease(e.target.checked);
+                      if (e.target.checked) setCombinedOnlyDisease(false);
+                    }}
+                    style={{ accentColor: ACCENT }} />
+                  Include patients with these + extra diseases
+                </label>
+              </>
+            )}
           </div>
+
+          {/* Medication filter */}
           <div style={{ flex: 1, minWidth: 160 }}>
-            <TagSearch 
-              label="Medication" 
-              all={allMeds} 
-              selected={filterMed} 
-              onToggle={toggleM} 
-              searchPlaceholder="Filter by medication…" 
-            />
+            <TagSearch label="Medication" all={allMeds} selected={filterMed}
+              onToggle={toggleM} searchPlaceholder="Filter by medication…" />
+
+            {/* singleOnly — only when exactly 1 selected */}
+            {filterMed.length === 1 && (
+              <label style={{ ...S.checkLabel(singleOnlyMed), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+                <input type="checkbox" checked={singleOnlyMed}
+                  onChange={e => setSingleOnlyMed(e.target.checked)}
+                  style={{ accentColor: ACCENT }} />
+                Only patients with this medication
+              </label>
+            )}
+
+            {/* combinedOnly + includeExtra — only when 2+ selected */}
+            {filterMed.length >= 2 && (
+              <>
+                <label style={{ ...S.checkLabel(combinedOnlyMed), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+                  <input type="checkbox" checked={combinedOnlyMed}
+                    onChange={e => {
+                      setCombinedOnlyMed(e.target.checked);
+                      if (e.target.checked) setIncludeExtraMed(false);
+                    }}
+                    style={{ accentColor: ACCENT }} />
+                  Patients on ONLY these medications
+                </label>
+                <label style={{ ...S.checkLabel(includeExtraMed), marginTop: 6, display: "flex", alignItems: "center", gap: 7 }}>
+                  <input type="checkbox" checked={includeExtraMed}
+                    onChange={e => {
+                      setIncludeExtraMed(e.target.checked);
+                      if (e.target.checked) setCombinedOnlyMed(false);
+                    }}
+                    style={{ accentColor: ACCENT }} />
+                  Include patients on these + extra medications
+                </label>
+              </>
+            )}
           </div>
+
+          {/* Symptom filter — no modes, just tag search */}
           <div style={{ flex: 1, minWidth: 160 }}>
-            <TagSearch 
-              label="Reported Symptoms" 
-              all={allSymptoms} 
-              selected={filterSymptoms} 
-              onToggle={toggleH} 
-              searchPlaceholder="Filter by symptom…"
-            />
+            <TagSearch label="Reported Symptoms" all={allSymptoms} selected={filterSymptoms}
+              onToggle={toggleH} searchPlaceholder="Filter by symptom…" />
           </div>
+
           <div style={{ flex: 1, minWidth: 140 }}>
             <AgeRangeFilter value={ageGroup} onChange={setAgeGroup} />
           </div>
@@ -2353,19 +2869,151 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
         </div>
       </div>
 
+      {/* ── Stat Row ── */}
       <div style={S.statRow}>
-        <StatCard 
-          label="Matching Patients" 
-          value={apiData?.matched_patients || 0} 
-          sub={`${apiData?.matched_patients ? ((apiData.matched_patients / (apiData.total || 1)) * 100).toFixed(1) : 0}% of total patients`} 
+        <StatCard
+          label="Matching Patients"
+          value={apiData?.matched_patients || 0}
+          sub={`${apiData?.matched_patients
+            ? ((apiData.matched_patients / (apiData.total || 1)) * 100).toFixed(1)
+            : 0}% of total patients`}
+          highlightSub
         />
         <StatCard label="Total Patients" value={apiData?.total || 0} />
-        <StatCard 
-          label="Active Filters" 
-          value={filterDis.length + filterMed.length + filterSymptoms.length + (ageGroup !== "All" ? 1 : 0) + (gender !== "All" ? 1 : 0)} 
+        <StatCard
+          label="Active Filters"
+          value={
+            filterDis.length + filterMed.length + filterSymptoms.length +
+            (ageGroup !== "All" ? 1 : 0) + (gender !== "All" ? 1 : 0)
+          }
         />
       </div>
 
+      {/* ── Summary Cards (only when data exists) ── */}
+      {!loading && matched > 0 && (
+        <>
+          {/* Row 1: Age + Gender */}
+          {(ageDist.length > 0 || genderDist.length > 0) && (
+            <div style={S.grid2}>
+              {ageDist.length > 0 && (
+                <div style={S.card}>
+                  <p style={S.cardTitle}>
+                    Age Group Distribution
+                    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>
+                      % of {matched} matched patients
+                    </span>
+                  </p>
+                  <div style={S.barWrap}>
+                    {ageDist.map((d, i) => (
+                      <HBar key={i} label={d.age_group} value={d.count}
+                        total={matched} pctVal={d.percentage} color={ACCENT} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {genderDist.length > 0 && (
+                <div style={S.card}>
+                  <p style={S.cardTitle}>
+                    Sex Distribution
+                    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>
+                      % of {matched} matched patients
+                    </span>
+                  </p>
+                  <div style={S.barWrap}>
+                    {genderDist.map((d, i) => (
+                      <HBar key={i} label={d.gender} value={d.count}
+                        total={matched} pctVal={d.percentage}
+                        color={GCOLORS[d.gender] ?? ACCENT} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Row 2: Top Diseases + Top Medications */}
+          {(allDiseaseDist.length > 0 || allMedDist.length > 0) && (
+            <div style={S.grid2}>
+              {allDiseaseDist.length > 0 && (
+                <div style={S.card}>
+                  <p style={S.cardTitle}>
+                    Top Diseases
+                    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>
+                      % of {matched} matched patients
+                    </span>
+                  </p>
+                  <div style={S.barWrap}>
+                    {diseasePage.map((d, i) => (
+                      <HBar key={i} label={d.disease} value={d.count}
+                        total={matched} pctVal={d.percentage} color="#f59e0b" />
+                    ))}
+                  </div>
+                  <CustomPagination
+                    count={allDiseaseDist.length}
+                    page={disPage}
+                    rowsPerPage={SUMMARY_PAGE_SIZE}
+                    onPageChange={setDisPage}
+                    onRowsPerPageChange={() => {}}
+                    hideRowsPerPage={true}
+                  />
+                </div>
+              )}
+              {allMedDist.length > 0 && (
+                <div style={S.card}>
+                  <p style={S.cardTitle}>
+                    Top Medications
+                    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>
+                      % of {matched} matched patients
+                    </span>
+                  </p>
+                  <div style={S.barWrap}>
+                    {medPageData.map((d, i) => (
+                      <HBar key={i} label={d.medication} value={d.count}
+                        total={matched} pctVal={d.percentage} color={ACCENT} />
+                    ))}
+                  </div>
+                  <CustomPagination
+                    count={allMedDist.length}
+                    page={medPage}
+                    rowsPerPage={SUMMARY_PAGE_SIZE}
+                    onPageChange={setMedPage}
+                    onRowsPerPageChange={() => {}}
+                    hideRowsPerPage={true}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Row 3: Top Symptoms — full width */}
+          {allSymptomDist.length > 0 && (
+            <div style={S.card}>
+              <p style={S.cardTitle}>
+                Top Reported Symptoms
+                <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>
+                  % of {matched} matched patients
+                </span>
+              </p>
+              <div style={S.barWrap}>
+                {symPageData.map((d, i) => (
+                  <HBar key={i} label={d.symptom} value={d.count}
+                    total={matched} pctVal={d.percentage} color="#8b5cf6" />
+                ))}
+              </div>
+              <CustomPagination
+                count={allSymptomDist.length}
+                page={symPage}
+                rowsPerPage={SUMMARY_PAGE_SIZE}
+                onPageChange={setSymPage}
+                onRowsPerPageChange={() => {}}
+                hideRowsPerPage={true}
+              />
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── Patient Table Card ── */}
       <div style={S.card}>
         {loading ? (
           <LoadingPlaceholder />
@@ -2373,21 +3021,18 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
           <div style={S.noData}>Select at least one column to display</div>
         ) : (
           <>
-            <DataTable 
-              cols={cols} 
-              rows={patients} 
-              empty="No patients match the selected filters" 
+            <DataTable
+              cols={cols}
+              rows={patients}
+              empty="No patients match the selected filters"
             />
             <div style={{ marginTop: 14 }}>
               <CustomPagination
-                count={apiData?.total || 0}
+                count={apiData?.matched_patients || 0}
                 page={page}
                 rowsPerPage={rowsPerPage}
                 onPageChange={(newPage) => setPage(newPage)}
-                onRowsPerPageChange={(val) => {
-                  setRowsPerPage(val);
-                  setPage(1);
-                }}
+                onRowsPerPageChange={(val) => { setRowsPerPage(val); setPage(1); }}
                 hideRowsPerPage={true}
               />
             </div>
@@ -2438,9 +3083,16 @@ export default function Analytics() {
     const loadData = async () => {
       const doctor_id = sessionStorage.getItem("doctor_id");
 
+      delete symptomCache[doctor_id];
+
       const d = await fetchDiseases(doctor_id);
       const m = await fetchMedicines(doctor_id);
       const s = await fetchSymptoms(doctor_id);
+
+      // ✅ ADD THESE 3 LINES TEMPORARILY
+      console.log("doctor_id:", doctor_id);
+      console.log("symptoms raw response:", s);
+      console.log("symptomCache after fetch:", symptomCache);
 
       setDiseases(d);
       setMedicines(m);
