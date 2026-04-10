@@ -39,6 +39,8 @@ import Reply from 'views/AllPage/SendReply';
 import Analytics from 'views/AllPage/Analytics';
 import NewInsights from 'views/AllPage/NewInsights';
 import Settings from 'views/AllPage/Settings';
+import TermsPage from 'views/AllPage/Terms';
+import PrivacyPage from 'views/AllPage/PrivacyPolicy';
 // import { Reply } from '@mui/icons-material';
 
 
@@ -116,6 +118,14 @@ const MainRoutes = {
     {
       path: APP_PREFIX_PATH + '/settings',
       element: <Settings/>
+    },
+        {
+      path: APP_PREFIX_PATH + '/terms',
+      element: <TermsPage/>
+    },
+        {
+      path: APP_PREFIX_PATH + '/privacy-policy',
+      element: <PrivacyPage/>
     }
 
 

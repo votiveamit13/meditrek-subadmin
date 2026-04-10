@@ -1684,6 +1684,7 @@ function MedicationDemo({ medicines }) {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [combinedOnly, setCombined] = useState(false);
   const [singleOnly, setSingleOnly] = useState(false);
+  const [includeExtra, setIncludeExtra] = useState(false);
 
   const doctor_id = sessionStorage.getItem("doctor_id");
 
@@ -1701,6 +1702,7 @@ function MedicationDemo({ medicines }) {
         summary_limit: summaryRowsPerPage,
         singleOnly,
         combinedOnly,
+        includeExtra,
       });
 
       if (res) setSummaryData(res.summary || []);
@@ -1708,7 +1710,7 @@ function MedicationDemo({ medicines }) {
     };
 
     loadSummary();
-  }, [doctor_id, selMeds, ageGroup, gender, summaryPage, summaryRowsPerPage, singleOnly, combinedOnly]);
+  }, [doctor_id, selMeds, ageGroup, gender, summaryPage, summaryRowsPerPage, singleOnly, combinedOnly, includeExtra]);
 
   useEffect(() => {
     const loadPatients = async () => {
@@ -1723,6 +1725,7 @@ function MedicationDemo({ medicines }) {
         patient_limit: rowsPerPage,
         singleOnly,
         combinedOnly,
+        includeExtra,
       });
 
       if (res) setPatientsData(res);
@@ -1730,7 +1733,7 @@ function MedicationDemo({ medicines }) {
     };
 
     loadPatients();
-  }, [doctor_id, selMeds, ageGroup, gender, page, rowsPerPage, singleOnly, combinedOnly]);
+  }, [doctor_id, selMeds, ageGroup, gender, page, rowsPerPage, singleOnly, combinedOnly, includeExtra]);
 
   // const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
   //   if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
@@ -1855,6 +1858,30 @@ function MedicationDemo({ medicines }) {
     setSummaryPage(1);
   }, [selMeds, ageGroup, gender]);
 
+  const handleCombinedChange = (checked) => {
+    setCombined(checked);
+    if (checked) {
+      setSingleOnly(false);
+      setIncludeExtra(false);
+    }
+  };
+
+  const handleSingleOnlyChange = (checked) => {
+    setSingleOnly(checked);
+    if (checked) {
+      setCombined(false);
+      setIncludeExtra(false);
+    }
+  };
+
+  const handleIncludeExtraChange = (checked) => {
+    setIncludeExtra(checked);
+    if (checked) {
+      setCombined(false);
+      setSingleOnly(false);
+    }
+  };
+
   return (
     <div>
       <div style={S.pageHead}>
@@ -1869,35 +1896,41 @@ function MedicationDemo({ medicines }) {
           <div style={{ flex: 1, minWidth: 160 }}><GenderFilter value={gender} onChange={setGender} /></div>
         </div>
         {selMeds.length >= 2 && (
-          <label style={{ ...S.checkLabel(combinedOnly) }}>
-            <input
-              type="checkbox"
-              checked={combinedOnly}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                setCombined(checked);
-                if (checked) setSingleOnly(false);
-              }}
-              style={{ accentColor: ACCENT }}
-            />
-            Combined — patients must have ALL selected medications
-          </label>
+          <div style={{ marginTop: 4 }}>
+            <label style={{ ...S.checkLabel(combinedOnly), marginRight: 20 }}>
+              <input
+                type="checkbox"
+                checked={combinedOnly}
+                onChange={(e) => handleCombinedChange(e.target.checked)}
+                style={{ accentColor: ACCENT }}
+              />
+              Combined — patients must have ALL selected medications (exact match)
+            </label>
+            
+            <label style={S.checkLabel(includeExtra)}>
+              <input
+                type="checkbox"
+                checked={includeExtra}
+                onChange={(e) => handleIncludeExtraChange(e.target.checked)}
+                style={{ accentColor: ACCENT }}
+              />
+              Include patients with these + extra medications
+            </label>
+          </div>
         )}
 
         {selMeds.length === 1 && (
-          <label style={S.checkLabel(singleOnly)}>
-            <input
-              type="checkbox"
-              checked={singleOnly}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                setSingleOnly(checked);
-                if (checked) setCombined(false);
-              }}
-              style={{ accentColor: ACCENT }}
-            />
-            Only patients with this medication
-          </label>
+          <div style={{ marginTop: 4 }}>
+            <label style={S.checkLabel(singleOnly)}>
+              <input
+                type="checkbox"
+                checked={singleOnly}
+                onChange={(e) => handleSingleOnlyChange(e.target.checked)}
+                style={{ accentColor: ACCENT }}
+              />
+              Only patients with this medication (exact match)
+            </label>
+          </div>
         )}
       </div>
 
@@ -2069,6 +2102,7 @@ function MedicationDisease({ medicines, diseases }) {
   const [comboOnly, setComboOnly] = useState(false);
   const [excludeDisease, setExcludeDisease] = useState([]);
   const [singleOnly, setSingleOnly] = useState(false);
+  const [includeExtra, setIncludeExtra] = useState(false);
   const [apiData, setApiData] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
 
@@ -2085,6 +2119,31 @@ function MedicationDisease({ medicines, diseases }) {
         : [...prev, d]
     );
 
+    const handleComboOnlyChange = (checked) => {
+    setComboOnly(checked);
+    if (checked) {
+      setSingleOnly(false);
+      setIncludeExtra(false);
+    }
+  };
+
+  const handleSingleOnlyChange = (checked) => {
+    setSingleOnly(checked);
+    if (checked) {
+      setComboOnly(false);
+      setIncludeExtra(false);
+    }
+  };
+
+  const handleIncludeExtraChange = (checked) => {
+    setIncludeExtra(checked);
+    if (checked) {
+      setComboOnly(false);
+      setSingleOnly(false);
+    }
+  };
+
+
   useEffect(() => {
     const loadData = async () => {
       setLoadingStats(true);
@@ -2097,6 +2156,7 @@ function MedicationDisease({ medicines, diseases }) {
         exclude_disease: excludeDisease,
         singleOnly: singleOnly,
         combinedOnly: comboOnly,
+        includeExtra: includeExtra,
         page,
         limit: rowsPerPage,
       });
@@ -2106,7 +2166,7 @@ function MedicationDisease({ medicines, diseases }) {
     };
 
     loadData();
-  }, [doctor_id, selMeds, ageGroup, gender, excludeDisease, singleOnly, comboOnly, page, rowsPerPage]);
+  }, [doctor_id, selMeds, ageGroup, gender, excludeDisease, singleOnly, comboOnly, includeExtra, page, rowsPerPage]);
 
   const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
     if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
@@ -2134,6 +2194,7 @@ function MedicationDisease({ medicines, diseases }) {
   useEffect(() => {
     setSingleOnly(false);
     setComboOnly(false);
+    setIncludeExtra(false);
   }, [selMeds]);
 
   const diseaseDist = useMemo(() => {
@@ -2159,7 +2220,7 @@ function MedicationDisease({ medicines, diseases }) {
 
   useEffect(() => {
     setPage(1);
-  }, [selMeds, ageGroup, gender, excludeDisease, singleOnly, comboOnly]);
+  }, [selMeds, ageGroup, gender, excludeDisease, singleOnly, comboOnly, includeExtra]);
 
   return (
     <div>
@@ -2175,21 +2236,41 @@ function MedicationDisease({ medicines, diseases }) {
           <div style={{ flex: 1, minWidth: 160 }}><GenderFilter value={gender} onChange={setGender} /></div>
         </div>
         {selMeds.length >= 2 && (
-          <label style={{ ...S.checkLabel(comboOnly) }}>
-            <input type="checkbox" checked={comboOnly} onChange={e => setComboOnly(e.target.checked)} style={{ accentColor: ACCENT }} />
-            Combination — patients must be on ALL selected medications
-          </label>
+          <div style={{ marginTop: 4 }}>
+            <label style={{ ...S.checkLabel(comboOnly), marginRight: 20 }}>
+              <input 
+                type="checkbox" 
+                checked={comboOnly} 
+                onChange={(e) => handleComboOnlyChange(e.target.checked)} 
+                style={{ accentColor: ACCENT }} 
+              />
+              Combination — patients must be on ALL selected medications (exact match)
+            </label>
+            
+            <label style={S.checkLabel(includeExtra)}>
+              <input 
+                type="checkbox" 
+                checked={includeExtra} 
+                onChange={(e) => handleIncludeExtraChange(e.target.checked)} 
+                style={{ accentColor: ACCENT }} 
+              />
+              Include patients on these + extra medications
+            </label>
+          </div>
         )}
+        
         {selMeds.length === 1 && (
-          <label style={S.checkLabel(singleOnly)}>
-            <input
-              type="checkbox"
-              checked={singleOnly}
-              onChange={e => setSingleOnly(e.target.checked)}
-              style={{ accentColor: ACCENT }}
-            />
-            Only patients with this medication
-          </label>
+          <div style={{ marginTop: 4 }}>
+            <label style={S.checkLabel(singleOnly)}>
+              <input
+                type="checkbox"
+                checked={singleOnly}
+                onChange={(e) => handleSingleOnlyChange(e.target.checked)}
+                style={{ accentColor: ACCENT }}
+              />
+              Only patients with this medication (exact match)
+            </label>
+          </div>
         )}
         {allDisInResult.length > 0 && (
           <div style={{ marginTop: 12 }}>
@@ -2781,27 +2862,27 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
 
             {/* singleOnly — only when exactly 1 selected */}
             {filterDis.length === 1 && (
-              <label style={{ ...S.checkLabel(singleOnlyDisease), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+              <label style={{ ...S.checkLabel(singleOnlyDisease), marginTop: 8, display: "flex", alignItems: "center", gap: 7, lineHeight: "1.2" }}>
                 <input type="checkbox" checked={singleOnlyDisease}
                   onChange={e => setSingleOnlyDisease(e.target.checked)}
                   style={{ accentColor: ACCENT }} />
-                Only patients with this disease
+                Patients only on this disease 
               </label>
             )}
 
             {/* combinedOnly + includeExtra — only when 2+ selected */}
             {filterDis.length >= 2 && (
               <>
-                <label style={{ ...S.checkLabel(combinedOnlyDisease), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+                <label style={{ ...S.checkLabel(combinedOnlyDisease), marginTop: 8, display: "flex", alignItems: "center", gap: 7, lineHeight: "1.2" }}>
                   <input type="checkbox" checked={combinedOnlyDisease}
                     onChange={e => {
                       setCombinedOnlyDisease(e.target.checked);
                       if (e.target.checked) setIncludeExtraDisease(false);
                     }}
                     style={{ accentColor: ACCENT }} />
-                  Patients with ONLY these diseases
+                  Patients only on this disease
                 </label>
-                <label style={{ ...S.checkLabel(includeExtraDisease), marginTop: 6, display: "flex", alignItems: "center", gap: 7 }}>
+                <label style={{ ...S.checkLabel(includeExtraDisease), marginTop: 6, display: "flex", alignItems: "center", gap: 7, lineHeight: "1.2" }}>
                   <input type="checkbox" checked={includeExtraDisease}
                     onChange={e => {
                       setIncludeExtraDisease(e.target.checked);
@@ -2821,27 +2902,27 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
 
             {/* singleOnly — only when exactly 1 selected */}
             {filterMed.length === 1 && (
-              <label style={{ ...S.checkLabel(singleOnlyMed), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+              <label style={{ ...S.checkLabel(singleOnlyMed), marginTop: 8, display: "flex", alignItems: "center", gap: 7, lineHeight: "1.2" }}>
                 <input type="checkbox" checked={singleOnlyMed}
                   onChange={e => setSingleOnlyMed(e.target.checked)}
                   style={{ accentColor: ACCENT }} />
-                Only patients with this medication
+                Patients only on this medication
               </label>
             )}
 
             {/* combinedOnly + includeExtra — only when 2+ selected */}
             {filterMed.length >= 2 && (
               <>
-                <label style={{ ...S.checkLabel(combinedOnlyMed), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+                <label style={{ ...S.checkLabel(combinedOnlyMed), marginTop: 8, display: "flex", alignItems: "center", gap: 7, lineHeight: "1.2" }}>
                   <input type="checkbox" checked={combinedOnlyMed}
                     onChange={e => {
                       setCombinedOnlyMed(e.target.checked);
                       if (e.target.checked) setIncludeExtraMed(false);
                     }}
                     style={{ accentColor: ACCENT }} />
-                  Patients on ONLY these medications
+                  Patients only on this medication
                 </label>
-                <label style={{ ...S.checkLabel(includeExtraMed), marginTop: 6, display: "flex", alignItems: "center", gap: 7 }}>
+                <label style={{ ...S.checkLabel(includeExtraMed), marginTop: 6, display: "flex", alignItems: "center", gap: 7, lineHeight: "1.2" }}>
                   <input type="checkbox" checked={includeExtraMed}
                     onChange={e => {
                       setIncludeExtraMed(e.target.checked);

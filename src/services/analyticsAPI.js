@@ -310,6 +310,7 @@ export const fetchMedicationFull = async ({
   patient_limit = 10,
   singleOnly = false,
   combinedOnly = false,
+  includeExtra = false
 }) => {
   try {
     const res = await fetch(
@@ -332,6 +333,7 @@ export const fetchMedicationFull = async ({
           patient_limit,
           singleOnly,
           combinedOnly,
+          includeExtra
         }),
       }
     );
@@ -353,6 +355,7 @@ export const fetchMedicationDiseaseDashboard = async ({
   exclude_disease,
   singleOnly = false,
   combinedOnly = false,
+  includeExtra = false,
   page = 1,
   limit = 10,
 }) => {
@@ -372,6 +375,7 @@ export const fetchMedicationDiseaseDashboard = async ({
           exclude_disease: exclude_disease || [],
           singleOnly,
           combinedOnly,
+          includeExtra,
           page,
           limit,
         }),
