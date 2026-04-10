@@ -431,6 +431,7 @@ export const fetchCustomPatientTable = async ({
   limit = 10,
   singleOnly = false,
   combinedOnly = false,
+  includeExtra = false,
 }) => {
   try {
     const res = await fetch(
@@ -451,14 +452,33 @@ export const fetchCustomPatientTable = async ({
           limit,
           singleOnly,
           combinedOnly,
+          includeExtra,
         }),
       }
     );
 
     const data = await res.json();
-    return data.success ? data : { total: 0, patients: [] };
+    return data.success ? data : {
+      total: 0,
+      matched_patients: 0,
+      patients: [],
+      age_distribution: [],
+      gender_distribution: [],
+      disease_distribution: [],
+      medication_distribution: [],
+      symptom_distribution: [],
+    };
   } catch (err) {
     console.error("Custom Table API Error:", err);
-    return { total: 0, patients: [] };
+    return {
+      total: 0,
+      matched_patients: 0,
+      patients: [],
+      age_distribution: [],
+      gender_distribution: [],
+      disease_distribution: [],
+      medication_distribution: [],
+      symptom_distribution: [],
+    };
   }
 };
