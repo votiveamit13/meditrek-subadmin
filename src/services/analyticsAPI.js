@@ -182,6 +182,11 @@ export const fetchDiseaseMedicationStats = async ({
   gender,
   singleOnly,
   combinedOnly,
+  includeExtra,
+  exclude_medication,
+  medication_name,
+  page,
+  limit
 }) => {
   try {
     const res = await fetch(
@@ -199,6 +204,11 @@ export const fetchDiseaseMedicationStats = async ({
           gender,
           singleOnly,
           combinedOnly,
+          includeExtra, 
+          exclude_medication, 
+          medication_name,
+          page,
+          limit
         }),
       }
     );
