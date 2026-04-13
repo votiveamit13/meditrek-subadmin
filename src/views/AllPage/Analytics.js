@@ -3,7 +3,7 @@ import TagSearch from "./Analytics/TagSearch";
 import AgeRangeFilter from "./Analytics/AgeRangeFilter";
 import GenderFilter from "./Analytics/GenderFilter";
 import ExportButton from "component/common/ExportButton";
-import { fetchDemographicDetails, fetchDemographics, fetchDiseaseDashboard, fetchDiseaseMedicationStats, fetchDiseaseMedicationSummary, fetchDiseases, fetchMedicines, fetchDiseaseMedicationDetails, fetchMedicationFull, fetchMedicationDiseaseDashboard, fetchMedicationReportedHealth, fetchCustomPatientTable, fetchSymptoms, symptomCache } from "services/analyticsAPI";
+import { fetchDemographicDetails, fetchDemographics, fetchDiseaseDashboard, fetchDiseaseMedicationStats, fetchDiseases, fetchMedicines, fetchMedicationFull, fetchMedicationDiseaseDashboard, fetchMedicationReportedHealth, fetchCustomPatientTable, fetchSymptoms, symptomCache } from "services/analyticsAPI";
 import CustomPagination from "component/common/Pagination";
 import { CircularProgress } from "@mui/material";
 
@@ -805,6 +805,7 @@ function DiseaseDemo({ diseases }) {
   const [gender, setGender] = useState("All");
   const [combinedOnly, setCombined] = useState(false);
   const [singleOnly, setSingleOnly] = useState(false);
+  const [includeExtra, setIncludeExtra] = useState(false);
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
@@ -892,21 +893,28 @@ function DiseaseDemo({ diseases }) {
     if (selDiseases.length > 0) {
 
       if (selDiseases.length === 1 && singleOnly) {
+        // ONLY this disease, nothing else
         filtered = filtered.filter(p =>
           p.conditions.length === 1 &&
           p.conditions.includes(selDiseases[0])
         );
-      }
 
-      else if (combinedOnly && selDiseases.length >= 2) {
+      } else if (combinedOnly && selDiseases.length >= 2) {
+        // EXACTLY all selected — no more, no less
         filtered = filtered.filter(p => {
           const hasAll = selDiseases.every(d => p.conditions.includes(d));
           const exactMatch = p.conditions.length === selDiseases.length;
           return hasAll && exactMatch;
         });
-      }
 
-      else {
+      } else if (includeExtra && selDiseases.length >= 2) { // ✅ add this block
+        // ALL selected must be present — extras allowed
+        filtered = filtered.filter(p =>
+          selDiseases.every(d => p.conditions.includes(d))
+        );
+
+      } else {
+        // Default: ANY of selected diseases
         filtered = filtered.filter(p =>
           selDiseases.some(d => p.conditions.includes(d))
         );
@@ -914,7 +922,7 @@ function DiseaseDemo({ diseases }) {
     }
 
     return filtered;
-  }, [ALL_PATIENTS_DATA, selDiseases, combinedOnly, singleOnly]);
+  }, [ALL_PATIENTS_DATA, selDiseases, combinedOnly, singleOnly, includeExtra]);
 
   const API_PATIENTS = useMemo(() => {
     if (!apiData?.patients) return [];
@@ -932,21 +940,21 @@ function DiseaseDemo({ diseases }) {
     }));
   }, [apiData]);
 
-  const basePool = useMemo(() => ALL_PATIENTS_DATA.filter(p => {
-    if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
-    if (gender !== "All" && p.gender !== gender) return false;
-    return true;
-  }), [ALL_PATIENTS_DATA, ageGroup, gender]);
+  // const basePool = useMemo(() => ALL_PATIENTS_DATA.filter(p => {
+  //   if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
+  //   if (gender !== "All" && p.gender !== gender) return false;
+  //   return true;
+  // }), [ALL_PATIENTS_DATA, ageGroup, gender]);
 
   const TOTAL_API = allPatientsData?.total_patients || ALL_PATIENTS_DATA.length;
 
   const matchedCount =
-    (singleOnly || combinedOnly)
+    (singleOnly || combinedOnly || includeExtra)
       ? filteredPatients.length
       : allPatientsData?.matched_patients ?? 0;
 
   const diseaseDist = useMemo(() => {
-    if (singleOnly || combinedOnly) {
+    if (singleOnly || combinedOnly || includeExtra) {
       const map = {};
 
       filteredPatients.forEach(p => {
@@ -976,7 +984,7 @@ function DiseaseDemo({ diseases }) {
       };
     });
 
-  }, [filteredPatients, allPatientsData, singleOnly, combinedOnly]);
+  }, [filteredPatients, allPatientsData, singleOnly, combinedOnly, includeExtra]);
 
   // const ageDist = useMemo(() => {
   //   const source =
@@ -1004,7 +1012,7 @@ function DiseaseDemo({ diseases }) {
   // }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly]);
   const ageDist = useMemo(() => {
     const source =
-      (singleOnly || combinedOnly)
+      (singleOnly || combinedOnly || includeExtra)
         ? filteredPatients
         : ALL_PATIENTS_DATA;
 
@@ -1026,7 +1034,7 @@ function DiseaseDemo({ diseases }) {
       count,
       percentage: pct(count, source.length),
     }));
-  }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly]);
+  }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly, includeExtra]);
 
   // const genderDist = useMemo(() => {
   //   const source =
@@ -1057,7 +1065,7 @@ function DiseaseDemo({ diseases }) {
   // }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly]);
   const genderDist = useMemo(() => {
     const source =
-      (singleOnly || combinedOnly)
+      (singleOnly || combinedOnly || includeExtra)
         ? filteredPatients
         : ALL_PATIENTS_DATA;
 
@@ -1078,7 +1086,7 @@ function DiseaseDemo({ diseases }) {
       count,
       percentage: pct(count, source.length),
     }));
-  }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly]);
+  }, [filteredPatients, ALL_PATIENTS_DATA, singleOnly, combinedOnly, includeExtra]);
 
 
   useEffect(() => {
@@ -1088,6 +1096,7 @@ function DiseaseDemo({ diseases }) {
     if (selDiseases.length < 2 && combinedOnly) {
       setCombined(false);
     }
+    if (selDiseases.length < 2 && includeExtra) setIncludeExtra(false);
   }, [selDiseases]);
 
   return (
@@ -1104,10 +1113,34 @@ function DiseaseDemo({ diseases }) {
           <div style={{ flex: 1, minWidth: 160 }}><GenderFilter value={gender} onChange={setGender} /></div>
         </div>
         {selDiseases.length >= 2 && (
-          <label style={{ ...S.checkLabel(combinedOnly) }}>
-            <input type="checkbox" checked={combinedOnly} onChange={e => setCombined(e.target.checked)} style={{ accentColor: ACCENT }} />
-            Combined diseases only (patients with ALL selected diseases)
-          </label>
+          <>
+            <label style={S.checkLabel(combinedOnly)}>
+              <input
+                type="checkbox"
+                checked={combinedOnly}
+                onChange={e => {
+                  setCombined(e.target.checked);
+                  if (e.target.checked) setIncludeExtra(false); // ✅ mutual exclusion
+                }}
+                style={{ accentColor: ACCENT }}
+              />
+              Combined diseases only (patients with ALL selected diseases)
+            </label>
+
+            {/* ✅ New includeExtra checkbox */}
+            <label style={S.checkLabel(includeExtra)}>
+              <input
+                type="checkbox"
+                checked={includeExtra}
+                onChange={e => {
+                  setIncludeExtra(e.target.checked);
+                  if (e.target.checked) setCombined(false); // ✅ mutual exclusion
+                }}
+                style={{ accentColor: ACCENT }}
+              />
+              Include extra diseases (patients can have more than selected)
+            </label>
+          </>
         )}
         {selDiseases.length === 1 && (
           <label style={S.checkLabel(singleOnly)}>
@@ -1155,7 +1188,7 @@ function DiseaseDemo({ diseases }) {
             <StatCard
               label="Group Size"
               value={TOTAL_API}
-              sub={`${pct(basePool.length, TOTAL_API)}% of all patients`}
+              // sub={`${pct(basePool.length, TOTAL_API)}% of all patients`}
               highlightSub
             />
             <StatCard
@@ -1224,7 +1257,7 @@ function DiseaseDemo({ diseases }) {
                 { key: "meds", label: "Medications", sortable: true, render: r => <MChips arr={r.meds} /> },
               ]}
               rows={
-                (singleOnly || combinedOnly)
+                (singleOnly || combinedOnly || includeExtra)
                   ? filteredPatients
                   : API_PATIENTS
               }
@@ -1232,7 +1265,11 @@ function DiseaseDemo({ diseases }) {
             />
             <div style={{ marginTop: 14 }}>
               <CustomPagination
-                count={TOTAL_API}
+                count={
+                  (singleOnly || combinedOnly || includeExtra)
+                    ? matchedCount
+                    : TOTAL_API
+                }
                 page={page}
                 rowsPerPage={rowsPerPage}
                 onPageChange={(newPage) => setPage(newPage)}
@@ -1255,231 +1292,203 @@ function DiseaseMedication({ diseases, medicines }) {
     diseases?.length > 0
       ? diseases.map(d => d.label)
       : [...new Set(ALL_PATIENTS.flatMap(p => p.conditions))].sort();
+
   const [selDiseases, setSelDiseases] = useState([]);
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
   const [combinedOnly, setCombined] = useState(false);
+  const [includeExtra, setIncludeExtra] = useState(false);
   const [excludeMeds, setExcludeMeds] = useState([]);
   const [singleOnly, setSingleOnly] = useState(false);
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
-  const [summaryData, setSummaryData] = useState([]);
-  // const [totalPatients, setTotalPatients] = useState(0);
-  // const [matchedPatients, setMatchedPatients] = useState(0);
   const [loadingTable, setLoadingTable] = useState(false);
+  const [showPatients, setShowPatients] = useState(false); // ✅ replaces ExpandPanel toggle
 
   const [page, setPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
   const doctor_id = sessionStorage.getItem("doctor_id");
 
-  const toggleD = d => setSelDiseases(prev => prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]);
-  const toggleExclude = m => setExcludeMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
+  const toggleD = d => {
+    setSelDiseases(prev =>
+      prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]
+    );
+    setPage(1);
+  };
+  const toggleExclude = m =>
+    setExcludeMeds(prev =>
+      prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]
+    );
 
   useEffect(() => {
     const loadStats = async () => {
       setLoadingStats(true);
+      setLoadingTable(true);
 
       const res = await fetchDiseaseMedicationStats({
         doctor_id,
         disease: selDiseases,
-        medication: excludeMeds,
+        medication: [],
+        exclude_medication: excludeMeds,
+        medication_name: "",
         age_group: ageGroup !== "All" ? ageGroup : undefined,
         gender: gender !== "All" ? genderMap[gender] : undefined,
         singleOnly,
         combinedOnly,
+        includeExtra,
+        page,
+        limit: rowsPerPage
       });
 
       setStats(res);
       setLoadingStats(false);
-    };
-
-    loadStats();
-  }, [doctor_id, selDiseases, ageGroup, gender, excludeMeds, singleOnly, combinedOnly]);
-
-  useEffect(() => {
-    const loadSummary = async () => {
-      setLoadingTable(true);
-
-      const res = await fetchDiseaseMedicationSummary({
-        doctor_id,
-        disease: selDiseases,
-        age_group: ageGroup !== "All" ? ageGroup : undefined,
-        gender: gender !== "All" ? genderMap[gender] : undefined,
-        page,
-        limit: rowsPerPage,
-        singleOnly,
-        combinedOnly,
-      });
-
-      if (res) {
-        setSummaryData(res.summary || []);
-        // setTotalPatients(res.total_patients || 0);
-        // setMatchedPatients(res.matched_patients || 0);
-      }
-
       setLoadingTable(false);
     };
 
-    loadSummary();
-  }, [doctor_id, selDiseases, ageGroup, gender, page, rowsPerPage, singleOnly, combinedOnly]);
-
-  // const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
-  //   if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
-  //   if (gender !== "All" && p.gender !== gender) return false;
-  //   return true;
-  // }), [ageGroup, gender]);
-
-  // const patients = useMemo(() => {
-  //   let r = basePool;
-
-  //   if (selDiseases.length > 0) {
-
-  //     // ✅ SINGLE EXACT
-  //     if (selDiseases.length === 1 && singleOnly) {
-  //       r = r.filter(p =>
-  //         p.conditions.length === 1 &&
-  //         p.conditions.includes(selDiseases[0])
-  //       );
-  //     }
-
-  //     // ✅ MULTI EXACT
-  //     else if (combinedOnly && selDiseases.length >= 2) {
-  //       r = r.filter(p => {
-  //         const hasAll = selDiseases.every(d => p.conditions.includes(d));
-  //         const exactCount = p.conditions.length === selDiseases.length;
-  //         return hasAll && exactCount;
-  //       });
-  //     }
-
-  //     // ✅ DEFAULT
-  //     else {
-  //       r = r.filter(p =>
-  //         selDiseases.some(d => p.conditions.includes(d))
-  //       );
-  //     }
-  //   }
-
-  //   return r;
-  // }, [basePool, selDiseases, combinedOnly, singleOnly]);
+    loadStats();
+  }, [
+    doctor_id, selDiseases, ageGroup, gender,
+    excludeMeds, singleOnly, combinedOnly, includeExtra,
+    page, rowsPerPage
+  ]);
 
   useEffect(() => {
     setSingleOnly(false);
     setCombined(false);
+    setIncludeExtra(false); // ✅ also reset includeExtra when diseases change
+    setPage(1);
   }, [selDiseases]);
-
-  /* drug distribution among matched patients */
-  // const medDist = useMemo(() => {
-  //   const map = {};
-  //   patients.forEach(p => p.meds.forEach(m => {
-  //     if (!excludeMeds.includes(m)) map[m] = (map[m] || 0) + 1;
-  //   }));
-  //   return Object.entries(map).map(([label, value]) => ({
-  //     label, value,
-  //     pctOfMatched: pct(value, patients.length),
-  //     pctOfAll: pct(value, TOTAL),
-  //   })).sort((a, b) => b.value - a.value);
-  // }, [patients, excludeMeds]);
 
   const allMedsInResult =
     medicines?.length > 0
       ? medicines.map(m => m.label)
       : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
 
+  // ✅ Backend already excludes — no double filtering
   const filteredSummaryData = useMemo(() => {
-    if (!summaryData) return [];
+    if (!stats?.summary) return [];
+    return stats.summary;
+  }, [stats]);
 
-    return summaryData.filter(
-      item => !excludeMeds.includes(item.medicine_name)
-    );
-  }, [summaryData, excludeMeds]);
+  // ✅ Drilldown comes directly from stats — no separate API call
+  const drilldownPatients = stats?.drilldown || [];
 
   return (
     <div>
       <div style={S.pageHead}>
         <h2 style={S.pageTitle}>Disease / Medication</h2>
-        <p style={S.pageSub}>Select one or more diseases to see which drugs are prescribed - with counts and percentages</p>
+        <p style={S.pageSub}>
+          Select one or more diseases to see which drugs are prescribed - with counts and percentages
+        </p>
       </div>
 
+      {/* ── FILTERS ── */}
       <div style={S.filterBar}>
         <div style={S.filterRow}>
-          <div style={{ flex: 2, minWidth: 200 }}><TagSearch label="Disease(s)" all={allDiseases} selected={selDiseases} onToggle={toggleD} searchPlaceholder="Add diseases…" /></div>
-          <div style={{ flex: 1, minWidth: 160 }}><AgeRangeFilter value={ageGroup} onChange={setAgeGroup} /></div>
-          <div style={{ flex: 1, minWidth: 160 }}><GenderFilter value={gender} onChange={setGender} /></div>
+          <div style={{ flex: 2, minWidth: 200 }}>
+            <TagSearch
+              label="Disease(s)"
+              all={allDiseases}
+              selected={selDiseases}
+              onToggle={toggleD}
+              searchPlaceholder="Add diseases…"
+            />
+          </div>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <AgeRangeFilter value={ageGroup} onChange={v => { setAgeGroup(v); setPage(1); }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <GenderFilter value={gender} onChange={v => { setGender(v); setPage(1); }} />
+          </div>
         </div>
+
         {selDiseases.length >= 2 && (
-          <label style={{ ...S.checkLabel(combinedOnly) }}>
-            <input type="checkbox" checked={combinedOnly} onChange={e => setCombined(e.target.checked)} style={{ accentColor: ACCENT }} />
-            Combined — patients must have ALL selected diseases
-          </label>
+          <>
+            <label style={S.checkLabel(combinedOnly)}>
+              <input
+                type="checkbox"
+                checked={combinedOnly}
+                onChange={e => { setCombined(e.target.checked); if (e.target.checked) setIncludeExtra(false); setPage(1); }}
+                style={{ accentColor: ACCENT }}
+              />
+              Combined — patients must have ALL selected diseases
+            </label>
+            <label style={S.checkLabel(includeExtra)}>
+              <input
+                type="checkbox"
+                checked={includeExtra}
+                onChange={e => { setIncludeExtra(e.target.checked); if (e.target.checked) setCombined(false); setPage(1); }}
+                style={{ accentColor: ACCENT }}
+              />
+              Include extra diseases (patients can have more than selected)
+            </label>
+          </>
         )}
+
         {selDiseases.length === 1 && (
           <label style={S.checkLabel(singleOnly)}>
             <input
               type="checkbox"
               checked={singleOnly}
-              onChange={e => setSingleOnly(e.target.checked)}
+              onChange={e => { setSingleOnly(e.target.checked); setPage(1); }}
               style={{ accentColor: ACCENT }}
             />
             Only patients with this disease
           </label>
         )}
+
         {allMedsInResult.length > 0 && (
           <div style={{ marginTop: 12 }}>
-            <span style={{ ...S.filterLabel, display: "block", marginBottom: 6 }}>Exclude medications from table</span>
-            <div>
-              <TagSearch
-                all={allMedsInResult}
-                selected={excludeMeds}
-                onToggle={toggleExclude}
-                searchPlaceholder="Search medications to exclude…"
-              />
-            </div>
+            <span style={{ ...S.filterLabel, display: "block", marginBottom: 6 }}>
+              Exclude medications from table
+            </span>
+            <TagSearch
+              all={allMedsInResult}
+              selected={excludeMeds}
+              onToggle={toggleExclude}
+              searchPlaceholder="Search medications to exclude…"
+            />
           </div>
         )}
       </div>
 
+      {/* ── STAT CARDS ── */}
       <div style={S.statRow}>
         {loadingStats ? (
           <>
-            <div style={S.statCard}>
-              <div style={S.statLbl}>Matched Patients</div>
-              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
-                <CircularProgress size={24} />
+            {["Matched Patients", "Total Patients", "Top Drug"].map(lbl => (
+              <div key={lbl} style={S.statCard}>
+                <div style={S.statLbl}>{lbl}</div>
+                <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+                  <CircularProgress size={24} />
+                </div>
               </div>
-            </div>
-
-            <div style={S.statCard}>
-              <div style={S.statLbl}>Total Patients</div>
-              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
-                <CircularProgress size={24} />
-              </div>
-            </div>
-
-            <div style={S.statCard}>
-              <div style={S.statLbl}>Top Drug</div>
-              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
-                <CircularProgress size={24} />
-              </div>
-            </div>
+            ))}
           </>
         ) : (
           <>
-            <StatCard label="Matched Patients" value={stats?.matched_patients || 0} sub={`${stats?.percentage} of all patients`} highlightSub />
+            <StatCard
+              label="Matched Patients"
+              value={stats?.matched_patients || 0}
+              sub={`${stats?.percentage || "0%"} of all patients`}
+              highlightSub
+            />
             <StatCard label="Total Patients" value={stats?.total_patients || 0} />
             <StatCard label="Top Drug" value={stats?.top_drug || "—"} />
           </>
         )}
       </div>
 
-      {/* <div style={S.card}>
+      {/* ── MEDICATION DISTRIBUTION TABLE ── */}
+      <div style={S.card}>
         <p style={S.cardTitle}>
-          Drug Distribution
-
-          <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8 }} className="d-flex align-items-center justfiy-content-between">among {stats?.matched_patients || 0} matched patients
+          Medication Distribution
+          <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
+            among {stats?.matched_patients || 0} matched patients
             <ExportButton
               data={filteredSummaryData}
-              fileName="Drug_Distribution"
+              fileName="Medication_Distribution"
               mapFn={(r, i) => ({
                 "S. No.": i + 1,
                 "Medication": r.medicine_name,
@@ -1487,11 +1496,13 @@ function DiseaseMedication({ diseases, medicines }) {
                 "% of Matched": r.percent_matched,
                 "% of All Patients": r.percent_total,
               })}
-            /></span>
+            />
+          </span>
         </p>
+
         {loadingTable ? (
           <LoadingPlaceholder />
-        ) : summaryData.length === 0 ? (
+        ) : filteredSummaryData.length === 0 ? (
           <div style={S.noData}>No data found</div>
         ) : (
           <DataTable
@@ -1537,131 +1548,94 @@ function DiseaseMedication({ diseases, medicines }) {
             rows={filteredSummaryData}
           />
         )}
+
         <div style={{ marginTop: 14 }}>
           <CustomPagination
-            count={filteredSummaryData.length}
+            count={stats?.matched_patients || 0} // ✅ total matched count for correct page math
             page={page}
             rowsPerPage={rowsPerPage}
-            onPageChange={(newPage) => setPage(newPage)}
-            onRowsPerPageChange={(val) => {
-              setRowsPerPage(val);
-              setPage(1);
-            }}
+            onPageChange={newPage => setPage(newPage)}
+            onRowsPerPageChange={val => { setRowsPerPage(val); setPage(1); }}
             hideRowsPerPage={true}
           />
         </div>
-        <div style={{ marginTop: 14 }}>
-          <ExpandPanel
-            useAPI={true}
-            fetchFn={fetchDiseaseMedicationDetails}
-            fetchParams={{
-              doctor_id,
-              age_group: ageGroup === "All" ? undefined : ageGroup,
-              gender: gender === "All" ? undefined : genderMap[gender],
-              diseases: selDiseases,
-              singleOnly,
-              combinedOnly
-            }}
-            count={stats?.matched_patients || 0}
-          />
-        </div>
-      </div> */}
 
-<div style={S.card}>
-  <p style={S.cardTitle}>
-    Medication Distribution
-    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
-      among {stats?.matched_patients || 0} matched patients
-      <ExportButton
-        data={filteredSummaryData}
-        fileName="Medication_Distribution"
-        mapFn={(r, i) => ({
-          "S. No.": i + 1,
-          "Medication": r.medicine_name,
-          "Patients Count": r.patient_count,
-          "% of Matched": r.percent_matched,
-          "% of All Patients": r.percent_total,
-        })}
-      />
-    </span>
-  </p>
-  {loadingTable ? (
-    <LoadingPlaceholder />
-  ) : summaryData.length === 0 ? (
-    <div style={S.noData}>No data found</div>
-  ) : (
-    <DataTable
-      cols={[
-        {
-          key: "medicine_name",
-          label: "Medication",
-          sortable: true,
-          render: r => <Chip label={r.medicine_name} teal={true} />
-        },
-        {
-          key: "patient_count",
-          label: "Patients",
-          sortable: true,
-          render: r => (
-            <span style={{ fontWeight: 700, color: ACCENT }}>
-              {r.patient_count}
-            </span>
-          )
-        },
-        {
-          key: "percent_matched",
-          label: "% of Matched",
-          sortable: true,
-          render: r => <span>{r.percent_matched}%</span>
-        },
-        {
-          key: "percent_total",
-          label: "% of All Patients",
-          sortable: true,
-          render: r => <span style={{ color: "#94a3b8" }}>{r.percent_total}%</span>
-        },
-        {
-          key: "bar",
-          label: "",
-          render: r => (
-            <div style={{ ...S.barTrack, minWidth: 80 }}>
-              <div style={S.barFill(parseFloat(r.percent_matched))} />
-            </div>
-          )
-        }
-      ]}
-      rows={filteredSummaryData}
-    />
-  )}
-  <div style={{ marginTop: 14 }}>
-    <CustomPagination
-      count={filteredSummaryData.length}
-      page={page}
-      rowsPerPage={rowsPerPage}
-      onPageChange={(newPage) => setPage(newPage)}
-      onRowsPerPageChange={(val) => {
-        setRowsPerPage(val);
-        setPage(1);
-      }}
-      hideRowsPerPage={true}
-    />
-  </div>
-  <div style={{ marginTop: 14 }}>
-    <ExpandPanel
-      useAPI={true}
-      fetchFn={fetchDiseaseMedicationDetails}
-      fetchParams={{
-        doctor_id,
-        age_group: ageGroup === "All" ? undefined : ageGroup,
-        gender: gender === "All" ? undefined : genderMap[gender],
-        diseases: selDiseases,
-        singleOnly,
-        combinedOnly
-      }}
-      count={stats?.matched_patients || 0}
-    />
-  </div>
-</div>
+        {/* ── DRILLDOWN: directly from stats.drilldown — NO separate API call ── */}
+        <div style={{ marginTop: 14 }}>
+          {stats?.matched_patients > 0 && (
+            <button
+              style={S.expandBtn}
+              onClick={() => setShowPatients(prev => !prev)}
+            >
+              {showPatients ? "▲ Collapse patients" : "▼ Expand patients"}
+            </button>
+          )}
+
+          {showPatients && (
+            <>
+              <p style={{ fontWeight: 500, margin: "12px 0 8px" }}>
+                Total: {stats?.matched_patients || 0} patients
+              </p>
+
+              {drilldownPatients.length === 0 ? (
+                <div style={S.noData}>No patients on this page</div>
+              ) : (
+                <DataTable
+                  cols={[
+                    {
+                      key: "name",
+                      label: "Patient Name",
+                      sortable: true,
+                      render: r => <span>{r.name}</span>
+                    },
+                    {
+                      key: "age",
+                      label: "Age",
+                      sortable: true,
+                      render: r => <span>{r.age ?? "—"}</span>
+                    },
+                    {
+                      key: "gender",
+                      label: "Gender",
+                      sortable: true,
+                      render: r => <Chip label={r.gender || "Not Specified"} />
+                    },
+                    {
+                      key: "diseases",
+                      label: "Diseases",
+                      render: r =>
+                        (r.diseases || []).length > 0
+                          ? r.diseases.map(d => <Chip key={d} label={d} />)
+                          : <span style={{ color: "#94a3b8" }}>—</span>
+                    },
+                    {
+                      key: "medications",
+                      label: "Medications",
+                      render: r =>
+                        (r.medications || []).length > 0
+                          ? r.medications.map(m => <Chip key={m} label={m} teal />)
+                          : <span style={{ color: "#94a3b8" }}>—</span>
+                    }
+                  ]}
+                  rows={drilldownPatients}
+                />
+              )}
+
+              {/* ✅ Drilldown shares same page/rowsPerPage as summary */}
+              <div style={{ marginTop: 10 }}>
+                <CustomPagination
+                  count={stats?.matched_patients || 0}
+                  page={page}
+                  rowsPerPage={rowsPerPage}
+                  onPageChange={newPage => setPage(newPage)}
+                  onRowsPerPageChange={val => { setRowsPerPage(val); setPage(1); }}
+                  hideRowsPerPage={true}
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1684,6 +1658,7 @@ function MedicationDemo({ medicines }) {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [combinedOnly, setCombined] = useState(false);
   const [singleOnly, setSingleOnly] = useState(false);
+  const [includeExtra, setIncludeExtra] = useState(false);
 
   const doctor_id = sessionStorage.getItem("doctor_id");
 
@@ -1701,6 +1676,7 @@ function MedicationDemo({ medicines }) {
         summary_limit: summaryRowsPerPage,
         singleOnly,
         combinedOnly,
+        includeExtra,
       });
 
       if (res) setSummaryData(res.summary || []);
@@ -1708,7 +1684,7 @@ function MedicationDemo({ medicines }) {
     };
 
     loadSummary();
-  }, [doctor_id, selMeds, ageGroup, gender, summaryPage, summaryRowsPerPage, singleOnly, combinedOnly]);
+  }, [doctor_id, selMeds, ageGroup, gender, summaryPage, summaryRowsPerPage, singleOnly, combinedOnly, includeExtra]);
 
   useEffect(() => {
     const loadPatients = async () => {
@@ -1723,6 +1699,7 @@ function MedicationDemo({ medicines }) {
         patient_limit: rowsPerPage,
         singleOnly,
         combinedOnly,
+        includeExtra,
       });
 
       if (res) setPatientsData(res);
@@ -1730,7 +1707,7 @@ function MedicationDemo({ medicines }) {
     };
 
     loadPatients();
-  }, [doctor_id, selMeds, ageGroup, gender, page, rowsPerPage, singleOnly, combinedOnly]);
+  }, [doctor_id, selMeds, ageGroup, gender, page, rowsPerPage, singleOnly, combinedOnly, includeExtra]);
 
   // const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
   //   if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
@@ -1855,6 +1832,30 @@ function MedicationDemo({ medicines }) {
     setSummaryPage(1);
   }, [selMeds, ageGroup, gender]);
 
+  const handleCombinedChange = (checked) => {
+    setCombined(checked);
+    if (checked) {
+      setSingleOnly(false);
+      setIncludeExtra(false);
+    }
+  };
+
+  const handleSingleOnlyChange = (checked) => {
+    setSingleOnly(checked);
+    if (checked) {
+      setCombined(false);
+      setIncludeExtra(false);
+    }
+  };
+
+  const handleIncludeExtraChange = (checked) => {
+    setIncludeExtra(checked);
+    if (checked) {
+      setCombined(false);
+      setSingleOnly(false);
+    }
+  };
+
   return (
     <div>
       <div style={S.pageHead}>
@@ -1869,35 +1870,41 @@ function MedicationDemo({ medicines }) {
           <div style={{ flex: 1, minWidth: 160 }}><GenderFilter value={gender} onChange={setGender} /></div>
         </div>
         {selMeds.length >= 2 && (
-          <label style={{ ...S.checkLabel(combinedOnly) }}>
-            <input
-              type="checkbox"
-              checked={combinedOnly}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                setCombined(checked);
-                if (checked) setSingleOnly(false);
-              }}
-              style={{ accentColor: ACCENT }}
-            />
-            Combined — patients must have ALL selected medications
-          </label>
+          <div style={{ marginTop: 4 }}>
+            <label style={{ ...S.checkLabel(combinedOnly), marginRight: 20 }}>
+              <input
+                type="checkbox"
+                checked={combinedOnly}
+                onChange={(e) => handleCombinedChange(e.target.checked)}
+                style={{ accentColor: ACCENT }}
+              />
+              Combined — patients must have ALL selected medications (exact match)
+            </label>
+
+            <label style={S.checkLabel(includeExtra)}>
+              <input
+                type="checkbox"
+                checked={includeExtra}
+                onChange={(e) => handleIncludeExtraChange(e.target.checked)}
+                style={{ accentColor: ACCENT }}
+              />
+              Include patients with these + extra medications
+            </label>
+          </div>
         )}
 
         {selMeds.length === 1 && (
-          <label style={S.checkLabel(singleOnly)}>
-            <input
-              type="checkbox"
-              checked={singleOnly}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                setSingleOnly(checked);
-                if (checked) setCombined(false);
-              }}
-              style={{ accentColor: ACCENT }}
-            />
-            Only patients with this medication
-          </label>
+          <div style={{ marginTop: 4 }}>
+            <label style={S.checkLabel(singleOnly)}>
+              <input
+                type="checkbox"
+                checked={singleOnly}
+                onChange={(e) => handleSingleOnlyChange(e.target.checked)}
+                style={{ accentColor: ACCENT }}
+              />
+              Only patients with this medication (exact match)
+            </label>
+          </div>
         )}
       </div>
 
@@ -1956,51 +1963,53 @@ function MedicationDemo({ medicines }) {
         </div> */}
 
 
-<div style={S.card}>
-  <p style={S.cardTitle}>
-    Drug Distribution
-    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex",
-alignItems: "end" }}>
-      among {matchedPatients} matched patients
-      <ExportButton
-        data={medDist}
-        fileName="Drug_Distribution"
-        mapFn={(r, i) => ({
-          "S. No.": i + 1,
-          "Drug": r.label,
-          "Patients Count": r.value,
-          "% of Matched": r.pct,
-        })}
-      />
-    </span>
-  </p>
-  {summaryLoading ? (
-    <LoadingPlaceholder />
-  ) : (
-    <div style={S.barWrap}>
-      {medDist.map((d, i) => (
-        <HBar 
-          key={i} 
-          label={d.label} 
-          value={d.value} 
-          total={matchedPatients} 
-          pctVal={d.pct} 
-        />
-      ))}
-    </div>
-  )}
-  <CustomPagination
-    count={patientsData?.summary_total || 0}
-    page={summaryPage}
-    rowsPerPage={summaryRowsPerPage}
-    onPageChange={(newPage) => setSummaryPage(newPage)}
-    onRowsPerPageChange={(val) => {
-      setSummaryRowsPerPage(val);
-      setSummaryPage(1);
-    }}
-    hideRowsPerPage={true}
-  />
-</div>
+        <div style={S.card}>
+          <p style={S.cardTitle}>
+            Drug Distribution
+            <span style={{
+              fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex",
+              alignItems: "end"
+            }}>
+              among {matchedPatients} matched patients
+              <ExportButton
+                data={medDist}
+                fileName="Drug_Distribution"
+                mapFn={(r, i) => ({
+                  "S. No.": i + 1,
+                  "Drug": r.label,
+                  "Patients Count": r.value,
+                  "% of Matched": r.pct,
+                })}
+              />
+            </span>
+          </p>
+          {summaryLoading ? (
+            <LoadingPlaceholder />
+          ) : (
+            <div style={S.barWrap}>
+              {medDist.map((d, i) => (
+                <HBar
+                  key={i}
+                  label={d.label}
+                  value={d.value}
+                  total={matchedPatients}
+                  pctVal={d.pct}
+                />
+              ))}
+            </div>
+          )}
+          <CustomPagination
+            count={patientsData?.summary_total || 0}
+            page={summaryPage}
+            rowsPerPage={summaryRowsPerPage}
+            onPageChange={(newPage) => setSummaryPage(newPage)}
+            onRowsPerPageChange={(val) => {
+              setSummaryRowsPerPage(val);
+              setSummaryPage(1);
+            }}
+            hideRowsPerPage={true}
+          />
+        </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {ageDist.length > 0 && (
             <div style={S.card}>
@@ -2069,6 +2078,7 @@ function MedicationDisease({ medicines, diseases }) {
   const [comboOnly, setComboOnly] = useState(false);
   const [excludeDisease, setExcludeDisease] = useState([]);
   const [singleOnly, setSingleOnly] = useState(false);
+  const [includeExtra, setIncludeExtra] = useState(false);
   const [apiData, setApiData] = useState(null);
   const [loadingStats, setLoadingStats] = useState(false);
 
@@ -2085,6 +2095,31 @@ function MedicationDisease({ medicines, diseases }) {
         : [...prev, d]
     );
 
+  const handleComboOnlyChange = (checked) => {
+    setComboOnly(checked);
+    if (checked) {
+      setSingleOnly(false);
+      setIncludeExtra(false);
+    }
+  };
+
+  const handleSingleOnlyChange = (checked) => {
+    setSingleOnly(checked);
+    if (checked) {
+      setComboOnly(false);
+      setIncludeExtra(false);
+    }
+  };
+
+  const handleIncludeExtraChange = (checked) => {
+    setIncludeExtra(checked);
+    if (checked) {
+      setComboOnly(false);
+      setSingleOnly(false);
+    }
+  };
+
+
   useEffect(() => {
     const loadData = async () => {
       setLoadingStats(true);
@@ -2097,6 +2132,7 @@ function MedicationDisease({ medicines, diseases }) {
         exclude_disease: excludeDisease,
         singleOnly: singleOnly,
         combinedOnly: comboOnly,
+        includeExtra: includeExtra,
         page,
         limit: rowsPerPage,
       });
@@ -2106,7 +2142,7 @@ function MedicationDisease({ medicines, diseases }) {
     };
 
     loadData();
-  }, [doctor_id, selMeds, ageGroup, gender, excludeDisease, singleOnly, comboOnly, page, rowsPerPage]);
+  }, [doctor_id, selMeds, ageGroup, gender, excludeDisease, singleOnly, comboOnly, includeExtra, page, rowsPerPage]);
 
   const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
     if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
@@ -2134,6 +2170,7 @@ function MedicationDisease({ medicines, diseases }) {
   useEffect(() => {
     setSingleOnly(false);
     setComboOnly(false);
+    setIncludeExtra(false);
   }, [selMeds]);
 
   const diseaseDist = useMemo(() => {
@@ -2159,7 +2196,7 @@ function MedicationDisease({ medicines, diseases }) {
 
   useEffect(() => {
     setPage(1);
-  }, [selMeds, ageGroup, gender, excludeDisease, singleOnly, comboOnly]);
+  }, [selMeds, ageGroup, gender, excludeDisease, singleOnly, comboOnly, includeExtra]);
 
   return (
     <div>
@@ -2175,21 +2212,41 @@ function MedicationDisease({ medicines, diseases }) {
           <div style={{ flex: 1, minWidth: 160 }}><GenderFilter value={gender} onChange={setGender} /></div>
         </div>
         {selMeds.length >= 2 && (
-          <label style={{ ...S.checkLabel(comboOnly) }}>
-            <input type="checkbox" checked={comboOnly} onChange={e => setComboOnly(e.target.checked)} style={{ accentColor: ACCENT }} />
-            Combination — patients must be on ALL selected medications
-          </label>
+          <div style={{ marginTop: 4 }}>
+            <label style={{ ...S.checkLabel(comboOnly), marginRight: 20 }}>
+              <input
+                type="checkbox"
+                checked={comboOnly}
+                onChange={(e) => handleComboOnlyChange(e.target.checked)}
+                style={{ accentColor: ACCENT }}
+              />
+              Combination — patients must be on ALL selected medications (exact match)
+            </label>
+
+            <label style={S.checkLabel(includeExtra)}>
+              <input
+                type="checkbox"
+                checked={includeExtra}
+                onChange={(e) => handleIncludeExtraChange(e.target.checked)}
+                style={{ accentColor: ACCENT }}
+              />
+              Include patients on these + extra medications
+            </label>
+          </div>
         )}
+
         {selMeds.length === 1 && (
-          <label style={S.checkLabel(singleOnly)}>
-            <input
-              type="checkbox"
-              checked={singleOnly}
-              onChange={e => setSingleOnly(e.target.checked)}
-              style={{ accentColor: ACCENT }}
-            />
-            Only patients with this medication
-          </label>
+          <div style={{ marginTop: 4 }}>
+            <label style={S.checkLabel(singleOnly)}>
+              <input
+                type="checkbox"
+                checked={singleOnly}
+                onChange={(e) => handleSingleOnlyChange(e.target.checked)}
+                style={{ accentColor: ACCENT }}
+              />
+              Only patients with this medication (exact match)
+            </label>
+          </div>
         )}
         {allDisInResult.length > 0 && (
           <div style={{ marginTop: 12 }}>
@@ -2571,34 +2628,34 @@ const FIELD_DEFS = [
 
 function CustomizeTable({ diseases, medicines, symptoms }) {
   const allDiseases = diseases?.length > 0 ? diseases.map(d => d.label) : [];
-  const allMeds     = medicines?.length > 0 ? medicines.map(m => m.label) : [];
-  const allSymptoms = symptoms?.length  > 0 ? symptoms.map(s => s.label)  : [];
+  const allMeds = medicines?.length > 0 ? medicines.map(m => m.label) : [];
+  const allSymptoms = symptoms?.length > 0 ? symptoms.map(s => s.label) : [];
 
-  const [selFields,          setSelFields]          = useState(["name", "age", "gender", "conditions", "meds", "reportedHealth"]);
-  const [filterDis,          setFilterDis]          = useState([]);
-  const [filterMed,          setFilterMed]          = useState([]);
-  const [filterSymptoms,     setFilterSymptoms]     = useState([]);
-  const [ageGroup,           setAgeGroup]           = useState("All");
-  const [gender,             setGender]             = useState("All");
-  const [page,               setPage]               = useState(1);
-  const [rowsPerPage,        setRowsPerPage]        = useState(10);
-  const [loading,            setLoading]            = useState(false);
-  const [apiData,            setApiData]            = useState(null);
+  const [selFields, setSelFields] = useState(["name", "age", "gender", "conditions", "meds", "reportedHealth"]);
+  const [filterDis, setFilterDis] = useState([]);
+  const [filterMed, setFilterMed] = useState([]);
+  const [filterSymptoms, setFilterSymptoms] = useState([]);
+  const [ageGroup, setAgeGroup] = useState("All");
+  const [gender, setGender] = useState("All");
+  const [page, setPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [loading, setLoading] = useState(false);
+  const [apiData, setApiData] = useState(null);
 
   // ── Disease filter modes (mutually exclusive) ──
-  const [singleOnlyDisease,   setSingleOnlyDisease]   = useState(false);
+  const [singleOnlyDisease, setSingleOnlyDisease] = useState(false);
   const [combinedOnlyDisease, setCombinedOnlyDisease] = useState(false);
   const [includeExtraDisease, setIncludeExtraDisease] = useState(false);
 
   // ── Medication filter modes (mutually exclusive) ──
-  const [singleOnlyMed,   setSingleOnlyMed]   = useState(false);
+  const [singleOnlyMed, setSingleOnlyMed] = useState(false);
   const [combinedOnlyMed, setCombinedOnlyMed] = useState(false);
   const [includeExtraMed, setIncludeExtraMed] = useState(false);
 
   // ── Summary pagination ──
-  const [disPage,  setDisPage]  = useState(1);
-  const [medPage,  setMedPage]  = useState(1);
-  const [symPage,  setSymPage]  = useState(1);
+  const [disPage, setDisPage] = useState(1);
+  const [medPage, setMedPage] = useState(1);
+  const [symPage, setSymPage] = useState(1);
   const SUMMARY_PAGE_SIZE = 5;
 
   const doctor_id = sessionStorage.getItem("doctor_id");
@@ -2611,21 +2668,21 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
   // ── Auto-reset disease modes when selection changes ──
   useEffect(() => {
     if (filterDis.length !== 1) setSingleOnlyDisease(false);
-    if (filterDis.length < 2)   { setCombinedOnlyDisease(false); setIncludeExtraDisease(false); }
+    if (filterDis.length < 2) { setCombinedOnlyDisease(false); setIncludeExtraDisease(false); }
   }, [filterDis]);
 
   // ── Auto-reset medication modes when selection changes ──
   useEffect(() => {
     if (filterMed.length !== 1) setSingleOnlyMed(false);
-    if (filterMed.length < 2)   { setCombinedOnlyMed(false); setIncludeExtraMed(false); }
+    if (filterMed.length < 2) { setCombinedOnlyMed(false); setIncludeExtraMed(false); }
   }, [filterMed]);
 
   // ── Reset summary pages on filter change ──
   useEffect(() => {
     setDisPage(1); setMedPage(1); setSymPage(1);
   }, [filterDis, filterMed, filterSymptoms, ageGroup, gender,
-      singleOnlyDisease, combinedOnlyDisease, includeExtraDisease,
-      singleOnlyMed, combinedOnlyMed, includeExtraMed]);
+    singleOnlyDisease, combinedOnlyDisease, includeExtraDisease,
+    singleOnlyMed, combinedOnlyMed, includeExtraMed]);
 
   // ── Main data fetch ──
   useEffect(() => {
@@ -2633,25 +2690,25 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
       setLoading(true);
       try {
         // Resolve disease mode
-        const diseaseSingleOnly   = filterDis.length === 1  && singleOnlyDisease;
-        const diseaseCombinedOnly = filterDis.length >= 2   && combinedOnlyDisease;
-        const diseaseIncludeExtra = filterDis.length >= 2   && includeExtraDisease;
+        const diseaseSingleOnly = filterDis.length === 1 && singleOnlyDisease;
+        const diseaseCombinedOnly = filterDis.length >= 2 && combinedOnlyDisease;
+        const diseaseIncludeExtra = filterDis.length >= 2 && includeExtraDisease;
 
         // Resolve medication mode
-        const medSingleOnly   = filterMed.length === 1  && singleOnlyMed;
-        const medCombinedOnly = filterMed.length >= 2   && combinedOnlyMed;
-        const medIncludeExtra = filterMed.length >= 2   && includeExtraMed;
+        const medSingleOnly = filterMed.length === 1 && singleOnlyMed;
+        const medCombinedOnly = filterMed.length >= 2 && combinedOnlyMed;
+        const medIncludeExtra = filterMed.length >= 2 && includeExtraMed;
 
         const res = await fetchCustomPatientTable({
           doctor_id,
-          gender:    gender   !== "All" ? genderMap[gender]   : undefined,
-          age_group: ageGroup !== "All" ? ageGroup            : undefined,
-          disease:   filterDis,
+          gender: gender !== "All" ? genderMap[gender] : undefined,
+          age_group: ageGroup !== "All" ? ageGroup : undefined,
+          disease: filterDis,
           medication: filterMed,
-          symptoms:  filterSymptoms,
+          symptoms: filterSymptoms,
           page,
-          limit:     rowsPerPage,
-          singleOnly:   diseaseSingleOnly  || medSingleOnly,
+          limit: rowsPerPage,
+          singleOnly: diseaseSingleOnly || medSingleOnly,
           combinedOnly: diseaseCombinedOnly || medCombinedOnly,
           includeExtra: diseaseIncludeExtra || medIncludeExtra,
         });
@@ -2696,8 +2753,8 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
   const patients = useMemo(() => {
     if (!apiData?.patients) return [];
     return apiData.patients.map(patient => ({
-      name:   patient.name   || "N/A",
-      age:    patient.age    || 0,
+      name: patient.name || "N/A",
+      age: patient.age || 0,
       gender: patient.gender || "Not Specified",
       conditions: extractDiseaseNames(patient.diseases),
       meds: Array.isArray(patient.medications)
@@ -2710,42 +2767,42 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
   }, [apiData]);
 
   // ── Summary data from API ──
-  const matched        = apiData?.matched_patients       || 0;
-  const ageDist        = apiData?.age_distribution       || [];
-  const genderDist     = apiData?.gender_distribution    || [];
-  const allDiseaseDist = apiData?.disease_distribution   || [];
-  const allMedDist     = apiData?.medication_distribution || [];
-  const allSymptomDist = apiData?.symptom_distribution   || [];
+  const matched = apiData?.matched_patients || 0;
+  const ageDist = apiData?.age_distribution || [];
+  const genderDist = apiData?.gender_distribution || [];
+  const allDiseaseDist = apiData?.disease_distribution || [];
+  const allMedDist = apiData?.medication_distribution || [];
+  const allSymptomDist = apiData?.symptom_distribution || [];
 
   // Client-side pagination for summary sections
-  const diseasePage  = allDiseaseDist.slice((disPage - 1) * SUMMARY_PAGE_SIZE, disPage * SUMMARY_PAGE_SIZE);
-  const medPageData  = allMedDist.slice((medPage - 1) * SUMMARY_PAGE_SIZE, medPage * SUMMARY_PAGE_SIZE);
-  const symPageData  = allSymptomDist.slice((symPage - 1) * SUMMARY_PAGE_SIZE, symPage * SUMMARY_PAGE_SIZE);
+  const diseasePage = allDiseaseDist.slice((disPage - 1) * SUMMARY_PAGE_SIZE, disPage * SUMMARY_PAGE_SIZE);
+  const medPageData = allMedDist.slice((medPage - 1) * SUMMARY_PAGE_SIZE, medPage * SUMMARY_PAGE_SIZE);
+  const symPageData = allSymptomDist.slice((symPage - 1) * SUMMARY_PAGE_SIZE, symPage * SUMMARY_PAGE_SIZE);
 
   // ── Table columns ──
   const cols = FIELD_DEFS.filter(f => selFields.includes(f.key)).map(f => ({
-    key:      f.key,
-    label:    f.label,
+    key: f.key,
+    label: f.label,
     sortable: true,
     render: f.isArr
       ? (r => {
-          const arr = r[f.key];
-          if (!arr || arr.length === 0) return <span style={{ color: "#94a3b8" }}>—</span>;
-          return f.teal ? <MChips arr={arr} /> : <DChips arr={arr} />;
-        })
+        const arr = r[f.key];
+        if (!arr || arr.length === 0) return <span style={{ color: "#94a3b8" }}>—</span>;
+        return f.teal ? <MChips arr={arr} /> : <DChips arr={arr} />;
+      })
       : f.key === "gender"
         ? (r => <span style={S.badge(r.gender)}>{r.gender}</span>)
         : f.key === "reportedHealth"
           ? (r => {
-              const symptomsArray = Array.isArray(r.reportedHealth)
-                ? r.reportedHealth.map(item =>
-                    typeof item === "string" ? item :
-                    (typeof item === "object" && item !== null ? item.symptom || "" : "")
-                  ).filter(Boolean)
-                : [];
-              if (symptomsArray.length === 0) return <span style={{ color: "#94a3b8" }}>—</span>;
-              return <DChips arr={symptomsArray} />;
-            })
+            const symptomsArray = Array.isArray(r.reportedHealth)
+              ? r.reportedHealth.map(item =>
+                typeof item === "string" ? item :
+                  (typeof item === "object" && item !== null ? item.symptom || "" : "")
+              ).filter(Boolean)
+              : [];
+            if (symptomsArray.length === 0) return <span style={{ color: "#94a3b8" }}>—</span>;
+            return <DChips arr={symptomsArray} />;
+          })
           : null,
   }));
 
@@ -2781,27 +2838,27 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
 
             {/* singleOnly — only when exactly 1 selected */}
             {filterDis.length === 1 && (
-              <label style={{ ...S.checkLabel(singleOnlyDisease), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+              <label style={{ ...S.checkLabel(singleOnlyDisease), marginTop: 8, display: "flex", alignItems: "center", gap: 7, lineHeight: "1.2" }}>
                 <input type="checkbox" checked={singleOnlyDisease}
                   onChange={e => setSingleOnlyDisease(e.target.checked)}
                   style={{ accentColor: ACCENT }} />
-                Only patients with this disease
+                Patients only on this disease
               </label>
             )}
 
             {/* combinedOnly + includeExtra — only when 2+ selected */}
             {filterDis.length >= 2 && (
               <>
-                <label style={{ ...S.checkLabel(combinedOnlyDisease), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+                <label style={{ ...S.checkLabel(combinedOnlyDisease), marginTop: 8, display: "flex", alignItems: "center", gap: 7, lineHeight: "1.2" }}>
                   <input type="checkbox" checked={combinedOnlyDisease}
                     onChange={e => {
                       setCombinedOnlyDisease(e.target.checked);
                       if (e.target.checked) setIncludeExtraDisease(false);
                     }}
                     style={{ accentColor: ACCENT }} />
-                  Patients with ONLY these diseases
+                  Patients only on this disease
                 </label>
-                <label style={{ ...S.checkLabel(includeExtraDisease), marginTop: 6, display: "flex", alignItems: "center", gap: 7 }}>
+                <label style={{ ...S.checkLabel(includeExtraDisease), marginTop: 6, display: "flex", alignItems: "center", gap: 7, lineHeight: "1.2" }}>
                   <input type="checkbox" checked={includeExtraDisease}
                     onChange={e => {
                       setIncludeExtraDisease(e.target.checked);
@@ -2821,27 +2878,27 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
 
             {/* singleOnly — only when exactly 1 selected */}
             {filterMed.length === 1 && (
-              <label style={{ ...S.checkLabel(singleOnlyMed), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+              <label style={{ ...S.checkLabel(singleOnlyMed), marginTop: 8, display: "flex", alignItems: "center", gap: 7, lineHeight: "1.2" }}>
                 <input type="checkbox" checked={singleOnlyMed}
                   onChange={e => setSingleOnlyMed(e.target.checked)}
                   style={{ accentColor: ACCENT }} />
-                Only patients with this medication
+                Patients only on this medication
               </label>
             )}
 
             {/* combinedOnly + includeExtra — only when 2+ selected */}
             {filterMed.length >= 2 && (
               <>
-                <label style={{ ...S.checkLabel(combinedOnlyMed), marginTop: 8, display: "flex", alignItems: "center", gap: 7 }}>
+                <label style={{ ...S.checkLabel(combinedOnlyMed), marginTop: 8, display: "flex", alignItems: "center", gap: 7, lineHeight: "1.2" }}>
                   <input type="checkbox" checked={combinedOnlyMed}
                     onChange={e => {
                       setCombinedOnlyMed(e.target.checked);
                       if (e.target.checked) setIncludeExtraMed(false);
                     }}
                     style={{ accentColor: ACCENT }} />
-                  Patients on ONLY these medications
+                  Patients only on this medication
                 </label>
-                <label style={{ ...S.checkLabel(includeExtraMed), marginTop: 6, display: "flex", alignItems: "center", gap: 7 }}>
+                <label style={{ ...S.checkLabel(includeExtraMed), marginTop: 6, display: "flex", alignItems: "center", gap: 7, lineHeight: "1.2" }}>
                   <input type="checkbox" checked={includeExtraMed}
                     onChange={e => {
                       setIncludeExtraMed(e.target.checked);
@@ -2953,7 +3010,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
                     page={disPage}
                     rowsPerPage={SUMMARY_PAGE_SIZE}
                     onPageChange={setDisPage}
-                    onRowsPerPageChange={() => {}}
+                    onRowsPerPageChange={() => { }}
                     hideRowsPerPage={true}
                   />
                 </div>
@@ -2977,7 +3034,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
                     page={medPage}
                     rowsPerPage={SUMMARY_PAGE_SIZE}
                     onPageChange={setMedPage}
-                    onRowsPerPageChange={() => {}}
+                    onRowsPerPageChange={() => { }}
                     hideRowsPerPage={true}
                   />
                 </div>
@@ -3005,7 +3062,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
                 page={symPage}
                 rowsPerPage={SUMMARY_PAGE_SIZE}
                 onPageChange={setSymPage}
-                onRowsPerPageChange={() => {}}
+                onRowsPerPageChange={() => { }}
                 hideRowsPerPage={true}
               />
             </div>
