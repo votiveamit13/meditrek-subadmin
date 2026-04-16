@@ -15,7 +15,9 @@ const MeasurementChart = ({ data, type }) => {
             case "ppbgs": return data.filter(i => i.ppbgs != null);
             case "weight": return data.filter(i => i.weight != null);
             case "temp": return data.filter(i => i.temperature != null);
-            case "symptom": return data.filter(i => i.symptom != null && i.symptom > 0);
+            // case "symptom": return data.filter(i => i.symptom != null && i.symptom > 0);
+            case "symptom": 
+  return data.filter(i => i.symptom_range != null);
             default: return data;
         }
     };
@@ -105,8 +107,10 @@ const MeasurementChart = ({ data, type }) => {
                     return [buildPureScatterSeries("PPBGS", r => r.ppbgs)];
                 case "temp":
                     return [buildPureScatterSeries("Temperature", r => r.temperature)];
+                // case "symptom":
+                //     return [buildPureScatterSeries("Symptom", r => r.symptom)];
                 case "symptom":
-                    return [buildPureScatterSeries("Symptom", r => r.symptom)];
+  return [buildPureScatterSeries("Severity", r => r.symptom_range)];
                 default:
                     return [];
             }
