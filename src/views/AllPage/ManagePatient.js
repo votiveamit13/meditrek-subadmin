@@ -1272,7 +1272,7 @@ const chartPageData = [...paginatedData].reverse();
                         { label: "Date", key: "date" },
                         { label: "Time", key: "time" },
                         { label: "Symptom Name", key: "symptomname" },
-                        { label: "Symptom Score", key: "symptom" },
+                        // { label: "Symptom Score", key: "symptom" },
                         { label: "Severity", key: "symptom_range" }
                       ]}
                       data={baseMeasurement}
