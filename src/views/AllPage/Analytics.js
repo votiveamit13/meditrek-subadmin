@@ -220,7 +220,7 @@ function StatCard({ label, value, sub, accent, highlightSub }) {
             ...S.statSub,
             fontSize: highlightSub ? 14 : 11,
             fontWeight: highlightSub ? 600 : 400,
-            color: highlightSub ? "#f59e0b" : "#b0b8c9",
+            color: highlightSub ? "#000000" : "#b0b8c9",
           }}
         >
           {sub}
