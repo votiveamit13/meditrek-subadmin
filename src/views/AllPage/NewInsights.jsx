@@ -2,12 +2,24 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Base_Url, IMAGE_PATH } from "../../config";
 import CustomPagination from "component/common/Pagination";
+import { useNavigate } from "react-router";
 
 function NewInsights() {
+    const navigate = useNavigate();
     const [insights, setInsights] = useState([]);
     const [searchQuery, setSearchQuery] = useState("");
     const [page, setPage] = useState(1);
     const [rowsPerPage, setRowsPerPage] = useState(9);
+
+    useEffect(() => {
+  axios.get(`${Base_Url}get-settings`).then((res) => {
+    if (res.data.success && res.data.data.insights == 0) {
+      navigate("/dashboard");
+    } else {
+      getInsights();
+    }
+  });
+}, []);
 
     const getInsights = async () => {
         axios
@@ -23,9 +35,9 @@ function NewInsights() {
             });
     };
 
-    useEffect(() => {
-        getInsights();
-    }, []);
+    // useEffect(() => {
+    //     getInsights();
+    // }, []);
 
     const filtered = insights.filter(
         (item) =>

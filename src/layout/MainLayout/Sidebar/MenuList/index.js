@@ -20,7 +20,8 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import ContactSupportIcon from "@mui/icons-material/ContactSupport";
 import SignalCellularAltIcon from '@mui/icons-material/SignalCellularAlt';
 
-import { APP_PREFIX_PATH } from "../../../../../src/config";
+import { APP_PREFIX_PATH, Base_Url } from "../../../../../src/config";
+import axios from "axios";
 
 const menu = [
   {
@@ -70,6 +71,7 @@ const bottomMenu = [
 ];
 
 const MenuList = ({ collapsed }) => {
+  const [settings, setSettings] = useState({});
   const location = useLocation();
   const [openMenu, setOpenMenu] = useState({});
   const isActive = (url) => {
@@ -86,6 +88,14 @@ const MenuList = ({ collapsed }) => {
     if (!children) return false;
     return children.some((child) => location.pathname === child.url);
   };
+
+  React.useEffect(() => {
+  axios.get(`${Base_Url}get-settings`).then((res) => {
+    if (res.data.success) {
+      setSettings(res.data.data);
+    }
+  });
+}, []);
 
   React.useEffect(() => {
     const newOpenMenu = {};
@@ -116,7 +126,14 @@ const MenuList = ({ collapsed }) => {
     >
       {/* TOP MENU */}
       <List>
-        {menu.map((item) => (
+        {menu
+  .filter((item) => {
+    if (item.title === "New Insights" && settings.insights == 0) {
+      return false;
+    }
+    return true;
+  })
+  .map((item) => (
           <React.Fragment key={item.title}>
             <ListItemButton
               component={item.url ? Link : "div"}
