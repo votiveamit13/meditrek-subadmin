@@ -50,8 +50,8 @@ function ViewPatient() {
   const [complianceData, setComplianceData] = React.useState([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const [switchLoading, setSwitchLoading] = useState(false);
-  const [patientPage, setPatientPage] = useState(1);
-  const patientsPerPage = 10;
+  // const [patientPage, setPatientPage] = useState(1);
+  // const patientsPerPage = 10;
   const [measurementType, setMeasurementType] = useState("bp");
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [notificationTab, setNotificationTab] = useState("all");
@@ -829,15 +829,16 @@ const exportReportsToExcel = () => {
     }
   };
 
-  const indexOfLastPatient = patientPage * patientsPerPage;
-  const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
+  // const indexOfLastPatient = patientPage * patientsPerPage;
+  // const indexOfFirstPatient = indexOfLastPatient - patientsPerPage;
 
-  const currentPatients = patients.slice(
-    indexOfFirstPatient,
-    indexOfLastPatient
-  );
+  // const currentPatients = patients.slice(
+  //   indexOfFirstPatient,
+  //   indexOfLastPatient
+  // );
 
-  const totalPatientPages = Math.ceil(patients.length / patientsPerPage);
+  // const totalPatientPages = Math.ceil(patients.length / patientsPerPage);
+  const currentPatients = patients;
   const renderTable = (data, columns, currentData, totalPages = false) => {
     return (
       <>
@@ -1543,9 +1544,12 @@ const chartPageData = [...paginatedData].reverse();
                   </button>
                 </div>
                 <div style={{
-                  height: "calc(100vh - 150px)",
-                  width: "100%",
-                  overflowY: "auto !important"
+                  height: "100%",
+                  maxHeight: "520px",
+                  overflowY: "auto",
+                  overflowX: "hidden",
+                  scrollbarWidth: "thin",
+    scrollbarColor: "#1ddec4 #f1f5f9"
                 }}>
                   {currentPatients.map((patient) => {
                     const isActive = patient.user_id == selectedPatientId;
@@ -1610,14 +1614,14 @@ const chartPageData = [...paginatedData].reverse();
                     );
                   })}
                 </div>
-                <div className="d-flex justify-content-center mt-4">
+                {/* <div className="d-flex justify-content-center mt-4">
                   <Pagination
                     size="sm"
                     count={totalPatientPages}
                     page={patientPage}
                     onChange={(e, value) => setPatientPage(value)}
                   />
-                </div>
+                </div> */}
               </div>
             </div>
             <div className="col-md-9 d-flex flex-column" >
