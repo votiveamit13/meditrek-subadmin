@@ -198,8 +198,8 @@ const MeasurementChart = ({ data, type }) => {
         },
 
         yaxis: {
-            min,
-            max,
+            min: type === "symptom" ? 0 : min,
+  max: type === "symptom" ? 10 : max,
             labels: {
                 style: { fontSize: "10px", fontWeight: 400, colors: "#64748b" },
                 formatter: val => Math.round(val),
@@ -277,13 +277,30 @@ const MeasurementChart = ({ data, type }) => {
                             : "";
 
                 if (isScatterSeries) {
-                    const row = filteredData[dataPointIndex] ?? {};
-                    const val = series[seriesIndex][dataPointIndex];
-                    return `<div style="padding:8px 12px;font-size:12px;line-height:1.7;font-family:inherit">
-                        <div style="color:#64748b">${row.date ?? ""} &nbsp;${row.time ?? ""}</div>
-                        <div style="font-weight:700;color:#1e293b">${val ?? "-"}${unit}</div>
-                    </div>`;
-                }
+  const row = filteredData[dataPointIndex] ?? {};
+  const val = series[seriesIndex][dataPointIndex];
+
+  return `<div style="padding:8px 12px;font-size:12px;line-height:1.7;font-family:inherit">
+      
+      <div style="color:#64748b">
+        ${row.date ?? ""} &nbsp;${row.time ?? ""}
+      </div>
+
+      ${
+        type === "symptom"
+          ? `<div style="font-weight:600;color:#0f172a">
+               ${row.symptomname ?? "Symptom"}
+             </div>
+             <div style="font-weight:700;color:#1e293b">
+               Severity: ${row.symptom_range ?? "-"} / 10
+             </div>`
+          : `<div style="font-weight:700;color:#1e293b">
+               ${val ?? "-"}${unit}
+             </div>`
+      }
+
+  </div>`;
+}
 
                 const val = series[seriesIndex][dataPointIndex];
                 return `<div style="padding:8px 12px;font-size:12px;line-height:1.7;font-family:inherit">
