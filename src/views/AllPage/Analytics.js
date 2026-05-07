@@ -1480,78 +1480,84 @@ function DiseaseMedication({ diseases, medicines }) {
         )}
       </div>
 
-      {/* ── MEDICATION DISTRIBUTION TABLE ── */}
-      <div style={S.card}>
-        <p style={S.cardTitle}>
-          Medication Distribution
-          <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
-            among {stats?.matched_patients || 0} matched patients
-            <ExportButton
-              data={filteredSummaryData}
-              fileName="Medication_Distribution"
-              mapFn={(r, i) => ({
-                "S. No.": i + 1,
-                "Medication": r.medicine_name,
-                "Patients Count": r.patient_count,
-                "% of Matched": r.percent_matched,
-                "% of All Patients": r.percent_total,
-              })}
-            />
-          </span>
-        </p>
+      {/* ── DRUG DISTRIBUTION BAR CHART ── */}
+<div style={S.card}>
+  <p style={S.cardTitle}>
+    Drug Distribution
+    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
+      among {stats?.matched_patients || 0} matched patients
+      <ExportButton
+        data={filteredSummaryData}
+        fileName="Drug_Distribution"
+        mapFn={(r, i) => ({
+          "S. No.": i + 1,
+          "Drug": r.medicine_name,
+          "Patients Count": r.patient_count,
+          "% of Matched": r.percent_matched,
+          "% of All Patients": r.percent_total,
+        })}
+      />
+    </span>
+  </p>
 
-        {loadingTable ? (
-          <LoadingPlaceholder />
-        ) : filteredSummaryData.length === 0 ? (
-          <div style={S.noData}>No data found</div>
+  {loadingTable ? (
+    <LoadingPlaceholder />
+  ) : filteredSummaryData.length === 0 ? (
+    <div style={S.noData}>No data found</div>
+  ) : (
+    <div style={S.barWrap}>
+      {filteredSummaryData.map((d, i) => (
+        <HBar
+          key={i}
+          label={d.medicine_name}
+          value={d.patient_count}
+          total={stats?.matched_patients || 0}
+          pctVal={parseFloat(d.percent_matched)}
+        />
+      ))}
+    </div>
+  )}
+
+  <div style={{ marginTop: 14 }}>
+    <CustomPagination
+      count={stats?.matched_patients || 0}
+      page={page}
+      rowsPerPage={rowsPerPage}
+      onPageChange={newPage => setPage(newPage)}
+      onRowsPerPageChange={val => { setRowsPerPage(val); setPage(1); }}
+      hideRowsPerPage={true}
+    />
+  </div>
+
+  {/* Drilldown patients — unchanged */}
+  <div style={{ marginTop: 14 }}>
+    {stats?.matched_patients > 0 && (
+      <button style={S.expandBtn} onClick={() => setShowPatients(prev => !prev)}>
+        {showPatients ? "▲ Collapse patients" : "▼ Expand patients"}
+      </button>
+    )}
+    {showPatients && (
+      <>
+        <p style={{ fontWeight: 500, margin: "12px 0 8px" }}>
+          Total: {stats?.matched_patients || 0} patients
+        </p>
+        {drilldownPatients.length === 0 ? (
+          <div style={S.noData}>No patients on this page</div>
         ) : (
           <DataTable
             cols={[
-              {
-                key: "medicine_name",
-                label: "Medication",
-                sortable: true,
-                render: r => <Chip label={r.medicine_name} teal={true} />
-              },
-              {
-                key: "patient_count",
-                label: "Patients",
-                sortable: true,
-                render: r => (
-                  <span style={{ fontWeight: 700, color: ACCENT }}>
-                    {r.patient_count}
-                  </span>
-                )
-              },
-              {
-                key: "percent_matched",
-                label: "% of Matched",
-                sortable: true,
-                render: r => <span>{r.percent_matched}%</span>
-              },
-              {
-                key: "percent_total",
-                label: "% of All Patients",
-                sortable: true,
-                render: r => <span style={{ color: "#94a3b8" }}>{r.percent_total}%</span>
-              },
-              {
-                key: "bar",
-                label: "",
-                render: r => (
-                  <div style={{ ...S.barTrack, minWidth: 80 }}>
-                    <div style={S.barFill(parseFloat(r.percent_matched))} />
-                  </div>
-                )
-              }
+              { key: "name", label: "Patient Name", sortable: true, render: r => <span>{r.name}</span> },
+              { key: "age", label: "Age", sortable: true, render: r => <span>{r.age ?? "—"}</span> },
+              { key: "gender", label: "Gender", sortable: true, render: r => <Chip label={r.gender || "Not Specified"} /> },
+              { key: "diseases", label: "Diseases", render: r => (r.diseases || []).length > 0 ? r.diseases.map(d => <Chip key={d} label={d} />) : <span style={{ color: "#94a3b8" }}>—</span> },
+              { key: "medications", label: "Medications", render: r => (r.medications || []).length > 0 ? r.medications.map(m => <Chip key={m} label={m} teal />) : <span style={{ color: "#94a3b8" }}>—</span> },
             ]}
-            rows={filteredSummaryData}
+            rows={drilldownPatients}
           />
         )}
-
-        <div style={{ marginTop: 14 }}>
+        <div style={{ marginTop: 10 }}>
           <CustomPagination
-            count={stats?.matched_patients || 0} // ✅ total matched count for correct page math
+            count={stats?.matched_patients || 0}
             page={page}
             rowsPerPage={rowsPerPage}
             onPageChange={newPage => setPage(newPage)}
@@ -1559,83 +1565,10 @@ function DiseaseMedication({ diseases, medicines }) {
             hideRowsPerPage={true}
           />
         </div>
-
-        {/* ── DRILLDOWN: directly from stats.drilldown — NO separate API call ── */}
-        <div style={{ marginTop: 14 }}>
-          {stats?.matched_patients > 0 && (
-            <button
-              style={S.expandBtn}
-              onClick={() => setShowPatients(prev => !prev)}
-            >
-              {showPatients ? "▲ Collapse patients" : "▼ Expand patients"}
-            </button>
-          )}
-
-          {showPatients && (
-            <>
-              <p style={{ fontWeight: 500, margin: "12px 0 8px" }}>
-                Total: {stats?.matched_patients || 0} patients
-              </p>
-
-              {drilldownPatients.length === 0 ? (
-                <div style={S.noData}>No patients on this page</div>
-              ) : (
-                <DataTable
-                  cols={[
-                    {
-                      key: "name",
-                      label: "Patient Name",
-                      sortable: true,
-                      render: r => <span>{r.name}</span>
-                    },
-                    {
-                      key: "age",
-                      label: "Age",
-                      sortable: true,
-                      render: r => <span>{r.age ?? "—"}</span>
-                    },
-                    {
-                      key: "gender",
-                      label: "Gender",
-                      sortable: true,
-                      render: r => <Chip label={r.gender || "Not Specified"} />
-                    },
-                    {
-                      key: "diseases",
-                      label: "Diseases",
-                      render: r =>
-                        (r.diseases || []).length > 0
-                          ? r.diseases.map(d => <Chip key={d} label={d} />)
-                          : <span style={{ color: "#94a3b8" }}>—</span>
-                    },
-                    {
-                      key: "medications",
-                      label: "Medications",
-                      render: r =>
-                        (r.medications || []).length > 0
-                          ? r.medications.map(m => <Chip key={m} label={m} teal />)
-                          : <span style={{ color: "#94a3b8" }}>—</span>
-                    }
-                  ]}
-                  rows={drilldownPatients}
-                />
-              )}
-
-              {/* ✅ Drilldown shares same page/rowsPerPage as summary */}
-              <div style={{ marginTop: 10 }}>
-                <CustomPagination
-                  count={stats?.matched_patients || 0}
-                  page={page}
-                  rowsPerPage={rowsPerPage}
-                  onPageChange={newPage => setPage(newPage)}
-                  onRowsPerPageChange={val => { setRowsPerPage(val); setPage(1); }}
-                  hideRowsPerPage={true}
-                />
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+      </>
+    )}
+  </div>
+</div>
     </div>
   );
 }
@@ -1941,7 +1874,7 @@ function MedicationDemo({ medicines }) {
         )}
       </div>
 
-      <div style={S.grid2}>
+      {/* <div style={S.grid2}> */}
         {/* <div style={S.card}>
           <p style={S.cardTitle}>Medication Distribution <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of {matchedPatients} matched patients</span></p>
           {summaryLoading ? (
@@ -1964,53 +1897,72 @@ function MedicationDemo({ medicines }) {
 
 
         <div style={S.card}>
-          <p style={S.cardTitle}>
-            Drug Distribution
-            <span style={{
-              fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex",
-              alignItems: "end"
-            }}>
-              among {matchedPatients} matched patients
-              <ExportButton
-                data={medDist}
-                fileName="Drug_Distribution"
-                mapFn={(r, i) => ({
-                  "S. No.": i + 1,
-                  "Drug": r.label,
-                  "Patients Count": r.value,
-                  "% of Matched": r.pct,
-                })}
-              />
-            </span>
-          </p>
-          {summaryLoading ? (
-            <LoadingPlaceholder />
-          ) : (
-            <div style={S.barWrap}>
-              {medDist.map((d, i) => (
-                <HBar
-                  key={i}
-                  label={d.label}
-                  value={d.value}
-                  total={matchedPatients}
-                  pctVal={d.pct}
-                />
-              ))}
+  <p style={S.cardTitle}>
+    Medication Distribution
+    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
+      among {matchedPatients} matched patients
+      <ExportButton
+        data={medDist}
+        fileName="Medication_Distribution"
+        mapFn={(r, i) => ({
+          "S. No.": i + 1,
+          "Medication": r.label,
+          "Patients Count": r.value,
+          "% of Matched": r.pct,
+        })}
+      />
+    </span>
+  </p>
+
+  {summaryLoading ? (
+    <LoadingPlaceholder />
+  ) : medDist.length === 0 ? (
+    <div style={S.noData}>No data found</div>
+  ) : (
+    <DataTable
+      cols={[
+        {
+          key: "label",
+          label: "Medication",
+          sortable: true,
+          render: r => <Chip label={r.label} teal={true} />
+        },
+        {
+          key: "value",
+          label: "Patients",
+          sortable: true,
+          render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.value}</span>
+        },
+        {
+          key: "pct",
+          label: "% of Matched",
+          sortable: true,
+          render: r => <span>{parseFloat(r.pct).toFixed(1)}%</span>
+        },
+        {
+          key: "bar",
+          label: "",
+          render: r => (
+            <div style={{ ...S.barTrack, minWidth: 80 }}>
+              <div style={S.barFill(parseFloat(r.pct))} />
             </div>
-          )}
-          <CustomPagination
-            count={patientsData?.summary_total || 0}
-            page={summaryPage}
-            rowsPerPage={summaryRowsPerPage}
-            onPageChange={(newPage) => setSummaryPage(newPage)}
-            onRowsPerPageChange={(val) => {
-              setSummaryRowsPerPage(val);
-              setSummaryPage(1);
-            }}
-            hideRowsPerPage={true}
-          />
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          )
+        }
+      ]}
+      rows={medDist}
+    />
+  )}
+
+  <CustomPagination
+    count={patientsData?.summary_total || 0}
+    page={summaryPage}
+    rowsPerPage={summaryRowsPerPage}
+    onPageChange={(newPage) => setSummaryPage(newPage)}
+    onRowsPerPageChange={(val) => { setSummaryRowsPerPage(val); setSummaryPage(1); }}
+    hideRowsPerPage={true}
+  />
+</div>
+         <div style={S.grid2}>
           {ageDist.length > 0 && (
             <div style={S.card}>
               <p style={S.cardTitle}>Age Breakdown <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of matched</span></p>
@@ -2032,7 +1984,7 @@ function MedicationDemo({ medicines }) {
             </div>
           )}
         </div>
-      </div>
+      {/* </div> */}
 
       <div style={S.card}>
         <p style={S.cardTitle}>Patient Table</p>
