@@ -1412,7 +1412,7 @@ function DiseaseMedication({ diseases, medicines }) {
                 onChange={e => { setCombined(e.target.checked); if (e.target.checked) setIncludeExtra(false); setPage(1); }}
                 style={{ accentColor: ACCENT }}
               />
-              Combined — patients must have ALL selected diseases
+              Combined - patients must have all and only selected diseases
             </label>
             <label style={S.checkLabel(includeExtra)}>
               <input
@@ -1421,7 +1421,7 @@ function DiseaseMedication({ diseases, medicines }) {
                 onChange={e => { setIncludeExtra(e.target.checked); if (e.target.checked) setCombined(false); setPage(1); }}
                 style={{ accentColor: ACCENT }}
               />
-              Include extra diseases (patients can have more than selected)
+              Combined (+) - Patients must have all selected medications and may have additional ones.
             </label>
           </>
         )}
@@ -1480,7 +1480,7 @@ function DiseaseMedication({ diseases, medicines }) {
         )}
       </div>
 
-      {/* ── DRUG DISTRIBUTION BAR CHART ── */}
+{/* ── DRUG DISTRIBUTION BAR CHART ── */}
 <div style={S.card}>
   <p style={S.cardTitle}>
     Drug Distribution
@@ -1567,6 +1567,76 @@ function DiseaseMedication({ diseases, medicines }) {
         </div>
       </>
     )}
+  </div>
+</div>
+
+{/* ── MEDICATION DISTRIBUTION TABLE ── */}
+<div style={S.card}>
+  <p style={S.cardTitle}>
+    Medication Distribution
+    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
+      among {stats?.matched_patients || 0} matched patients
+      <ExportButton
+        data={filteredSummaryData}
+        fileName="Medication_Distribution"
+        mapFn={(r, i) => ({
+          "S. No.": i + 1,
+          "Medication": r.medicine_name,
+          "Patients Count": r.patient_count,
+          "% of Matched": r.percent_matched,
+        })}
+      />
+    </span>
+  </p>
+
+  {loadingTable ? (
+    <LoadingPlaceholder />
+  ) : filteredSummaryData.length === 0 ? (
+    <div style={S.noData}>No data found</div>
+  ) : (
+    <DataTable
+      cols={[
+        {
+          key: "medicine_name",
+          label: "Medication",
+          sortable: true,
+          render: r => <Chip label={r.medicine_name} teal={true} />
+        },
+        {
+          key: "patient_count",
+          label: "Patients",
+          sortable: true,
+          render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.patient_count}</span>
+        },
+        {
+          key: "percent_matched",
+          label: "% of Matched",
+          sortable: true,
+          render: r => <span>{parseFloat(r.percent_matched).toFixed(1)}%</span>
+        },
+        {
+          key: "bar",
+          label: "",
+          render: r => (
+            <div style={{ ...S.barTrack, minWidth: 80 }}>
+              <div style={S.barFill(parseFloat(r.percent_matched))} />
+            </div>
+          )
+        }
+      ]}
+      rows={filteredSummaryData}
+    />
+  )}
+
+  <div style={{ marginTop: 14 }}>
+    <CustomPagination
+      count={stats?.matched_patients || 0}
+      page={page}
+      rowsPerPage={rowsPerPage}
+      onPageChange={newPage => setPage(newPage)}
+      onRowsPerPageChange={val => { setRowsPerPage(val); setPage(1); }}
+      hideRowsPerPage={true}
+    />
   </div>
 </div>
     </div>
@@ -1672,15 +1742,15 @@ function MedicationDemo({ medicines }) {
   const percentage = patientsData?.percentage || "0.00%";
   const totalMedications = patientsData?.selected_medication_count || 0;
 
-  const medDist = useMemo(() => {
-    if (!summaryData) return [];
+  // const medDist = useMemo(() => {
+  //   if (!summaryData) return [];
 
-    return summaryData.map(item => ({
-      label: item.medicine_name,
-      value: item.patient_count,
-      pct: parseFloat(item.percentage),
-    }));
-  }, [summaryData]);
+  //   return summaryData.map(item => ({
+  //     label: item.medicine_name,
+  //     value: item.patient_count,
+  //     pct: parseFloat(item.percentage),
+  //   }));
+  // }, [summaryData]);
 
   const demographics = patientsData?.demographics || [];
   // const ageDist = useMemo(() => {
@@ -1811,7 +1881,7 @@ function MedicationDemo({ medicines }) {
                 onChange={(e) => handleCombinedChange(e.target.checked)}
                 style={{ accentColor: ACCENT }}
               />
-              Combined — patients must have ALL selected medications (exact match)
+              Combined - patients must have all and only selected diseases
             </label>
 
             <label style={S.checkLabel(includeExtra)}>
@@ -1821,7 +1891,7 @@ function MedicationDemo({ medicines }) {
                 onChange={(e) => handleIncludeExtraChange(e.target.checked)}
                 style={{ accentColor: ACCENT }}
               />
-              Include patients with these + extra medications
+              Combined (+) - Patients must have all selected medications and may have additional ones.
             </label>
           </div>
         )}
@@ -1896,19 +1966,20 @@ function MedicationDemo({ medicines }) {
         </div> */}
 
 
-        <div style={S.card}>
+{/* ── DRUG DISTRIBUTION TABLE ── */}
+<div style={S.card}>
   <p style={S.cardTitle}>
-    Medication Distribution
+    Drug Distribution
     <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
       among {matchedPatients} matched patients
       <ExportButton
-        data={medDist}
-        fileName="Medication_Distribution"
+        data={summaryData}
+        fileName="Drug_Distribution"
         mapFn={(r, i) => ({
           "S. No.": i + 1,
-          "Medication": r.label,
-          "Patients Count": r.value,
-          "% of Matched": r.pct,
+          "Medication": r.medicine_name,
+          "Patients Count": r.patient_count,
+          "% of Matched": r.percentage,
         })}
       />
     </span>
@@ -1916,40 +1987,40 @@ function MedicationDemo({ medicines }) {
 
   {summaryLoading ? (
     <LoadingPlaceholder />
-  ) : medDist.length === 0 ? (
+  ) : summaryData.length === 0 ? (
     <div style={S.noData}>No data found</div>
   ) : (
     <DataTable
       cols={[
         {
-          key: "label",
+          key: "medicine_name",
           label: "Medication",
           sortable: true,
-          render: r => <Chip label={r.label} teal={true} />
+          render: r => <Chip label={r.medicine_name} teal={true} />
         },
         {
-          key: "value",
+          key: "patient_count",
           label: "Patients",
           sortable: true,
-          render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.value}</span>
+          render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.patient_count}</span>
         },
         {
-          key: "pct",
+          key: "percentage",
           label: "% of Matched",
           sortable: true,
-          render: r => <span>{parseFloat(r.pct).toFixed(1)}%</span>
+          render: r => <span>{parseFloat(r.percentage).toFixed(1)}%</span>
         },
         {
           key: "bar",
           label: "",
           render: r => (
             <div style={{ ...S.barTrack, minWidth: 80 }}>
-              <div style={S.barFill(parseFloat(r.pct))} />
+              <div style={S.barFill(parseFloat(r.percentage))} />
             </div>
           )
         }
       ]}
-      rows={medDist}
+      rows={summaryData}
     />
   )}
 
