@@ -185,33 +185,36 @@ export const fetchDiseaseMedicationStats = async ({
   includeExtra,
   exclude_medication,
   medication_name,
-  page,
-  limit
+  page = 1,
+  limit = 10,
+  therapy_page = 1,
+  therapy_limit = 10,
+  drilldown_page = 1,
+  drilldown_limit = 10,
 }) => {
   try {
-    const res = await fetch(
-      `${Base_Url}subadmin-DiseasesMedicine`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          doctor_id,
-          disease: disease || [],
-          medication: medication || [],
-          age_group,
-          gender,
-          singleOnly,
-          combinedOnly,
-          includeExtra, 
-          exclude_medication, 
-          medication_name,
-          page,
-          limit
-        }),
-      }
-    );
+    const res = await fetch(`${Base_Url}subadmin-DiseasesMedicine`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        doctor_id,
+        disease: disease || [],
+        medication: medication || [],
+        age_group,
+        gender,
+        singleOnly,
+        combinedOnly,
+        includeExtra,
+        exclude_medication,
+        medication_name,
+        page,
+        limit,
+        therapy_page,
+        therapy_limit,
+        drilldown_page,
+        drilldown_limit,
+      }),
+    });
 
     const data = await res.json();
     return data.success ? data : null;
@@ -316,6 +319,8 @@ export const fetchMedicationFull = async ({
   search,
   summary_page = 1,
   summary_limit = 10,
+  therapy_page = 1,
+  therapy_limit = 10,
   patient_page = 1,
   patient_limit = 10,
   singleOnly = false,
@@ -323,33 +328,29 @@ export const fetchMedicationFull = async ({
   includeExtra = false
 }) => {
   try {
-    const res = await fetch(
-      `${Base_Url}subadmin-medication-full`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          doctor_id,
-          medication: medication || [],
-          diseases: diseases || [],
-          age_group,
-          gender,
-          search,
-          summary_page,
-          summary_limit,
-          patient_page,
-          patient_limit,
-          singleOnly,
-          combinedOnly,
-          includeExtra
-        }),
-      }
-    );
+    const res = await fetch(`${Base_Url}subadmin-medication-full`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        doctor_id,
+        medication: medication || [],
+        diseases: diseases || [],
+        age_group,
+        gender,
+        search,
+        summary_page,
+        summary_limit,
+        therapy_page,
+        therapy_limit,
+        patient_page,
+        patient_limit,
+        singleOnly,
+        combinedOnly,
+        includeExtra
+      }),
+    });
 
     const data = await res.json();
-
     return data.success ? data : null;
   } catch (err) {
     console.error("Medication Full API Error:", err);

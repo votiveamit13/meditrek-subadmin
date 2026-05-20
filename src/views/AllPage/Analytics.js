@@ -1124,7 +1124,7 @@ function DiseaseDemo({ diseases }) {
                 }}
                 style={{ accentColor: ACCENT }}
               />
-              Combined diseases only (patients with ALL selected diseases)
+              Combined - patients must have all and only selected diseases
             </label>
 
             {/* ✅ New includeExtra checkbox */}
@@ -1138,7 +1138,7 @@ function DiseaseDemo({ diseases }) {
                 }}
                 style={{ accentColor: ACCENT }}
               />
-              Include extra diseases (patients can have more than selected)
+              Combined (+) - Patients must have all selected disease and may have additional ones.
             </label>
           </>
         )}
@@ -1300,79 +1300,179 @@ function DiseaseMedication({ diseases, medicines }) {
   const [includeExtra, setIncludeExtra] = useState(false);
   const [excludeMeds, setExcludeMeds] = useState([]);
   const [singleOnly, setSingleOnly] = useState(false);
-  const [stats, setStats] = useState(null);
-  const [loadingStats, setLoadingStats] = useState(false);
-  const [loadingTable, setLoadingTable] = useState(false);
-  const [showPatients, setShowPatients] = useState(false); // ✅ replaces ExpandPanel toggle
+  const [showPatients, setShowPatients] = useState(false);
 
-  const [page, setPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  // ── Separate state for each section ──
+  const [statsBase, setStatsBase] = useState(null);       // matched_patients, total, top_drug, percentage
+  const [drugData, setDrugData] = useState([]);
+  const [drugTotal, setDrugTotal] = useState(0);
+  const [therapyData, setTherapyData] = useState([]);
+  const [therapyTotal, setTherapyTotal] = useState(0);
+  const [drilldownData, setDrilldownData] = useState([]);
+
+  // ── Separate loading states ──
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [loadingDrug, setLoadingDrug] = useState(false);
+  const [loadingTherapy, setLoadingTherapy] = useState(false);
+  const [loadingDrilldown, setLoadingDrilldown] = useState(false);
+
+  // ── Separate pagination ──
+  const [drugPage, setDrugPage] = useState(1);
+  const [drugRowsPerPage, setDrugRowsPerPage] = useState(10);
+
+  const [therapyPage, setTherapyPage] = useState(1);
+  const [therapyRowsPerPage, setTherapyRowsPerPage] = useState(10);
+
+  const [drilldownPage, setDrilldownPage] = useState(1);
+  const [drilldownRowsPerPage, setDrilldownRowsPerPage] = useState(10);
 
   const doctor_id = sessionStorage.getItem("doctor_id");
+
+  // ── Shared filter params ──
+  const baseFilters = {
+    doctor_id,
+    disease: selDiseases,
+    medication: [],
+    exclude_medication: excludeMeds,
+    medication_name: "",
+    age_group: ageGroup !== "All" ? ageGroup : undefined,
+    gender: gender !== "All" ? genderMap[gender] : undefined,
+    singleOnly,
+    combinedOnly,
+    includeExtra,
+  };
 
   const toggleD = d => {
     setSelDiseases(prev =>
       prev.includes(d) ? prev.filter(x => x !== d) : [...prev, d]
     );
-    setPage(1);
+    setDrugPage(1);
+    setTherapyPage(1);
+    setDrilldownPage(1);
   };
+
   const toggleExclude = m =>
     setExcludeMeds(prev =>
       prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]
     );
 
-  useEffect(() => {
-    const loadStats = async () => {
-      setLoadingStats(true);
-      setLoadingTable(true);
-
-      const res = await fetchDiseaseMedicationStats({
-        doctor_id,
-        disease: selDiseases,
-        medication: [],
-        exclude_medication: excludeMeds,
-        medication_name: "",
-        age_group: ageGroup !== "All" ? ageGroup : undefined,
-        gender: gender !== "All" ? genderMap[gender] : undefined,
-        singleOnly,
-        combinedOnly,
-        includeExtra,
-        page,
-        limit: rowsPerPage
-      });
-
-      setStats(res);
-      setLoadingStats(false);
-      setLoadingTable(false);
-    };
-
-    loadStats();
-  }, [
-    doctor_id, selDiseases, ageGroup, gender,
-    excludeMeds, singleOnly, combinedOnly, includeExtra,
-    page, rowsPerPage
-  ]);
-
+  // ── Reset on disease change ──
   useEffect(() => {
     setSingleOnly(false);
     setCombined(false);
-    setIncludeExtra(false); // ✅ also reset includeExtra when diseases change
-    setPage(1);
+    setIncludeExtra(false);
+    setDrugPage(1);
+    setTherapyPage(1);
+    setDrilldownPage(1);
   }, [selDiseases]);
+
+  // ── Effect 1: Stat cards + Drug Distribution ──
+  // Runs on filter change OR drug pagination change
+  useEffect(() => {
+    const load = async () => {
+      setLoadingStats(true);
+      setLoadingDrug(true);
+
+      const res = await fetchDiseaseMedicationStats({
+        ...baseFilters,
+        page: drugPage,
+        limit: drugRowsPerPage,
+        therapy_page: 1,
+        therapy_limit: 1,       // minimal — we only need drug data here
+        drilldown_page: 1,
+        drilldown_limit: 1,     // minimal
+      });
+
+      if (res) {
+        setStatsBase({
+          matched_patients: res.matched_patients,
+          total_patients: res.total_patients,
+          top_drug: res.top_drug,
+          percentage: res.percentage,
+        });
+        setDrugData(res.summary || []);
+        setDrugTotal(res.summary_total || 0);
+      }
+
+      setLoadingStats(false);
+      setLoadingDrug(false);
+    };
+
+    load();
+  }, [
+    doctor_id, selDiseases, ageGroup, gender,
+    excludeMeds, singleOnly, combinedOnly, includeExtra,
+    drugPage, drugRowsPerPage,
+  ]);
+
+  // ── Effect 2: Therapy Distribution only ──
+  // Runs on filter change OR therapy pagination change
+  useEffect(() => {
+    const load = async () => {
+      setLoadingTherapy(true);
+
+      const res = await fetchDiseaseMedicationStats({
+        ...baseFilters,
+        page: 1,
+        limit: 1,               // minimal
+        therapy_page: therapyPage,
+        therapy_limit: therapyRowsPerPage,
+        drilldown_page: 1,
+        drilldown_limit: 1,     // minimal
+      });
+
+      if (res) {
+        setTherapyData(res.therapy_distribution || []);
+        setTherapyTotal(res.therapy_total || 0);
+      }
+
+      setLoadingTherapy(false);
+    };
+
+    load();
+  }, [
+    doctor_id, selDiseases, ageGroup, gender,
+    excludeMeds, singleOnly, combinedOnly, includeExtra,
+    therapyPage, therapyRowsPerPage,
+  ]);
+
+  // ── Effect 3: Drilldown patients only ──
+  // Runs on filter change OR drilldown pagination change
+  useEffect(() => {
+    if (!showPatients) return; // don't fetch if panel is collapsed
+
+    const load = async () => {
+      setLoadingDrilldown(true);
+
+      const res = await fetchDiseaseMedicationStats({
+        ...baseFilters,
+        page: 1,
+        limit: 1,               // minimal
+        therapy_page: 1,
+        therapy_limit: 1,       // minimal
+        drilldown_page: drilldownPage,
+        drilldown_limit: drilldownRowsPerPage,
+      });
+
+      if (res) {
+        setDrilldownData(res.drilldown || []);
+      }
+
+      setLoadingDrilldown(false);
+    };
+
+    load();
+  }, [
+    doctor_id, selDiseases, ageGroup, gender,
+    excludeMeds, singleOnly, combinedOnly, includeExtra,
+    drilldownPage, drilldownRowsPerPage,
+    showPatients,
+  ]);
 
   const allMedsInResult =
     medicines?.length > 0
       ? medicines.map(m => m.label)
       : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
-
-  // ✅ Backend already excludes — no double filtering
-  const filteredSummaryData = useMemo(() => {
-    if (!stats?.summary) return [];
-    return stats.summary;
-  }, [stats]);
-
-  // ✅ Drilldown comes directly from stats — no separate API call
-  const drilldownPatients = stats?.drilldown || [];
 
   return (
     <div>
@@ -1396,10 +1496,16 @@ function DiseaseMedication({ diseases, medicines }) {
             />
           </div>
           <div style={{ flex: 1, minWidth: 160 }}>
-            <AgeRangeFilter value={ageGroup} onChange={v => { setAgeGroup(v); setPage(1); }} />
+            <AgeRangeFilter value={ageGroup} onChange={v => {
+              setAgeGroup(v);
+              setDrugPage(1); setTherapyPage(1); setDrilldownPage(1);
+            }} />
           </div>
           <div style={{ flex: 1, minWidth: 160 }}>
-            <GenderFilter value={gender} onChange={v => { setGender(v); setPage(1); }} />
+            <GenderFilter value={gender} onChange={v => {
+              setGender(v);
+              setDrugPage(1); setTherapyPage(1); setDrilldownPage(1);
+            }} />
           </div>
         </div>
 
@@ -1409,7 +1515,11 @@ function DiseaseMedication({ diseases, medicines }) {
               <input
                 type="checkbox"
                 checked={combinedOnly}
-                onChange={e => { setCombined(e.target.checked); if (e.target.checked) setIncludeExtra(false); setPage(1); }}
+                onChange={e => {
+                  setCombined(e.target.checked);
+                  if (e.target.checked) setIncludeExtra(false);
+                  setDrugPage(1); setTherapyPage(1); setDrilldownPage(1);
+                }}
                 style={{ accentColor: ACCENT }}
               />
               Combined - patients must have all and only selected diseases
@@ -1418,10 +1528,14 @@ function DiseaseMedication({ diseases, medicines }) {
               <input
                 type="checkbox"
                 checked={includeExtra}
-                onChange={e => { setIncludeExtra(e.target.checked); if (e.target.checked) setCombined(false); setPage(1); }}
+                onChange={e => {
+                  setIncludeExtra(e.target.checked);
+                  if (e.target.checked) setCombined(false);
+                  setDrugPage(1); setTherapyPage(1); setDrilldownPage(1);
+                }}
                 style={{ accentColor: ACCENT }}
               />
-              Combined (+) - Patients must have all selected medications and may have additional ones.
+              Combined (+) - Patients must have all selected disease and may have additional ones.
             </label>
           </>
         )}
@@ -1431,7 +1545,10 @@ function DiseaseMedication({ diseases, medicines }) {
             <input
               type="checkbox"
               checked={singleOnly}
-              onChange={e => { setSingleOnly(e.target.checked); setPage(1); }}
+              onChange={e => {
+                setSingleOnly(e.target.checked);
+                setDrugPage(1); setTherapyPage(1); setDrilldownPage(1);
+              }}
               style={{ accentColor: ACCENT }}
             />
             Only patients with this disease
@@ -1470,175 +1587,177 @@ function DiseaseMedication({ diseases, medicines }) {
           <>
             <StatCard
               label="Matched Patients"
-              value={stats?.matched_patients || 0}
-              sub={`${stats?.percentage || "0%"} of all patients`}
+              value={statsBase?.matched_patients || 0}
+              sub={`${statsBase?.percentage || "0%"} of all patients`}
               highlightSub
             />
-            <StatCard label="Total Patients" value={stats?.total_patients || 0} />
-            <StatCard label="Top Drug" value={stats?.top_drug || "—"} />
+            <StatCard label="Total Patients" value={statsBase?.total_patients || 0} />
+            <StatCard label="Top Drug" value={statsBase?.top_drug || "—"} />
           </>
         )}
       </div>
 
-{/* ── DRUG DISTRIBUTION BAR CHART ── */}
-<div style={S.card}>
-  <p style={S.cardTitle}>
-    Drug Distribution
-    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
-      among {stats?.matched_patients || 0} matched patients
-      <ExportButton
-        data={filteredSummaryData}
-        fileName="Drug_Distribution"
-        mapFn={(r, i) => ({
-          "S. No.": i + 1,
-          "Drug": r.medicine_name,
-          "Patients Count": r.patient_count,
-          "% of Matched": r.percent_matched,
-          "% of All Patients": r.percent_total,
-        })}
-      />
-    </span>
-  </p>
-
-  {loadingTable ? (
-    <LoadingPlaceholder />
-  ) : filteredSummaryData.length === 0 ? (
-    <div style={S.noData}>No data found</div>
-  ) : (
-    <div style={S.barWrap}>
-      {filteredSummaryData.map((d, i) => (
-        <HBar
-          key={i}
-          label={d.medicine_name}
-          value={d.patient_count}
-          total={stats?.matched_patients || 0}
-          pctVal={parseFloat(d.percent_matched)}
-        />
-      ))}
-    </div>
-  )}
-
-  <div style={{ marginTop: 14 }}>
-    <CustomPagination
-      count={stats?.matched_patients || 0}
-      page={page}
-      rowsPerPage={rowsPerPage}
-      onPageChange={newPage => setPage(newPage)}
-      onRowsPerPageChange={val => { setRowsPerPage(val); setPage(1); }}
-      hideRowsPerPage={true}
-    />
-  </div>
-
-  {/* Drilldown patients — unchanged */}
-  <div style={{ marginTop: 14 }}>
-    {stats?.matched_patients > 0 && (
-      <button style={S.expandBtn} onClick={() => setShowPatients(prev => !prev)}>
-        {showPatients ? "▲ Collapse patients" : "▼ Expand patients"}
-      </button>
-    )}
-    {showPatients && (
-      <>
-        <p style={{ fontWeight: 500, margin: "12px 0 8px" }}>
-          Total: {stats?.matched_patients || 0} patients
+      {/* ── DRUG DISTRIBUTION BAR CHART ── */}
+      <div style={S.card}>
+        <p style={S.cardTitle}>
+          Drug Distribution
+          <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
+            among {statsBase?.matched_patients || 0} matched patients
+            <ExportButton
+              data={drugData}
+              fileName="Drug_Distribution"
+              mapFn={(r, i) => ({
+                "S. No.": i + 1,
+                "Drug": r.medicine_name,
+                "Patients Count": r.patient_count,
+                "% of Matched": r.percent_matched,
+                "% of All Patients": r.percent_total,
+              })}
+            />
+          </span>
         </p>
-        {drilldownPatients.length === 0 ? (
-          <div style={S.noData}>No patients on this page</div>
+
+        {loadingDrug ? (
+          <LoadingPlaceholder />
+        ) : drugData.length === 0 ? (
+          <div style={S.noData}>No data found</div>
         ) : (
-          <DataTable
-            cols={[
-              { key: "name", label: "Patient Name", sortable: true, render: r => <span>{r.name}</span> },
-              { key: "age", label: "Age", sortable: true, render: r => <span>{r.age ?? "—"}</span> },
-              { key: "gender", label: "Gender", sortable: true, render: r => <Chip label={r.gender || "Not Specified"} /> },
-              { key: "diseases", label: "Diseases", render: r => (r.diseases || []).length > 0 ? r.diseases.map(d => <Chip key={d} label={d} />) : <span style={{ color: "#94a3b8" }}>—</span> },
-              { key: "medications", label: "Medications", render: r => (r.medications || []).length > 0 ? r.medications.map(m => <Chip key={m} label={m} teal />) : <span style={{ color: "#94a3b8" }}>—</span> },
-            ]}
-            rows={drilldownPatients}
-          />
+          <div style={S.barWrap}>
+            {drugData.map((d, i) => (
+              <HBar
+                key={i}
+                label={d.medicine_name}
+                value={d.patient_count}
+                total={statsBase?.matched_patients || 0}
+                pctVal={parseFloat(d.percent_matched)}
+              />
+            ))}
+          </div>
         )}
-        <div style={{ marginTop: 10 }}>
+
+        <div style={{ marginTop: 14 }}>
           <CustomPagination
-            count={stats?.matched_patients || 0}
-            page={page}
-            rowsPerPage={rowsPerPage}
-            onPageChange={newPage => setPage(newPage)}
-            onRowsPerPageChange={val => { setRowsPerPage(val); setPage(1); }}
+            count={drugTotal}
+            page={drugPage}
+            rowsPerPage={drugRowsPerPage}
+            onPageChange={newPage => setDrugPage(newPage)}
+            onRowsPerPageChange={val => { setDrugRowsPerPage(val); setDrugPage(1); }}
             hideRowsPerPage={true}
           />
         </div>
-      </>
-    )}
-  </div>
-</div>
+      </div>
 
-{/* ── MEDICATION DISTRIBUTION TABLE ── */}
-<div style={S.card}>
-  <p style={S.cardTitle}>
-    Medication Distribution
-    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
-      among {stats?.matched_patients || 0} matched patients
-      <ExportButton
-        data={filteredSummaryData}
-        fileName="Medication_Distribution"
-        mapFn={(r, i) => ({
-          "S. No.": i + 1,
-          "Medication": r.medicine_name,
-          "Patients Count": r.patient_count,
-          "% of Matched": r.percent_matched,
-        })}
-      />
-    </span>
-  </p>
+      {/* ── THERAPY DISTRIBUTION TABLE ── */}
+      <div style={S.card}>
+        <p style={S.cardTitle}>
+          Therapy Distribution
+          <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
+            among {statsBase?.matched_patients || 0} matched patients
+            <ExportButton
+              data={therapyData}
+              fileName="Therapy_Distribution"
+              mapFn={(r, i) => ({
+                "S. No.": i + 1,
+                "Therapy (Medication Combo)": r.medicine_name,
+                "Patients Count": r.patient_count,
+                "% of Matched": r.percent_matched,
+              })}
+            />
+          </span>
+        </p>
 
-  {loadingTable ? (
-    <LoadingPlaceholder />
-  ) : filteredSummaryData.length === 0 ? (
-    <div style={S.noData}>No data found</div>
-  ) : (
-    <DataTable
-      cols={[
-        {
-          key: "medicine_name",
-          label: "Medication",
-          sortable: true,
-          render: r => <Chip label={r.medicine_name} teal={true} />
-        },
-        {
-          key: "patient_count",
-          label: "Patients",
-          sortable: true,
-          render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.patient_count}</span>
-        },
-        {
-          key: "percent_matched",
-          label: "% of Matched",
-          sortable: true,
-          render: r => <span>{parseFloat(r.percent_matched).toFixed(1)}%</span>
-        },
-        {
-          key: "bar",
-          label: "",
-          render: r => (
-            <div style={{ ...S.barTrack, minWidth: 80 }}>
-              <div style={S.barFill(parseFloat(r.percent_matched))} />
+        {loadingTherapy ? (
+          <LoadingPlaceholder />
+        ) : therapyData.length === 0 ? (
+          <div style={S.noData}>No data found</div>
+        ) : (
+          <DataTable
+            cols={[
+              {
+                key: "medicine_name",
+                label: "Medication",
+                sortable: true,
+                render: r => <Chip label={r.medicine_name} teal={true} />
+              },
+              {
+                key: "patient_count",
+                label: "Patients",
+                sortable: true,
+                render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.patient_count}</span>
+              },
+              {
+                key: "percent_matched",
+                label: "% of Matched",
+                sortable: true,
+                render: r => <span>{parseFloat(r.percent_matched).toFixed(1)}%</span>
+              },
+              {
+                key: "bar",
+                label: "",
+                render: r => (
+                  <div style={{ ...S.barTrack, minWidth: 80 }}>
+                    <div style={S.barFill(parseFloat(r.percent_matched))} />
+                  </div>
+                )
+              }
+            ]}
+            rows={therapyData}
+          />
+        )}
+
+        <div style={{ marginTop: 14 }}>
+          <CustomPagination
+            count={therapyTotal}
+            page={therapyPage}
+            rowsPerPage={therapyRowsPerPage}
+            onPageChange={newPage => setTherapyPage(newPage)}
+            onRowsPerPageChange={val => { setTherapyRowsPerPage(val); setTherapyPage(1); }}
+            hideRowsPerPage={true}
+          />
+        </div>
+      </div>
+
+      {/* ── DRILLDOWN PATIENTS ── */}
+      <div style={{ marginTop: 14 }}>
+        {(statsBase?.matched_patients || 0) > 0 && (
+          <button style={S.expandBtn} onClick={() => setShowPatients(prev => !prev)}>
+            {showPatients ? "▲ Collapse patients" : "▼ Expand patients"}
+          </button>
+        )}
+        {showPatients && (
+          <>
+            <p style={{ fontWeight: 500, margin: "12px 0 8px" }}>
+              Total: {statsBase?.matched_patients || 0} patients
+            </p>
+            {loadingDrilldown ? (
+              <LoadingPlaceholder />
+            ) : drilldownData.length === 0 ? (
+              <div style={S.noData}>No patients on this page</div>
+            ) : (
+              <DataTable
+                cols={[
+                  { key: "name", label: "Patient Name", sortable: true, render: r => <span>{r.name}</span> },
+                  { key: "age", label: "Age", sortable: true, render: r => <span>{r.age ?? "—"}</span> },
+                  { key: "gender", label: "Gender", sortable: true, render: r => <Chip label={r.gender || "Not Specified"} /> },
+                  { key: "diseases", label: "Diseases", render: r => (r.diseases || []).length > 0 ? r.diseases.map(d => <Chip key={d} label={d} />) : <span style={{ color: "#94a3b8" }}>—</span> },
+                  { key: "medications", label: "Medications", render: r => (r.medications || []).length > 0 ? r.medications.map(m => <Chip key={m} label={m} teal />) : <span style={{ color: "#94a3b8" }}>—</span> },
+                ]}
+                rows={drilldownData}
+              />
+            )}
+            <div style={{ marginTop: 10 }}>
+              <CustomPagination
+                count={statsBase?.matched_patients || 0}
+                page={drilldownPage}
+                rowsPerPage={drilldownRowsPerPage}
+                onPageChange={newPage => setDrilldownPage(newPage)}
+                onRowsPerPageChange={val => { setDrilldownRowsPerPage(val); setDrilldownPage(1); }}
+                hideRowsPerPage={true}
+              />
             </div>
-          )
-        }
-      ]}
-      rows={filteredSummaryData}
-    />
-  )}
-
-  <div style={{ marginTop: 14 }}>
-    <CustomPagination
-      count={stats?.matched_patients || 0}
-      page={page}
-      rowsPerPage={rowsPerPage}
-      onPageChange={newPage => setPage(newPage)}
-      onRowsPerPageChange={val => { setRowsPerPage(val); setPage(1); }}
-      hideRowsPerPage={true}
-    />
-  </div>
-</div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -1648,215 +1767,219 @@ function MedicationDemo({ medicines }) {
     medicines?.length > 0
       ? medicines.map(m => m.label)
       : [...new Set(ALL_PATIENTS.flatMap(p => p.meds))].sort();
+
   const [selMeds, setSelMeds] = useState([]);
   const [ageGroup, setAgeGroup] = useState("All");
   const [gender, setGender] = useState("All");
-  const [loading, setLoading] = useState(false);
-  const [page, setPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
-  const [summaryPage, setSummaryPage] = useState(1);
-  const [summaryRowsPerPage, setSummaryRowsPerPage] = useState(10);
-  const [patientsData, setPatientsData] = useState(null);
-  const [summaryData, setSummaryData] = useState([]);
-  const [summaryLoading, setSummaryLoading] = useState(false);
   const [combinedOnly, setCombined] = useState(false);
   const [singleOnly, setSingleOnly] = useState(false);
   const [includeExtra, setIncludeExtra] = useState(false);
 
+  // ── Separate state for each section ──
+  const [statsBase, setStatsBase] = useState(null);
+  const [drugData, setDrugData] = useState([]);
+  const [drugTotal, setDrugTotal] = useState(0);
+  const [therapyData, setTherapyData] = useState([]);
+  const [therapyTotal, setTherapyTotal] = useState(0);
+  const [patientDetails, setPatientDetails] = useState([]);
+  const [patientTotal, setPatientTotal] = useState(0);
+  const [demographics, setDemographics] = useState([]);
+
+  // ── Separate loading states ──
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [loadingDrug, setLoadingDrug] = useState(false);
+  const [loadingTherapy, setLoadingTherapy] = useState(false);
+  const [loadingPatients, setLoadingPatients] = useState(false);
+
+  // ── Separate pagination ──
+  const [drugPage, setDrugPage] = useState(1);
+  const [drugRowsPerPage, setDrugRowsPerPage] = useState(10);
+
+  const [therapyPage, setTherapyPage] = useState(1);
+  const [therapyRowsPerPage, setTherapyRowsPerPage] = useState(10);
+
+  const [patientPage, setPatientPage] = useState(1);
+  const [patientRowsPerPage, setPatientRowsPerPage] = useState(10);
+
   const doctor_id = sessionStorage.getItem("doctor_id");
 
-  const toggleM = m => setSelMeds(prev => prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]);
+  const toggleM = m => setSelMeds(prev =>
+    prev.includes(m) ? prev.filter(x => x !== m) : [...prev, m]
+  );
 
+  // ── Shared filters ──
+  const baseFilters = {
+    doctor_id,
+    medication: selMeds,
+    age_group: ageGroup !== "All" ? ageGroup : undefined,
+    gender: gender !== "All" ? genderMap[gender] : undefined,
+    singleOnly,
+    combinedOnly,
+    includeExtra,
+  };
+
+  // ── Reset pages on filter change ──
   useEffect(() => {
-    const loadSummary = async () => {
-      setSummaryLoading(true);
-      const res = await fetchMedicationFull({
-        doctor_id,
-        medication: selMeds,
-        age_group: ageGroup !== "All" ? ageGroup : undefined,
-        gender: gender !== "All" ? genderMap[gender] : undefined,
-        summary_page: summaryPage,
-        summary_limit: summaryRowsPerPage,
-        singleOnly,
-        combinedOnly,
-        includeExtra,
-      });
+    setDrugPage(1); setTherapyPage(1); setPatientPage(1);
+  }, [selMeds, ageGroup, gender, singleOnly, combinedOnly, includeExtra]);
 
-      if (res) setSummaryData(res.summary || []);
-      setSummaryLoading(false);
-    };
-
-    loadSummary();
-  }, [doctor_id, selMeds, ageGroup, gender, summaryPage, summaryRowsPerPage, singleOnly, combinedOnly, includeExtra]);
-
+  // ── Effect 1: Stat cards + Demographics + Drug Distribution ──
   useEffect(() => {
-    const loadPatients = async () => {
-      setLoading(true);
+    const load = async () => {
+      setLoadingStats(true);
+      setLoadingDrug(true);
 
       const res = await fetchMedicationFull({
-        doctor_id,
-        medication: selMeds,
-        age_group: ageGroup !== "All" ? ageGroup : undefined,
-        gender: gender !== "All" ? genderMap[gender] : undefined,
-        patient_page: page,
-        patient_limit: rowsPerPage,
-        singleOnly,
-        combinedOnly,
-        includeExtra,
+        ...baseFilters,
+        summary_page: drugPage,
+        summary_limit: drugRowsPerPage,
+        therapy_page: 1,
+        therapy_limit: 1,
+        patient_page: 1,
+        patient_limit: 1,
       });
 
-      if (res) setPatientsData(res);
-      setLoading(false);
+      if (res) {
+        setStatsBase({
+          total_patients: res.total_patients,
+          matched_patients: res.matched_patients,
+          percentage: res.percentage,
+          selected_medication_count: res.selected_medication_count,
+        });
+        setDemographics(res.demographics || []);
+        setDrugData(res.summary || []);
+        setDrugTotal(res.summary_total || 0);
+      }
+
+      setLoadingStats(false);
+      setLoadingDrug(false);
     };
 
-    loadPatients();
-  }, [doctor_id, selMeds, ageGroup, gender, page, rowsPerPage, singleOnly, combinedOnly, includeExtra]);
+    load();
+  }, [
+    doctor_id, selMeds, ageGroup, gender,
+    singleOnly, combinedOnly, includeExtra,
+    drugPage, drugRowsPerPage,
+  ]);
 
-  // const basePool = useMemo(() => ALL_PATIENTS.filter(p => {
-  //   if (ageGroup !== "All" && !AGE_GROUPS[ageGroup](p.age)) return false;
-  //   if (gender !== "All" && p.gender !== gender) return false;
-  //   return true;
-  // }), [ageGroup, gender]);
+  // ── Effect 2: Therapy Distribution only ──
+  useEffect(() => {
+    const load = async () => {
+      setLoadingTherapy(true);
+
+      const res = await fetchMedicationFull({
+        ...baseFilters,
+        summary_page: 1,
+        summary_limit: 1,
+        therapy_page: therapyPage,
+        therapy_limit: therapyRowsPerPage,
+        patient_page: 1,
+        patient_limit: 1,
+      });
+
+      if (res) {
+        setTherapyData(res.therapy_distribution || []);
+        setTherapyTotal(res.therapy_total || 0);
+      }
+
+      setLoadingTherapy(false);
+    };
+
+    load();
+  }, [
+    doctor_id, selMeds, ageGroup, gender,
+    singleOnly, combinedOnly, includeExtra,
+    therapyPage, therapyRowsPerPage,
+  ]);
+
+  // ── Effect 3: Patient table only ──
+  useEffect(() => {
+    const load = async () => {
+      setLoadingPatients(true);
+
+      const res = await fetchMedicationFull({
+        ...baseFilters,
+        summary_page: 1,
+        summary_limit: 1,
+        therapy_page: 1,
+        therapy_limit: 1,
+        patient_page: patientPage,
+        patient_limit: patientRowsPerPage,
+      });
+
+      if (res) {
+        setPatientDetails(res.details || []);
+        setPatientTotal(res.patient_total || 0);
+      }
+
+      setLoadingPatients(false);
+    };
+
+    load();
+  }, [
+    doctor_id, selMeds, ageGroup, gender,
+    singleOnly, combinedOnly, includeExtra,
+    patientPage, patientRowsPerPage,
+  ]);
+
+  const matchedPatients = statsBase?.matched_patients || 0;
+  const totalPatients = statsBase?.total_patients || 0;
+  const percentage = statsBase?.percentage || "0.00%";
+  const totalMedications = statsBase?.selected_medication_count || 0;
+
+  const ageDist = useMemo(() => {
+    if (!demographics.length) return [];
+    const map = {};
+    demographics.forEach(d => {
+      map[d.age_group] = (map[d.age_group] || 0) + d.count;
+    });
+    return Object.entries(map).map(([label, value]) => ({
+      label,
+      value,
+      pct: matchedPatients > 0 ? ((value / matchedPatients) * 100).toFixed(1) : "0.0",
+    }));
+  }, [demographics, matchedPatients]);
+
+  const genderDist = useMemo(() => {
+    if (!demographics.length) return [];
+    const map = {};
+    demographics.forEach(d => {
+      const g = normalizeGender(d.gender);
+      map[g] = (map[g] || 0) + d.count;
+    });
+    return Object.entries(map).map(([label, value]) => ({
+      label,
+      value,
+      pct: matchedPatients > 0 ? ((value / matchedPatients) * 100).toFixed(1) : "0.0",
+    }));
+  }, [demographics, matchedPatients]);
 
   const patients = useMemo(() => {
-    if (!patientsData?.details) return [];
-
-    return patientsData.details.map(p => ({
+    return patientDetails.map(p => ({
       id: p.user_id,
       name: p.name,
       age: p.age,
       gender: p.gender || "Not Specified",
-
       conditions: Array.isArray(p.diseases)
         ? p.diseases.map(d => d.name || "").filter(Boolean)
         : [],
-
       meds: Array.isArray(p.medications)
         ? p.medications.map(m => m.name).filter(Boolean)
         : [],
     }));
-  }, [patientsData]);
-
-  const totalPatients = patientsData?.total_patients || 0;
-  const matchedPatients = patientsData?.matched_patients || 0;
-  const percentage = patientsData?.percentage || "0.00%";
-  const totalMedications = patientsData?.selected_medication_count || 0;
-
-  // const medDist = useMemo(() => {
-  //   if (!summaryData) return [];
-
-  //   return summaryData.map(item => ({
-  //     label: item.medicine_name,
-  //     value: item.patient_count,
-  //     pct: parseFloat(item.percentage),
-  //   }));
-  // }, [summaryData]);
-
-  const demographics = patientsData?.demographics || [];
-  // const ageDist = useMemo(() => {
-  //   if (!demographics.length) return [];
-
-  //   const map = {
-  //     "0-18": 0,
-  //     "19-30": 0,
-  //     "31-45": 0,
-  //     "46+": 0,
-  //   };
-
-  //   demographics.forEach(d => {
-  //     const label = getAgeGroupLabel(d.age_group);
-  //     if (map[label] !== undefined) {
-  //       map[label] += d.count;
-  //     }
-  //   });
-
-  //   return Object.entries(map).map(([label, value]) => ({
-  //     label,
-  //     value,
-  //     pct: ((value / matchedPatients) * 100).toFixed(1),
-  //   }));
-  // }, [demographics, matchedPatients]);
-  const ageDist = useMemo(() => {
-    if (!demographics.length) return [];
-
-    const map = {};
-
-    demographics.forEach(d => {
-      map[d.age_group] = (map[d.age_group] || 0) + d.count;
-    });
-
-    return Object.entries(map).map(([label, value]) => ({
-      label,
-      value,
-      pct: ((value / matchedPatients) * 100).toFixed(1),
-    }));
-  }, [demographics, matchedPatients]);
-  // const genderDist = useMemo(() => {
-  //   if (!demographics.length) return [];
-
-  //   const map = {
-  //     Male: 0,
-  //     Female: 0,
-  //     Other: 0,
-  //     "Not Specified": 0,
-  //   };
-
-  //   demographics.forEach(d => {
-  //     const g = normalizeGender(d.gender);
-  //     map[g] += d.count;
-  //   });
-
-  //   return Object.entries(map).map(([label, value]) => ({
-  //     label,
-  //     value,
-  //     pct: ((value / matchedPatients) * 100).toFixed(1),
-  //   }));
-  // }, [demographics, matchedPatients]);
-  const genderDist = useMemo(() => {
-    if (!demographics.length) return [];
-
-    const map = {};
-
-    demographics.forEach(d => {
-      const g = normalizeGender(d.gender);
-
-      map[g] = (map[g] || 0) + d.count;
-    });
-
-    return Object.entries(map).map(([label, value]) => ({
-      label,
-      value,
-      pct: ((value / matchedPatients) * 100).toFixed(1),
-    }));
-  }, [demographics, matchedPatients]);
-
-  useEffect(() => {
-    setPage(1);
-    setSummaryPage(1);
-  }, [selMeds, ageGroup, gender]);
+  }, [patientDetails]);
 
   const handleCombinedChange = (checked) => {
     setCombined(checked);
-    if (checked) {
-      setSingleOnly(false);
-      setIncludeExtra(false);
-    }
+    if (checked) { setSingleOnly(false); setIncludeExtra(false); }
   };
-
   const handleSingleOnlyChange = (checked) => {
     setSingleOnly(checked);
-    if (checked) {
-      setCombined(false);
-      setIncludeExtra(false);
-    }
+    if (checked) { setCombined(false); setIncludeExtra(false); }
   };
-
   const handleIncludeExtraChange = (checked) => {
     setIncludeExtra(checked);
-    if (checked) {
-      setCombined(false);
-      setSingleOnly(false);
-    }
+    if (checked) { setCombined(false); setSingleOnly(false); }
   };
 
   return (
@@ -1868,29 +1991,29 @@ function MedicationDemo({ medicines }) {
 
       <div style={S.filterBar}>
         <div style={S.filterRow}>
-          <div style={{ flex: 2, minWidth: 200 }}><TagSearch label="Medication" all={allMeds} selected={selMeds} onToggle={toggleM} searchPlaceholder="Search medications…" /></div>
-          <div style={{ flex: 1, minWidth: 160 }}><AgeRangeFilter value={ageGroup} onChange={setAgeGroup} /></div>
-          <div style={{ flex: 1, minWidth: 160 }}><GenderFilter value={gender} onChange={setGender} /></div>
+          <div style={{ flex: 2, minWidth: 200 }}>
+            <TagSearch label="Medication" all={allMeds} selected={selMeds} onToggle={toggleM} searchPlaceholder="Search medications…" />
+          </div>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <AgeRangeFilter value={ageGroup} onChange={v => { setAgeGroup(v); setDrugPage(1); setTherapyPage(1); setPatientPage(1); }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 160 }}>
+            <GenderFilter value={gender} onChange={v => { setGender(v); setDrugPage(1); setTherapyPage(1); setPatientPage(1); }} />
+          </div>
         </div>
+
         {selMeds.length >= 2 && (
           <div style={{ marginTop: 4 }}>
             <label style={{ ...S.checkLabel(combinedOnly), marginRight: 20 }}>
-              <input
-                type="checkbox"
-                checked={combinedOnly}
-                onChange={(e) => handleCombinedChange(e.target.checked)}
-                style={{ accentColor: ACCENT }}
-              />
-              Combined - patients must have all and only selected diseases
+              <input type="checkbox" checked={combinedOnly}
+                onChange={e => handleCombinedChange(e.target.checked)}
+                style={{ accentColor: ACCENT }} />
+              Combined - patients must have all and only selected medications
             </label>
-
             <label style={S.checkLabel(includeExtra)}>
-              <input
-                type="checkbox"
-                checked={includeExtra}
-                onChange={(e) => handleIncludeExtraChange(e.target.checked)}
-                style={{ accentColor: ACCENT }}
-              />
+              <input type="checkbox" checked={includeExtra}
+                onChange={e => handleIncludeExtraChange(e.target.checked)}
+                style={{ accentColor: ACCENT }} />
               Combined (+) - Patients must have all selected medications and may have additional ones.
             </label>
           </div>
@@ -1899,41 +2022,27 @@ function MedicationDemo({ medicines }) {
         {selMeds.length === 1 && (
           <div style={{ marginTop: 4 }}>
             <label style={S.checkLabel(singleOnly)}>
-              <input
-                type="checkbox"
-                checked={singleOnly}
-                onChange={(e) => handleSingleOnlyChange(e.target.checked)}
-                style={{ accentColor: ACCENT }}
-              />
+              <input type="checkbox" checked={singleOnly}
+                onChange={e => handleSingleOnlyChange(e.target.checked)}
+                style={{ accentColor: ACCENT }} />
               Only patients with this medication (exact match)
             </label>
           </div>
         )}
       </div>
 
+      {/* ── STAT CARDS ── */}
       <div style={S.statRow}>
-        {loading ? (
+        {loadingStats ? (
           <>
-            <div style={S.statCard}>
-              <div style={S.statLbl}>Matched Patients</div>
-              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
-                <CircularProgress size={24} />
+            {["Matched Patients", "Total Patients", "Selected Medications"].map(lbl => (
+              <div key={lbl} style={S.statCard}>
+                <div style={S.statLbl}>{lbl}</div>
+                <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
+                  <CircularProgress size={24} />
+                </div>
               </div>
-            </div>
-
-            <div style={S.statCard}>
-              <div style={S.statLbl}>Total Patients</div>
-              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
-                <CircularProgress size={24} />
-              </div>
-            </div>
-
-            <div style={S.statCard}>
-              <div style={S.statLbl}>Selected Medications</div>
-              <div style={{ ...S.statVal, display: "flex", justifyContent: "center", alignItems: "center", height: 36 }}>
-                <CircularProgress size={24} />
-              </div>
-            </div>
+            ))}
           </>
         ) : (
           <>
@@ -1944,128 +2053,167 @@ function MedicationDemo({ medicines }) {
         )}
       </div>
 
-      {/* <div style={S.grid2}> */}
-        {/* <div style={S.card}>
-          <p style={S.cardTitle}>Medication Distribution <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of {matchedPatients} matched patients</span></p>
-          {summaryLoading ? (
-            <LoadingPlaceholder />
-          ) : (
-            <div style={S.barWrap}>{medDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={matchedPatients} pctVal={d.pct} />)}</div>
-          )}
+      {/* ── AGE + GENDER BREAKDOWN ── */}
+      <div style={S.grid2}>
+        {ageDist.length > 0 && (
+          <div style={S.card}>
+            <p style={S.cardTitle}>Age Breakdown <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of matched</span></p>
+            {loadingStats ? (
+              <LoadingPlaceholder />
+            ) : (
+              <div style={S.barWrap}>
+                {ageDist.map((d, i) => (
+                  <HBar key={i} label={d.label} value={d.value} total={matchedPatients} pctVal={d.pct} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {genderDist.length > 0 && (
+          <div style={S.card}>
+            <p style={S.cardTitle}>Sex Breakdown <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of matched</span></p>
+            {loadingStats ? (
+              <LoadingPlaceholder />
+            ) : (
+              <div style={S.barWrap}>
+                {genderDist.map((d, i) => (
+                  <HBar key={i} label={d.label} value={d.value} total={matchedPatients} pctVal={d.pct} color={GCOLORS[d.label]} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── DRUG DISTRIBUTION BAR CHART ── */}
+      <div style={S.card}>
+        <p style={S.cardTitle}>
+          Drug Distribution
+          <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
+            among {matchedPatients} matched patients
+            <ExportButton
+              data={drugData}
+              fileName="Drug_Distribution"
+              mapFn={(r, i) => ({
+                "S. No.": i + 1,
+                "Drug": r.medicine_name,
+                "Patients Count": r.patient_count,
+                "% of Matched": r.percentage,
+              })}
+            />
+          </span>
+        </p>
+
+        {loadingDrug ? (
+          <LoadingPlaceholder />
+        ) : drugData.length === 0 ? (
+          <div style={S.noData}>No data found</div>
+        ) : (
+          <div style={S.barWrap}>
+            {drugData.map((d, i) => (
+              <HBar
+                key={i}
+                label={d.medicine_name}
+                value={d.patient_count}
+                total={matchedPatients}
+                pctVal={parseFloat(d.percentage)}
+              />
+            ))}
+          </div>
+        )}
+
+        <div style={{ marginTop: 14 }}>
           <CustomPagination
-            count={patientsData?.summary_total || 0}
-            page={summaryPage}
-            rowsPerPage={summaryRowsPerPage}
-            onPageChange={(newPage) => setSummaryPage(newPage)}
-            onRowsPerPageChange={(val) => {
-              setSummaryRowsPerPage(val);
-              setSummaryPage(1);
-            }}
+            count={drugTotal}
+            page={drugPage}
+            rowsPerPage={drugRowsPerPage}
+            onPageChange={newPage => setDrugPage(newPage)}
+            onRowsPerPageChange={val => { setDrugRowsPerPage(val); setDrugPage(1); }}
             hideRowsPerPage={true}
           />
-        </div> */}
-
-
-{/* ── DRUG DISTRIBUTION TABLE ── */}
-<div style={S.card}>
-  <p style={S.cardTitle}>
-    Drug Distribution
-    <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
-      among {matchedPatients} matched patients
-      <ExportButton
-        data={summaryData}
-        fileName="Drug_Distribution"
-        mapFn={(r, i) => ({
-          "S. No.": i + 1,
-          "Medication": r.medicine_name,
-          "Patients Count": r.patient_count,
-          "% of Matched": r.percentage,
-        })}
-      />
-    </span>
-  </p>
-
-  {summaryLoading ? (
-    <LoadingPlaceholder />
-  ) : summaryData.length === 0 ? (
-    <div style={S.noData}>No data found</div>
-  ) : (
-    <DataTable
-      cols={[
-        {
-          key: "medicine_name",
-          label: "Medication",
-          sortable: true,
-          render: r => <Chip label={r.medicine_name} teal={true} />
-        },
-        {
-          key: "patient_count",
-          label: "Patients",
-          sortable: true,
-          render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.patient_count}</span>
-        },
-        {
-          key: "percentage",
-          label: "% of Matched",
-          sortable: true,
-          render: r => <span>{parseFloat(r.percentage).toFixed(1)}%</span>
-        },
-        {
-          key: "bar",
-          label: "",
-          render: r => (
-            <div style={{ ...S.barTrack, minWidth: 80 }}>
-              <div style={S.barFill(parseFloat(r.percentage))} />
-            </div>
-          )
-        }
-      ]}
-      rows={summaryData}
-    />
-  )}
-
-  <CustomPagination
-    count={patientsData?.summary_total || 0}
-    page={summaryPage}
-    rowsPerPage={summaryRowsPerPage}
-    onPageChange={(newPage) => setSummaryPage(newPage)}
-    onRowsPerPageChange={(val) => { setSummaryRowsPerPage(val); setSummaryPage(1); }}
-    hideRowsPerPage={true}
-  />
-</div>
-         <div style={S.grid2}>
-          {ageDist.length > 0 && (
-            <div style={S.card}>
-              <p style={S.cardTitle}>Age Breakdown <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of matched</span></p>
-              {loading ? (
-                <LoadingPlaceholder />
-              ) : (
-                <div style={S.barWrap}>{ageDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={patients.length} pctVal={d.pct} />)}</div>
-              )}
-            </div>
-          )}
-          {genderDist.length > 0 && (
-            <div style={S.card}>
-              <p style={S.cardTitle}>Sex Breakdown <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400 }}>% of matched</span></p>
-              {loading ? (
-                <LoadingPlaceholder />
-              ) : (
-                <div style={S.barWrap}>{genderDist.map((d, i) => <HBar key={i} label={d.label} value={d.value} total={patients.length} pctVal={d.pct} color={GCOLORS[d.label]} />)}</div>
-              )}
-            </div>
-          )}
         </div>
-      {/* </div> */}
+      </div>
 
+      {/* ── THERAPY DISTRIBUTION TABLE ── */}
+      <div style={S.card}>
+        <p style={S.cardTitle}>
+          Therapy Distribution
+          <span style={{ fontSize: 10, color: "#94a3b8", fontWeight: 400, marginLeft: 8, display: "flex", alignItems: "end" }}>
+            among {matchedPatients} matched patients
+            <ExportButton
+              data={therapyData}
+              fileName="Therapy_Distribution"
+              mapFn={(r, i) => ({
+                "S. No.": i + 1,
+                "Therapy (Medication Combo)": r.medicine_name,
+                "Patients Count": r.patient_count,
+                "% of Matched": r.percentage,
+              })}
+            />
+          </span>
+        </p>
+
+        {loadingTherapy ? (
+          <LoadingPlaceholder />
+        ) : therapyData.length === 0 ? (
+          <div style={S.noData}>No data found</div>
+        ) : (
+          <DataTable
+            cols={[
+              {
+                key: "medicine_name",
+                label: "Medication",
+                sortable: true,
+                render: r => <Chip label={r.medicine_name} teal={true} />
+              },
+              {
+                key: "patient_count",
+                label: "Patients",
+                sortable: true,
+                render: r => <span style={{ fontWeight: 700, color: ACCENT }}>{r.patient_count}</span>
+              },
+              {
+                key: "percentage",
+                label: "% of Matched",
+                sortable: true,
+                render: r => <span>{parseFloat(r.percentage).toFixed(1)}%</span>
+              },
+              {
+                key: "bar",
+                label: "",
+                render: r => (
+                  <div style={{ ...S.barTrack, minWidth: 80 }}>
+                    <div style={S.barFill(parseFloat(r.percentage))} />
+                  </div>
+                )
+              }
+            ]}
+            rows={therapyData}
+          />
+        )}
+
+        <div style={{ marginTop: 14 }}>
+          <CustomPagination
+            count={therapyTotal}
+            page={therapyPage}
+            rowsPerPage={therapyRowsPerPage}
+            onPageChange={newPage => setTherapyPage(newPage)}
+            onRowsPerPageChange={val => { setTherapyRowsPerPage(val); setTherapyPage(1); }}
+            hideRowsPerPage={true}
+          />
+        </div>
+      </div>
+
+      {/* ── PATIENT TABLE ── */}
       <div style={S.card}>
         <p style={S.cardTitle}>Patient Table</p>
-        {loading ? (
+        {loadingPatients ? (
           <LoadingPlaceholder />
         ) : (
           <DataTable
             cols={[
-              { key: "name", label: "Patient Name", sortable: true, },
-              { key: "age", label: "Age", sortable: true, },
+              { key: "name", label: "Patient Name", sortable: true },
+              { key: "age", label: "Age", sortable: true },
               { key: "gender", label: "Gender", sortable: true, render: r => <span style={S.badge(r.gender)}>{r.gender}</span> },
               { key: "conditions", label: "Diseases", sortable: true, render: r => <DChips arr={r.conditions} /> },
               { key: "meds", label: "Medications", sortable: true, render: r => <MChips arr={r.meds} /> },
@@ -2074,17 +2222,16 @@ function MedicationDemo({ medicines }) {
             empty="No patients match the selected filters"
           />
         )}
-        <CustomPagination
-          count={patientsData?.patient_total || 0}
-          page={page}
-          rowsPerPage={rowsPerPage}
-          onPageChange={(newPage) => setPage(newPage)}
-          onRowsPerPageChange={(val) => {
-            setRowsPerPage(val);
-            setPage(1);
-          }}
-          hideRowsPerPage={true}
-        />
+        <div style={{ marginTop: 14 }}>
+          <CustomPagination
+            count={patientTotal}
+            page={patientPage}
+            rowsPerPage={patientRowsPerPage}
+            onPageChange={newPage => setPatientPage(newPage)}
+            onRowsPerPageChange={val => { setPatientRowsPerPage(val); setPatientPage(1); }}
+            hideRowsPerPage={true}
+          />
+        </div>
       </div>
     </div>
   );
@@ -2243,7 +2390,7 @@ function MedicationDisease({ medicines, diseases }) {
                 onChange={(e) => handleComboOnlyChange(e.target.checked)}
                 style={{ accentColor: ACCENT }}
               />
-              Combination — patients must be on ALL selected medications (exact match)
+              Combined - patients must have all and only selected medications
             </label>
 
             <label style={S.checkLabel(includeExtra)}>
@@ -2253,7 +2400,7 @@ function MedicationDisease({ medicines, diseases }) {
                 onChange={(e) => handleIncludeExtraChange(e.target.checked)}
                 style={{ accentColor: ACCENT }}
               />
-              Include patients on these + extra medications
+              Combined (+) - Patients must have all selected medications and may have additional ones.
             </label>
           </div>
         )}
@@ -2879,7 +3026,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
                       if (e.target.checked) setIncludeExtraDisease(false);
                     }}
                     style={{ accentColor: ACCENT }} />
-                  Patients only on this disease
+                  Combined - patients must have all and only selected diseases
                 </label>
                 <label style={{ ...S.checkLabel(includeExtraDisease), marginTop: 6, display: "flex", alignItems: "center", gap: 7, lineHeight: "1.2" }}>
                   <input type="checkbox" checked={includeExtraDisease}
@@ -2888,7 +3035,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
                       if (e.target.checked) setCombinedOnlyDisease(false);
                     }}
                     style={{ accentColor: ACCENT }} />
-                  Include patients with these + extra diseases
+                  Combined (+) - Patients must have all selected disease and may have additional ones.
                 </label>
               </>
             )}
@@ -2919,7 +3066,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
                       if (e.target.checked) setIncludeExtraMed(false);
                     }}
                     style={{ accentColor: ACCENT }} />
-                  Patients only on this medication
+                  Combined - patients must have all and only selected medications
                 </label>
                 <label style={{ ...S.checkLabel(includeExtraMed), marginTop: 6, display: "flex", alignItems: "center", gap: 7, lineHeight: "1.2" }}>
                   <input type="checkbox" checked={includeExtraMed}
@@ -2928,7 +3075,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
                       if (e.target.checked) setCombinedOnlyMed(false);
                     }}
                     style={{ accentColor: ACCENT }} />
-                  Include patients on these + extra medications
+                  Combined (+) - Patients must have all selected medications and may have additional ones.
                 </label>
               </>
             )}
