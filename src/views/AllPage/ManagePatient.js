@@ -235,11 +235,14 @@ const handleSort = (key) => {
   //     setLoading(true);
   //   }
   // }, [selectedPatientId]);
-  useEffect(() => {
-    if (patients.length > 0 && doctor_id) {
-      setSelectedPatientId((prev) => prev || patients[0].user_id);
-    }
-  }, [patients, doctor_id]);
+useEffect(() => {
+  if (patients.length > 0 && doctor_id) {
+    setSelectedPatientId((prev) => prev || patients[0].user_id);
+  } else {
+    setSelectedPatientId(null);
+    setUserDetails({});
+  }
+}, [patients, doctor_id]);
 
   const contentTypes = {
     medication: 1,
@@ -688,22 +691,34 @@ const handleAddNote = async () => {
 
 }, [selectedPatientId]);
 
-  React.useEffect(() => {
-    axios
-      .get(`${Base_Url}get_all_patient`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      })
-      .then((response) => {
-        if (response.data.success && response.data.patient !== 'NA') {
-          setPatients(response.data.patient);
-        }
-      })
-      .catch((error) => {
-        console.error('Error fetching patient list:', error);
-      });
-  }, []);
+React.useEffect(() => {
+  axios
+    .get(`${Base_Url}get_all_patient`, {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+    .then((response) => {
+
+      if (
+        response.data.success &&
+        response.data.patient &&
+        response.data.patient !== 'NA'
+      ) {
+        setPatients(response.data.patient);
+      } else {
+        setPatients([]);
+      }
+
+      setInitialLoading(false);
+    })
+    .catch((error) => {
+      console.error('Error fetching patient list:', error);
+
+      setPatients([]);
+      setInitialLoading(false);
+    });
+}, []);
 
   // ========================
 
@@ -1422,6 +1437,7 @@ const chartPageData = [...paginatedData].reverse();
           >
             <span style={{ color: '#1ddec4' }}>Dashboard</span> / View Patient
           </Typography> */}
+          {patients.length > 0 && (
           <Card className="border-0 shadow-lg rounded-4 mb-4" style={{ position: "relative" }}>
             {switchLoading && (
               <div
@@ -1459,7 +1475,7 @@ const chartPageData = [...paginatedData].reverse();
 
                 {/* Info */}
                 <div className="flex-grow-1">
-                  <h5 className="fw-bold mb-1">{user_data.name}</h5>
+                  <h5 className="fw-bold mb-1">{user_data?.name || "No Patient Selected"}</h5>
                   <div className="d-flex gap-2">
                     <small className="text-muted">
                       Email ID:{" "}
@@ -1510,7 +1526,46 @@ const chartPageData = [...paginatedData].reverse();
               </div>
             </Card.Body>
           </Card>
+          )}
+{patients.length === 0 ? (
+  <Card className="border-0 shadow-lg rounded-4">
+    <Card.Body
+      className="d-flex flex-column justify-content-center align-items-center"
+      style={{
+        minHeight: "500px"
+      }}
+    >
+      <img
+        src={`${IMAGE_PATH}placeholder.jpg`}
+        alt="No Patients"
+        style={{
+          width: "120px",
+          height: "120px",
+          opacity: 0.5,
+          marginBottom: "20px"
+        }}
+      />
 
+      <h4
+        style={{
+          fontWeight: 600,
+          color: "#374151"
+        }}
+      >
+        No Patients Found
+      </h4>
+
+      <p
+        style={{
+          color: "#9ca3af",
+          marginTop: "8px"
+        }}
+      >
+        This doctor does not have any patients yet.
+      </p>
+    </Card.Body>
+  </Card>
+) : (
           <div className="row g-2 d-flex align-items-stretch" style={{ position: "relative" }}>
             {switchLoading && (
               <div
@@ -1552,7 +1607,9 @@ const chartPageData = [...paginatedData].reverse();
     scrollbarColor: "#1ddec4 #f1f5f9"
                 }}>
                   {currentPatients.map((patient) => {
-                    const isActive = patient.user_id == selectedPatientId;
+                    const isActive =
+  patient?.user_id &&
+  String(patient.user_id) === String(selectedPatientId);
 
                     return (
                       <button
@@ -1735,6 +1792,7 @@ const chartPageData = [...paginatedData].reverse();
 
             </div>
           </div>
+          )}
 
           <CustomModal
             show={showNoteModal}
