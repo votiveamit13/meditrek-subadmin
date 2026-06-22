@@ -2025,7 +2025,7 @@ function MedicationDemo({ medicines }) {
               <input type="checkbox" checked={singleOnly}
                 onChange={e => handleSingleOnlyChange(e.target.checked)}
                 style={{ accentColor: ACCENT }} />
-              Only patients with this medication (exact match)
+              Patients on only this medication
             </label>
           </div>
         )}
@@ -2414,7 +2414,7 @@ function MedicationDisease({ medicines, diseases }) {
                 onChange={(e) => handleSingleOnlyChange(e.target.checked)}
                 style={{ accentColor: ACCENT }}
               />
-              Only patients with this medication (exact match)
+              Patients on only this medication
             </label>
           </div>
         )}
