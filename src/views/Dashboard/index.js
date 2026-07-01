@@ -217,26 +217,26 @@ const fetchGraphData = async (year) => {
         >
           <Grid item xs={12} sm={6} md={4} lg={2.4}>
             {/* <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}> */}
-              <ReportCard primary={patient} secondary="Total Patients" growth={`${patientGrowth}%`} color={theme.palette.success.main} iconPrimary={PeopleAltIcon} loading={!patient} />
+              <ReportCard primary={patient ?? 0} secondary="Total Patients" growth={`${patientGrowth}%`} color={theme.palette.success.main} iconPrimary={PeopleAltIcon} loading={patient === null} />
             {/* </Link> */}
           </Grid>
 
           <Grid item xs={12} sm={6} md={4} lg={2.4}>
             {/* <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}> */}
               <ReportCard
-                primary={medication}
+                primary={medication ?? 0}
                 secondary="Total Medications"
                 growth={`${medicationGrowth}%`}
                 color={theme.palette.primary.main}
                 iconPrimary={MedicationIcon}
-                loading={!patient} 
+                loading={patient === null} 
               />
             {/* </Link> */}
           </Grid>
 
           <Grid item xs={12} sm={6} md={4} lg={2.4}>
             {/* <Link to={APP_PREFIX_PATH + '/manage-patients'} style={{ textDecoration: 'none' }}> */}
-              <ReportCard primary={adverse} secondary="Reported Health" growth={`${adverseGrowth}%`} color={theme.palette.warning.main} iconPrimary={WarningAmberIcon} loading={!patient} />
+              <ReportCard primary={adverse ?? 0} secondary="Reported Health" growth={`${adverseGrowth}%`} color={theme.palette.warning.main} iconPrimary={WarningAmberIcon} loading={patient === null} />
             {/* </Link> */}
           </Grid>
 

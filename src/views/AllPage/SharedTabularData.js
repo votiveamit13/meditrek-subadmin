@@ -677,7 +677,11 @@ function SharedTabularData() {
     axios.get(`${Base_Url}get_all_patient`, {
       headers: { Authorization: `Bearer ${sessionStorage.getItem('token')}` }
     }).then(res => {
-      if (res.data.success) setPatients(res.data.patient || []);
+      if (res.data.success) {
+  setPatients(Array.isArray(res.data.patient) ? res.data.patient : []);
+} else {
+  setPatients([]);
+}
     });
   }, []);
 

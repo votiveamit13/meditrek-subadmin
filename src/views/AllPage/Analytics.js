@@ -3012,7 +3012,7 @@ function CustomizeTable({ diseases, medicines, symptoms }) {
                 <input type="checkbox" checked={singleOnlyDisease}
                   onChange={e => setSingleOnlyDisease(e.target.checked)}
                   style={{ accentColor: ACCENT }} />
-                Patients only on this disease
+                Patients with only this disease
               </label>
             )}
 
