@@ -105,9 +105,6 @@ const Profile = () => {
   const SUPPORTED_FORMATS = ['image/jpg', 'image/jpeg', 'image/gif', 'image/png'];
 
   const profileValidationSchema = Yup.object().shape({
-    name: Yup.string()
-    .trim()
-    .required('Please enter Full Name'),
     mobile: Yup.string()
       .matches(/^[0-9]{10}$/, 'Mobile number must be 10 digits')
       .required('Please enter Mobile Number'),
@@ -500,29 +497,26 @@ const Profile = () => {
                               Full Name <span style={{ color: '#dc2626' }}>*</span>
                             </Form.Label>
                             <Form.Control
-  type="text"
-  placeholder="Enter Name"
-  name="name"
-  value={values.name}
-  onChange={handleChange}
-  onBlur={handleBlur}
-  onFocus={(e) => {
-    e.target.style.border = '1.5px solid #1ddec4';
-    e.target.style.boxShadow = 'none';
-    e.target.style.outline = 'none';
-  }}
-  style={{
-    borderRadius: '10px',
-    border: '1px solid #e5e7eb',
-    padding: '10px 14px',
-    fontSize: '13px'
-  }}
-/>
-{errors.name && touched.name && (
-  <div style={{ color: '#dc2626', fontSize: '12px', marginTop: '4px' }}>
-    {errors.name}
-  </div>
-)}
+                              type="text"
+                              placeholder="Enter Name"
+                              name="name"
+                              value={values.name}
+                              disabled
+                              readOnly
+                              onFocus={(e) => {
+                                e.target.style.border = '1.5px solid #1ddec4';
+                                e.target.style.boxShadow = 'none';
+                                e.target.style.outline = 'none';
+                              }}
+                              style={{
+                                borderRadius: '10px',
+                                border: '1px solid #e5e7eb',
+                                padding: '10px 14px',
+                                fontSize: '13px',
+                                backgroundColor: '#f5f5f5',
+                                cursor: 'not-allowed'
+                              }}
+                            />
                           </Form.Group>
                         </div>
 
